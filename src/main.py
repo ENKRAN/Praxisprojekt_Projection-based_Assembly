@@ -3,127 +3,121 @@ import numpy as np
 import cv2
 from pupil_apriltags import Detector
 
+def draw_axes(img, rvec, tvec, camera_matrix, dist_coeffs, axis_length) -> np.ndarray:
+    # Define 3D points for the axes: Origin and end points for x, y, z axes
+    axis_points = np.float32([[0, 0, 0],            # Origin
+                              [axis_length, 0, 0],  # x-axis
+                              [0, axis_length, 0],  # y-axis
+                              [0, 0, axis_length]]) # z-axis
 
-
-# Funktion zum Zeichnen der 3D-Koordinatenachsen mit Pfeilen
-def draw_axes(img, corners, rvec, tvec, camera_matrix, dist_coeffs, axis_length):
-    # Definiere 3D-Punkte für die Achsen: Ursprung und Endpunkte (x, y, z)
-    axis_points = np.float32([[0, 0, 0],            # Ursprung
-                              [axis_length, 0, 0],  # x-Achse
-                              [0, axis_length, 0],  # y-Achse
-                              [0, 0, axis_length]]) # z-Achse
-
-    # Projektion der 3D-Achsenpunkte in das 2D-Bild
+    # Project the 3D axis points onto the 2D image
     imgpts, _ = cv2.projectPoints(axis_points, rvec, tvec, camera_matrix, dist_coeffs)
 
-    # Umwandeln in Integer-Pixelkoordinaten
+    # Convert the points into integer pixel coordinates
     imgpts = np.int32(imgpts).reshape(-1, 2)
 
-    # Zeichne die Achsen (x=rot, y=grün, z=blau) mit Pfeilspitzen
+    # Draw the axes (x=red, y=green, z=blue) with arrow tips
     origin = tuple(imgpts[0])
-    img = cv2.arrowedLine(img, origin, tuple(imgpts[1]), (0, 0, 255), 2, tipLength=0.3)  # x-Achse (rot)
-    img = cv2.arrowedLine(img, origin, tuple(imgpts[2]), (0, 255, 0), 2, tipLength=0.3)  # y-Achse (grün)
-    img = cv2.arrowedLine(img, origin, tuple(imgpts[3]), (255, 0, 0), 2, tipLength=0.3)  # z-Achse (blau)
+    img = cv2.arrowedLine(img, origin, tuple(imgpts[1]), (0, 0, 255), 2, tipLength=0.3)  # x-axis (red)
+    img = cv2.arrowedLine(img, origin, tuple(imgpts[2]), (0, 255, 0), 2, tipLength=0.3)  # y-axis (green)
+    img = cv2.arrowedLine(img, origin, tuple(imgpts[3]), (255, 0, 0), 2, tipLength=0.3)  # z-axis (blue)
+
     return img
 
-# Funktion zum Zeichnen der Umrandungen und der ID-Beschriftung
-def draw_tag_border_and_id(frame, result):
+def draw_tag_border_and_id(frame, result) -> np.ndarray:
     corners = np.array(result.corners, dtype=np.int32).reshape((-1, 1, 2))
-    # Zeichne die Umrandung des Tags
+    
+    # Draw the border of the tag
     frame = cv2.polylines(frame, [corners], isClosed=True, color=(0, 255, 0), thickness=2)
-    # Beschrifte den Tag mit der ID
+
+    # Label the tag with its ID
     center = tuple(corners[0][0])
-    cv2.putText(frame, f"ID: {result.tag_id}", (center[0], center[1] - 10), 
-                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+    cv2.putText(frame, f"ID: {result.tag_id}", (center[0], center[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+
     return frame
 
-def main():
-    # RealSense-Kamera initialisieren
+def main() -> None:
+    # Initialize the RealSense pipeline
     pipeline = rs.pipeline()
     config = rs.config()
 
-    # Wähle den Farbstream (RGB) aus
+    # Choose the color stream
     config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
 
-    # Starte den Stream
+    # Start the pipeline with the configuration
     profile = pipeline.start(config)
 
-    # Hole die intrinsics des Farbstreams
+    # Get the color sensor and its intrinsics
     color_sensor = profile.get_device().first_color_sensor()
     intrinsics = color_sensor.get_stream_profiles()[0].as_video_stream_profile().get_intrinsics()
 
-    # Kameraintrinsische Parameter auslesen
-    fx = intrinsics.fx
-    fy = intrinsics.fy
-    cx = intrinsics.ppx  # Optischer Mittelpunkt X
-    cy = intrinsics.ppy  # Optischer Mittelpunkt Y
-    dist_coeffs = np.array(intrinsics.coeffs)
+    # Get the camera parameters
+    fx = intrinsics.fx  # Focal length in x-direction
+    fy = intrinsics.fy  # Focal length in y-direction
+    cx = intrinsics.ppx  # Principal point in x-direction
+    cy = intrinsics.ppy  # Principal point in y-direction
+    dist_coeffs = np.array(intrinsics.coeffs)  # Distortion coefficients
 
-    # Die Kameramatrix zusammenstellen
+    # Set the camera matrix with the intrinsics
     camera_matrix = np.array([[fx, 0, cx],
                             [0, fy, cy],
                             [0, 0, 1]])
 
-    # Größe des AprilTags in Metern (z.B. 4 cm)
+    # AprilTag size (edge length in meters)
     tag_size = 0.04
 
-    # AprilTag-Detektor initialisieren
+    # Initialize the AprilTag detector
     detector = Detector(families="tagStandard41h12")
 
-    # 3D-Achsenlängen für die Visualisierung (vergrößert)
-    axis_length = tag_size * 2.0  # Achsen sind nun doppelt so lang wie das Tag
+    # Length of the axes in the visualization
+    axis_length = tag_size * 2.0  # Axis length is twice the tag size
 
-    # Z-Achsen-Richtungsfilter
-    previous_z_direction = None  # Variable zum Speichern der vorherigen z-Achse
+    # Z-Axis stabilization
+    previous_z_direction = None
 
     try:
         while True:
-            # Frame erfassen
+            # Wait for the next set of frames
             frames = pipeline.wait_for_frames()
             color_frame = frames.get_color_frame()
             if not color_frame:
                 continue
 
-            # In NumPy-Array konvertieren
+            # Convert the color frame to a numpy array for OpenCV
             frame = np.asanyarray(color_frame.get_data())
 
-            # In Graustufen konvertieren
+            # Convert the frame to grayscale for AprilTag detection
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-            # AprilTags erkennen
+            # Detect AprilTags in the image
             results = detector.detect(gray, estimate_tag_pose=True, camera_params=[fx, fy, cx, cy], tag_size=tag_size)
 
-            # Erkennungen und Posen verarbeiten
             for result in results:
                 # print(f"Tag ID: {result.tag_id}")
 
-                # Translationsvektor (Position des Tags relativ zur Kamera)
+                # Translation vector (Position relative to the camera)
                 tvec = result.pose_t
-                # Rotationsmatrix (Orientierung des Tags relativ zur Kamera)
+                # Matrix representing the rotation (Orientation relative to the camera)
                 rvec = result.pose_R
 
-                # Z-Richtungsstabilisierung:
-                # Berechne die Richtung der z-Achse (tvec[2] ist die z-Komponente)
-                current_z_direction = np.sign(tvec[2])  # Bestimme, ob z positiv oder negativ ist
-
-                # Prüfe, ob die z-Achse plötzlich die Richtung geändert hat
+                # Stabilize the z-axis direction
+                current_z_direction = np.sign(tvec[2])
                 if previous_z_direction is not None and current_z_direction != previous_z_direction:
-                    print("Achtung: Die z-Achse hat die Richtung geändert!")
-                    # Option 1: Zwingen der z-Achse immer positiv zu sein
+                    print("Warning: z-axis direction changed!")
                     if tvec[2] < 0:
-                        tvec = -tvec  # Invertiere den gesamten Translationsvektor
+                        tvec = -tvec  # Invert the entire translation vector if z is negative
 
-                # Aktualisiere die vorherige z-Richtung
+                # Update the previous z-direction
                 previous_z_direction = current_z_direction
 
-                # Zeichne das Koordinatensystem (Achsen) auf das Bild
-                frame = draw_axes(frame, result.corners, rvec, tvec, camera_matrix, dist_coeffs, axis_length)
+                # Draw the coordinate axes on the image
+                frame = draw_axes(frame, rvec, tvec, camera_matrix, dist_coeffs, axis_length)
 
-                # Zeichne die Umrandungen und die ID des Tags
+                # Draw the border and ID of the tag on the image
                 frame = draw_tag_border_and_id(frame, result)
 
-            # Bild anzeigen
-            cv2.imshow('AprilTag-Erkennung mit Koordinatensystem und IDs', frame)
+            # Display the image with the AprilTag detection
+            cv2.imshow('AprilTag Detection with Axes and IDs', frame)
             if cv2.waitKey(1) == ord('q'):
                 break
     finally:
