@@ -3,6 +3,8 @@ import cv2
 from camera import Camera
 from apriltag_detection import AprilTagDetector
 from visualization import draw_axes, draw_tag_border_and_id
+from image_processing import save_component_img
+from user_interaction import edit_saved_image
 
 def main() -> None:
     # Initialize the camera
@@ -34,8 +36,6 @@ def main() -> None:
             results = apriltag_detector.detect(gray)
 
             for result in results:
-                # print(f"Tag ID: {result.tag_id}")
-
                 # Translation vector (Position relative to the camera)
                 tvec = result.pose_t
 
@@ -44,15 +44,25 @@ def main() -> None:
 
                 # TODO: Maybe implement z-axis stabilization
                 
-                # Draw the coordinate axes on the image
+                # Draw the axes and tag border with ID
                 color_frame = draw_axes(color_frame, rvec, tvec, camera_matrix, dist_coeffs, axis_length)
-
-                # Draw the border and ID of the tag on the image
                 color_frame = draw_tag_border_and_id(color_frame, result)
 
             # Display the image with the AprilTag detection
             cv2.imshow('AprilTag Detection with Axes and IDs', color_frame)
-            if cv2.waitKey(1) == ord('q'):
+
+            # Wait for a key press
+            key = cv2.waitKey(1) & 0xFF
+
+            # Save the image if the space key is pressed
+            if key == ord(' '):
+                if results:
+                    # Save the image of the component if a tag was detected and open it for editing
+                    saved_image_path = save_component_img(color_frame, results[0].tag_id)
+                    edit_saved_image(saved_image_path)
+
+            # Close the window if the 'q' key is pressed
+            if key == ord('q'):
                 break
     finally:
         camera.stop()
