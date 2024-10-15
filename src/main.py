@@ -59,7 +59,7 @@ def main() -> None:
                 if results:
                     # Save the image of the component if a tag was detected and open it for editing
                     saved_image_path = save_component_img(color_frame, results[0].tag_id)
-                    edit_saved_image(saved_image_path)
+                    edit_saved_image(saved_image_path, rvec, tvec, camera_matrix, dist_coeffs)
 
             # Close the window if the 'q' key is pressed
             if key == ord('q'):
