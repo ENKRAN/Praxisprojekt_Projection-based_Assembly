@@ -1,20 +1,19 @@
 import cv2
-import numpy as np
 
 # Global variables for drawing
 drawing = False  # True if the mouse is pressed
 mode = 'circle'  # Default mode is to draw circles
 ix, iy = -1, -1  # Initial mouse position
+temp_img = None  # Temporary image for drawing
 
-# Mouse callback function for drawing
-def draw(event, x, y, flags, param):
+def draw(event, x, y, flags, param) -> None:
     """
     Mouse callback function to handle drawing on the image.
 
     :param event: The mouse event (e.g., left button down, move, up)
     :param x: X-coordinate of the mouse position
     :param y: Y-coordinate of the mouse position
-    :param flags: Any relevant flags during the event
+    :param flags: Any flags passed by OpenCV
     :param param: The original image being drawn on (passed as parameter)
     """
     global ix, iy, drawing, mode, temp_img
@@ -43,11 +42,12 @@ def draw(event, x, y, flags, param):
         if mode == 'circle':
             # Finalize the circle on the original image
             cv2.circle(param, (ix, iy), int(((x-ix)**2 + (y-iy)**2)**0.5), (0, 255, 0), 2)
+            print(f"Circle drawn at: ({ix}, {iy}) with radius: {int(((x-ix)**2 + (y-iy)**2)**0.5)}")
         elif mode == 'line':
             # Finalize the line on the original image
             cv2.line(param, (ix, iy), (x, y), (255, 0, 0), 2)
+            print(f"Line drawn from: ({ix}, {iy}) to ({x}, {y})")
 
-# Function to open and edit a saved image
 def edit_saved_image(image_path: str) -> None:
     """
     Opens a saved image and allows the user to draw on it.
@@ -78,13 +78,15 @@ def edit_saved_image(image_path: str) -> None:
         if key == ord('l'):
             global mode
             mode = 'line'
+            print("Drawing mode: Line")
         elif key == ord('c'):
             mode = 'circle'
+            print("Drawing mode: Circle")
 
         # Save the edited image with 's'
         if key == ord('s'):
             cv2.imwrite('../data/saved_images/edited_image.png', img)
-            print("Image saved.")
+            print("Edited image saved at: ../data/saved_images/edited_image.png")
 
         # Quit the editing with 'q'
         if key == ord('q'):

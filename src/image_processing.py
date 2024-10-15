@@ -21,6 +21,6 @@ def save_component_img(frame, tag_id, save_dir="../data/saved_images") -> str:
 
     # Save the image to disk
     cv2.imwrite(filepath, frame)
-    print(f"Image saved: {filepath}")
+    print(f"Image saved at: {filepath}")
 
     return filepath
