@@ -1,32 +1,32 @@
-import cv2
 import numpy as np
 
-def pixel_to_tag_coords(pixel_point, rvec, tvec, camera_matrix, dist_coeffs):
-    """
-    Wandelt Bildkoordinaten (Pixelkoordinaten) in AprilTag-Koordinaten um.
-    """
-    # Pixelkoordinaten als 2D-Punkt
-    pixel_point = np.array([[pixel_point]], dtype=np.float32)
+def pixelcoords_to_apriltagcoords(u, v, depth_frame, intrinsics, april_tag_pose):
+    # Schritt 1: Erhalte die Tiefe genau am Kreiszentrum
+    Z = depth_frame.get_distance(int(u), int(v))  # Tiefe in Metern
 
-    # Verwandle den 2D-Punkt in den 3D-Raum (Koordinaten relativ zum AprilTag)
-    undistorted_point = cv2.undistortPoints(pixel_point, camera_matrix, dist_coeffs)
+    if Z == 0:
+        print("Keine Tiefeninformation an den angegebenen Pixelkoordinaten verfügbar.")
+        return None
 
-    # Wenn rvec eine 3x3-Matrix ist, verwende es als Rotationsmatrix, ansonsten verwandle es
-    if rvec.shape == (3, 3):
-        rotation_matrix = rvec
-    else:
-        rotation_matrix, _ = cv2.Rodrigues(rvec)
+    # Schritt 2: Projiziere in 3D-Kamerakoordinaten (X, Y, Z)
+    X = (u - intrinsics.ppx) * Z / intrinsics.fx
+    Y = (v - intrinsics.ppy) * Z / intrinsics.fy
+    P_c = np.array([X, Y, Z])
+    
+    # Debug: Ausgabe der Kamerakoordinaten (P_c)
+    print(f"Kamerakoordinaten P_c: {P_c}")
 
-    # Überprüfe die Form von rotation_matrix (sollte 3x3 sein)
-    assert rotation_matrix.shape == (3, 3), "Rotation matrix is not 3x3!"
+    # Schritt 3: Bestimme die Transformation vom AprilTag zur Kamera
+    R_ct, t_ct = april_tag_pose
 
-    # Verwende die z-Komponente von tvec (die Tiefe des AprilTags) für die Projektion
-    tag_depth = tvec[2]  # Tiefe des AprilTags
+    # Transformiere den Punkt in das AprilTag-Koordinatensystem
+    P_t = R_ct.T @ (P_c - t_ct.flatten())
 
-    # Nun setzen wir die z-Komponente des Punktes auf die Tiefe des AprilTags
-    undistorted_point_3d = np.array([undistorted_point[0][0], undistorted_point[0][1], tag_depth])
+    print(f"AprilTag Position (t_ct): {t_ct.flatten()}")
+    print(f"AprilTag Rotation (R_ct):\n{R_ct}")
 
-    # Rückprojektion in den 3D-Raum (achte darauf, dass beide Punkte jetzt 3D sind)
-    tag_point = np.dot(np.linalg.inv(rotation_matrix), (undistorted_point_3d - np.squeeze(tvec)))
 
-    return tag_point
+    # Debug: Ausgabe des transformierten Punkts P_t
+    print(f"3D-Koordinaten relativ zum AprilTag: {P_t}")
+
+    return P_t

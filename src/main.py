@@ -2,13 +2,13 @@ import numpy as np
 import cv2
 from camera import Camera
 from apriltag_detection import AprilTagDetector
-from visualization import draw_axes, draw_tag_border_and_id
+from visualization import draw_axes, draw_tag_border_and_id, visualize_depth_image
 from image_processing import save_component_img
 from user_interaction import edit_saved_image
 
 def main() -> None:
     # Initialize the camera
-    camera = Camera(enable_depth=False)
+    camera = Camera()
 
     # Get the color sensor and its intrinsics
     fx, fy, ppx, ppy, dist_coeffs = camera.get_color_sensor_intrinsics()
@@ -22,15 +22,15 @@ def main() -> None:
     
     # Length of the axes in the visualization
     axis_length = apriltag_detector.tag_size * 2.0  # Axis length is twice the tag size
-
+    
     try:
         while True:
-            color_frame, _ = camera.get_frames()
-            if color_frame is None:
+            color_frame, depth_frame, color_image, depth_image = camera.get_frames()
+            if color_frame is None or depth_frame is None:
                 continue
 
             # Convert the frame to grayscale for AprilTag detection
-            gray = cv2.cvtColor(color_frame, cv2.COLOR_BGR2GRAY)
+            gray = cv2.cvtColor(color_image, cv2.COLOR_BGR2GRAY)
 
             # Detect AprilTags in the image
             results = apriltag_detector.detect(gray)
@@ -40,16 +40,16 @@ def main() -> None:
                 tvec = result.pose_t
 
                 # Rotation vector (Orientation relative to the camera)
-                rvec = result.pose_R
+                rvec, _ = cv2.Rodrigues(result.pose_R)
 
                 # TODO: Maybe implement z-axis stabilization
                 
                 # Draw the axes and tag border with ID
-                color_frame = draw_axes(color_frame, rvec, tvec, camera_matrix, dist_coeffs, axis_length)
-                color_frame = draw_tag_border_and_id(color_frame, result)
+                color_image = draw_axes(color_image, rvec, tvec, camera_matrix, dist_coeffs, axis_length)
+                color_image = draw_tag_border_and_id(color_image, result)
 
             # Display the image with the AprilTag detection
-            cv2.imshow('AprilTag Detection with Axes and IDs', color_frame)
+            cv2.imshow('AprilTag Detection with Axes and IDs', color_image)
 
             # Wait for a key press
             key = cv2.waitKey(1) & 0xFF
@@ -58,9 +58,9 @@ def main() -> None:
             if key == ord(' '):
                 if results:
                     # Save the image of the component if a tag was detected and open it for editing
-                    saved_image_path = save_component_img(color_frame, results[0].tag_id)
-                    edit_saved_image(saved_image_path, rvec, tvec, camera_matrix, dist_coeffs)
-
+                    visualize_depth_image(depth_image)  # Visualisiere hier das Tiefenbild
+                    saved_image_path = save_component_img(color_image, results[0].tag_id)
+                    edit_saved_image(saved_image_path, depth_frame, apriltag_detector.detector, results[0], camera_matrix, dist_coeffs)
             # Close the window if the 'q' key is pressed
             if key == ord('q'):
                 break

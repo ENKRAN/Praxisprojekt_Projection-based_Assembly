@@ -1,5 +1,5 @@
 import cv2
-from utils import pixel_to_tag_coords
+from utils import pixelcoords_to_apriltagcoords
 
 # Global variables for drawing
 drawing = False  # True if the mouse is pressed
@@ -25,6 +25,9 @@ def draw(event, x, y, flags, param) -> None:
     camera_matrix = param["camera_matrix"]
     dist_coeffs = param["dist_coeffs"]
     img = param["image"]
+    depth_frame = param["depth_frame"]
+    intrinsics = param["intrinsics"]
+
 
     # Left mouse button pressed - set the initial point
     if event == cv2.EVENT_LBUTTONDOWN:
@@ -50,16 +53,33 @@ def draw(event, x, y, flags, param) -> None:
         if mode == 'circle':
             # Finalize the circle on the original image
             cv2.circle(img, (ix, iy), int(((x-ix)**2 + (y-iy)**2)**0.5), (0, 255, 0), 2)
-            print(f"Circle drawn at: ({ix}, {iy}) with radius: {int(((x-ix)**2 + (y-iy)**2)**0.5)}")
+            cv2.putText(img, f"(x: {ix}px, y: {iy}px)", (ix, iy), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 2)
+            print(f"Circle drawn at: (x: {ix}px, y: {iy}px) with radius: {int(((x-ix)**2 + (y-iy)**2)**0.5)}px")
+
+            # Pose des AprilTags als Rotationsmatrix und Translationsvektor
+            R_ct = rvec  # Rotationsmatrix des AprilTags
+            t_ct = tvec.reshape(3, 1)
+
+            april_tag_pose = (R_ct, t_ct)
+
+            # Konvertiere die Intrinsiken in das richtige Format
+            P_t = pixelcoords_to_apriltagcoords(ix, iy, depth_frame, intrinsics, april_tag_pose)
+
+            if P_t is not None:
+                print(f"3D-Koordinaten relativ zum AprilTag: {P_t}")
+            else:
+                print("Konnte die 3D-Koordinaten nicht berechnen.")
+
         elif mode == 'line':
             # Finalize the line on the original image
             cv2.line(img, (ix, iy), (x, y), (255, 0, 0), 2)
-            print(f"Line drawn from: ({ix}, {iy}) to ({x}, {y})")
+            print(f"Line drawn from: (x: {ix}px, y: {iy}px) to (x: {x}px, y: {y}px)")
 
-        tag_point = pixel_to_tag_coords((x, y), rvec, tvec, camera_matrix, dist_coeffs)
-        print(f"Marking relative to the AprilTag: {tag_point}")
+        print(f"Mouse coordinates (Pixel): (x: {x}px, y: {y}px)")
 
-def edit_saved_image(image_path, rvec, tvec, camera_matrix, dist_coeffs) -> None:
+        # FIXME: fix the pixel_to_tag_coords function in utils.py
+
+def edit_saved_image(image_path, depth_frame, detector, result, camera_matrix, dist_coeffs) -> None:    
     """
     Opens a saved image and allows the user to draw on it.
 
@@ -77,11 +97,13 @@ def edit_saved_image(image_path, rvec, tvec, camera_matrix, dist_coeffs) -> None
 
     # Pack the additional parameters into a dictionary
     params = {
-        "rvec": rvec,
-        "tvec": tvec,
+        "rvec": result.pose_R,
+        "tvec": result.pose_t,
         "camera_matrix": camera_matrix,
         "dist_coeffs": dist_coeffs,
-        "image": img
+        "image": img,
+        "depth_frame": depth_frame,
+        "intrinsics": depth_frame.profile.as_video_stream_profile().intrinsics
     }
 
     cv2.namedWindow('Editing')
