@@ -11,9 +11,11 @@ def main() -> None:
     camera = Camera()
 
     # Get the color sensor and its intrinsics
-    fx, fy, ppx, ppy, dist_coeffs = camera.get_color_sensor_intrinsics()
+    color_intrinsics = camera.get_color_sensor_intrinsics()
 
-    apriltag_detector = AprilTagDetector(fx=fx, fy=fy, cx=ppx, cy=ppy)
+    depth_intrinsics = camera.get_depth_sensor_intrinsics()
+
+    apriltag_detector = AprilTagDetector(fx=color_intrinsics["fx"], fy=color_intrinsics["fy"], cx=color_intrinsics["ppx"], cy=color_intrinsics["ppy"])
 
     # Set the camera matrix with the intrinsics
     camera_matrix = np.array([[apriltag_detector.fx, 0, apriltag_detector.cx],
@@ -25,8 +27,8 @@ def main() -> None:
     
     try:
         while True:
-            color_frame, depth_frame, color_image, depth_image = camera.get_frames()
-            if color_frame is None or depth_frame is None:
+            color_image, depth_image, depth_frame, _ = camera.get_frames()
+            if color_image is None or depth_image is None or depth_frame is None:
                 continue
 
             # Convert the frame to grayscale for AprilTag detection
@@ -45,7 +47,7 @@ def main() -> None:
                 # TODO: Maybe implement z-axis stabilization
                 
                 # Draw the axes and tag border with ID
-                color_image = draw_axes(color_image, rvec, tvec, camera_matrix, dist_coeffs, axis_length)
+                color_image = draw_axes(color_image, rvec, tvec, camera_matrix, color_intrinsics["dist_coeffs"], axis_length)
                 color_image = draw_tag_border_and_id(color_image, result)
 
             # Display the image with the AprilTag detection
@@ -60,7 +62,9 @@ def main() -> None:
                     # Save the image of the component if a tag was detected and open it for editing
                     visualize_depth_image(depth_image)  # Visualisiere hier das Tiefenbild
                     saved_image_path = save_component_img(color_image, results[0].tag_id)
-                    edit_saved_image(saved_image_path, depth_frame, apriltag_detector.detector, results[0], camera_matrix, dist_coeffs)
+
+
+                    edit_saved_image(saved_image_path, results[0], camera_matrix, depth_frame, depth_intrinsics)
             # Close the window if the 'q' key is pressed
             if key == ord('q'):
                 break

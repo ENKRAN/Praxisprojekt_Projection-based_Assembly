@@ -7,7 +7,7 @@ mode = 'circle'  # Default mode is to draw circles
 ix, iy = -1, -1  # Initial mouse position
 temp_img = None  # Temporary image for drawing
 
-def draw(event, x, y, flags, param) -> None:
+def draw(event, x, y, flags, params) -> None:
     """
     Mouse callback function to handle drawing on the image.
 
@@ -20,13 +20,12 @@ def draw(event, x, y, flags, param) -> None:
     global ix, iy, drawing, mode, temp_img
 
     # Extract the parameters from the dictionary
-    rvec = param["rvec"]
-    tvec = param["tvec"]
-    camera_matrix = param["camera_matrix"]
-    dist_coeffs = param["dist_coeffs"]
-    img = param["image"]
-    depth_frame = param["depth_frame"]
-    intrinsics = param["intrinsics"]
+    rvec = params["rvec"]
+    tvec = params["tvec"]
+    camera_matrix = params["camera_matrix"]
+    img = params["image"]
+    depth_frame = params["depth_frame"]
+    depth_intrinsics = params["depth_intrinsics"]
 
 
     # Left mouse button pressed - set the initial point
@@ -50,25 +49,24 @@ def draw(event, x, y, flags, param) -> None:
     # Left mouse button released - finalize the drawing
     elif event == cv2.EVENT_LBUTTONUP:
         drawing = False
+
         if mode == 'circle':
             # Finalize the circle on the original image
             cv2.circle(img, (ix, iy), int(((x-ix)**2 + (y-iy)**2)**0.5), (0, 255, 0), 2)
             cv2.putText(img, f"(x: {ix}px, y: {iy}px)", (ix, iy), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 2)
+
             print(f"Circle drawn at: (x: {ix}px, y: {iy}px) with radius: {int(((x-ix)**2 + (y-iy)**2)**0.5)}px")
 
-            # Pose des AprilTags als Rotationsmatrix und Translationsvektor
-            R_ct = rvec  # Rotationsmatrix des AprilTags
-            t_ct = tvec.reshape(3, 1)
-
-            april_tag_pose = (R_ct, t_ct)
+            april_tag_pose = (rvec, tvec)
 
             # Konvertiere die Intrinsiken in das richtige Format
-            P_t = pixelcoords_to_apriltagcoords(ix, iy, depth_frame, intrinsics, april_tag_pose)
+            at_coords = pixelcoords_to_apriltagcoords(ix, iy, depth_frame, depth_intrinsics, april_tag_pose)
 
-            if P_t is not None:
-                print(f"3D-Koordinaten relativ zum AprilTag: {P_t}")
+            if at_coords is not None:
+                print(f"3D-Koordinaten relativ zum AprilTag: {at_coords}")
             else:
-                print("Konnte die 3D-Koordinaten nicht berechnen.")
+                # print("Konnte die 3D-Koordinaten nicht berechnen.")
+                pass
 
         elif mode == 'line':
             # Finalize the line on the original image
@@ -79,7 +77,7 @@ def draw(event, x, y, flags, param) -> None:
 
         # FIXME: fix the pixel_to_tag_coords function in utils.py
 
-def edit_saved_image(image_path, depth_frame, detector, result, camera_matrix, dist_coeffs) -> None:    
+def edit_saved_image(image_path, result, camera_matrix, depth_frame, depth_intrinsics) -> None:    
     """
     Opens a saved image and allows the user to draw on it.
 
@@ -95,15 +93,16 @@ def edit_saved_image(image_path, depth_frame, detector, result, camera_matrix, d
 
     temp_img = img.copy()  # Temporary image for drawing
 
+    # rvec, _ = cv2.Rodrigues(result.pose_R)
+
     # Pack the additional parameters into a dictionary
     params = {
         "rvec": result.pose_R,
         "tvec": result.pose_t,
         "camera_matrix": camera_matrix,
-        "dist_coeffs": dist_coeffs,
         "image": img,
         "depth_frame": depth_frame,
-        "intrinsics": depth_frame.profile.as_video_stream_profile().intrinsics
+        "depth_intrinsics": depth_intrinsics
     }
 
     cv2.namedWindow('Editing')

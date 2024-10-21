@@ -1,12 +1,12 @@
 import pyrealsense2 as rs
 import numpy as np
-from typing import Tuple
+from typing import Tuple, Dict
 
 class Camera:
     """
     Class to interface with a RealSense camera
     """
-    def __init__(self, width=640, height=480, fps=60, enable_depth=True, enable_color=True) -> None:
+    def __init__(self, width=1280, height=720, fps=30, enable_depth=True, enable_color=True) -> None:
         self.pipeline = rs.pipeline()
         self.config = rs.config()
 
@@ -52,21 +52,47 @@ class Camera:
         color_image = np.asanyarray(color_frame.get_data())
         depth_image = np.asanyarray(depth_frame.get_data())
 
-        return color_frame, depth_frame, color_image, depth_image
+        return color_image, depth_image, depth_frame, color_frame
 
 
-    def get_color_sensor_intrinsics(self) -> Tuple[float, float, float, float, np.ndarray]:
+    def get_color_sensor_intrinsics(self) -> Dict:
         """
-        Get the intrinsics of the color sensor
+        Get the intrinsics of the color sensor as a dictionary.
 
-        :return: Tuple of fx, fy, ppx, ppy, and the distortion coefficients
+        :return: Dictionary with keys 'fx', 'fy', 'ppx', 'ppy', and 'dist_coeffs'
         """
         # Hole das aktive Farbprofil
         color_stream = self.profile.get_stream(rs.stream.color)
         video_stream_profile = color_stream.as_video_stream_profile()
         intrinsics = video_stream_profile.get_intrinsics()
 
-        return intrinsics.fx, intrinsics.fy, intrinsics.ppx, intrinsics.ppy, np.array(intrinsics.coeffs)
+        return {
+            "fx": intrinsics.fx,
+            "fy": intrinsics.fy,
+            "ppx": intrinsics.ppx,
+            "ppy": intrinsics.ppy,
+            "dist_coeffs": np.array(intrinsics.coeffs)
+        }
+
+
+    def get_depth_sensor_intrinsics(self) -> Dict:
+        """
+        Get the intrinsics of the depth sensor
+
+        :return: Tuple of fx, fy, ppx, ppy, and the distortion coefficients
+        """
+        # Hole das aktive Tiefenprofil
+        depth_stream = self.profile.get_stream(rs.stream.depth)
+        video_stream_profile = depth_stream.as_video_stream_profile()
+        intrinsics = video_stream_profile.get_intrinsics()
+
+        return {
+            "fx": intrinsics.fx,
+            "fy": intrinsics.fy,
+            "ppx": intrinsics.ppx,
+            "ppy": intrinsics.ppy,
+            "dist_coeffs": np.array(intrinsics.coeffs)
+        }
 
 
     def stop(self) -> None:
