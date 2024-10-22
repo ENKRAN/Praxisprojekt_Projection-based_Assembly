@@ -6,7 +6,7 @@ class Camera:
     """
     Class to interface with a RealSense camera
     """
-    def __init__(self, width=1280, height=720, fps=30, enable_depth=True, enable_color=True) -> None:
+    def __init__(self, width=640, height=480, fps=60, enable_depth=True, enable_color=True) -> None:
         self.pipeline = rs.pipeline()
         self.config = rs.config()
 

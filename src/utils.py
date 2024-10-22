@@ -18,17 +18,25 @@ def pixelcoords_to_apriltagcoords(u, v, depth_frame, intrinsics, april_tag_pose)
 
     print (f"Point in camera coordinates: ({X_c}, {Y_c}, {Z_c})")
 
+    Cvec = np.array([[X_c], 
+                     [Y_c], 
+                     [Z_c]])
+
     # check_pixel_to_camera_conversion(intrinsics, x_c, y_c, z_c)
 
     # Step 3: Transform the camera coordinates to AprilTag coordinates
-    R_tc = np.array(april_tag_pose[0])
-    t_tc = np.array(april_tag_pose[1])
+    rmat = np.array(april_tag_pose[0])
+    tvec = np.array(april_tag_pose[1])
 
-    print(f"Rotation matrix: {R_tc}")
-    print(f"Translation vector: {t_tc}")
+    print(f"Rotation matrix: {rmat}")
+    print(f"Translation vector: {tvec}")
 
-    R_ct = R_tc.T
-    t_ct = (-R_ct @ t_tc).flatten()
+    rinv = rmat.T
+    
+    Avec = np.dot(rinv, Cvec - tvec)
+
+    print(f"Point in AprilTag coordinates: ({Avec[0]}, {Avec[1]}, {Avec[2]})")
+    
 
     
 

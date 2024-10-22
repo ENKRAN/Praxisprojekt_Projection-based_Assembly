@@ -42,7 +42,8 @@ def main() -> None:
                 tvec = result.pose_t
 
                 # Rotation vector (Orientation relative to the camera)
-                rvec, _ = cv2.Rodrigues(result.pose_R)
+                # rvec, _ = cv2.Rodrigues(result.pose_R)
+                rvec = result.pose_R
 
                 # TODO: Maybe implement z-axis stabilization
                 
@@ -62,6 +63,17 @@ def main() -> None:
                     # Save the image of the component if a tag was detected and open it for editing
                     visualize_depth_image(depth_image)  # Visualisiere hier das Tiefenbild
                     saved_image_path = save_component_img(color_image, results[0].tag_id)
+                    print("-----------------------------------------------------------------")
+                    print(f"{len(results)} Apriltags detected.")
+                    for result in results:
+                        print(f"Tag ID: {result.tag_id}, Decision margin: {result.decision_margin}")
+                        print(f"Center: {result.center}")
+                        print(f"Corners: {result.corners}")
+                        print(f"Pose R: {result.pose_R}")
+                        print(f"Pose T: {result.pose_t}")
+                        print(f"Pose Error: {result.pose_err}")
+                        print("R * R^T: ", np.dot(result.pose_R, result.pose_R.T))
+                        print("determinant: ", np.linalg.det(result.pose_R))
 
 
                     edit_saved_image(saved_image_path, results[0], camera_matrix, depth_frame, depth_intrinsics)
