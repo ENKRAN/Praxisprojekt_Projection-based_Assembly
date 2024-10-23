@@ -19,8 +19,11 @@ def save_component_img(frame, tag_id, save_dir="../data/saved_images") -> str:
     # Full path to the file
     filepath = os.path.join(save_dir, filename)
 
-    # Save the image to disk
-    cv2.imwrite(filepath, frame)
-    print(f"Image saved at: {filepath}")
+    # Normalize the path to ensure correct slashes
+    normalized_filepath = os.path.normpath(filepath)
 
-    return filepath
+    # Save the image to disk
+    cv2.imwrite(normalized_filepath, frame)
+    print(f"Image saved at: {normalized_filepath}")
+
+    return normalized_filepath

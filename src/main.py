@@ -5,6 +5,8 @@ from apriltag_detection import AprilTagDetector
 from visualization import draw_axes, draw_tag_border_and_id, visualize_depth_image
 from image_processing import save_component_img
 from user_interaction import edit_saved_image
+from tests import test_apriltag_detection
+from utils import project_3d_to_2d
 
 def main() -> None:
     # Initialize the camera
@@ -74,19 +76,23 @@ def main() -> None:
                     print(f"Depth to AprilTag: {depth_to_tag}m")
 
                     intrinsics = depth_frame.profile.as_video_stream_profile().get_intrinsics()
-                    tag_3d_coords = camera.get_3d_coordinates(u_center_of_tag, v_center_of_tag, depth_to_tag, depth_frame, intrinsics)
-                    print(f"3D coordinates of the center of the detected Apriltag (in camera coordinate system): {tag_3d_coords}")
+                    my_pose_t = camera.get_3d_coordinates(u_center_of_tag, v_center_of_tag, depth_to_tag, depth_frame, intrinsics)
+                    print(f"3D coordinates of the center of the detected Apriltag (in camera coordinate system): {my_pose_t}")
 
                     print("-----------------------------------------------------------------")
                     print(f"Rotation matrix: {results[0].pose_R}")
                     print("-----------------------------------------------------------------")
                     print(f"Translation vector (before correction of z-axis value): {results[0].pose_t}")
                     print("-----------------------------------------------------------------")
-                    result_pose_t = results[0].pose_t
-                    result_pose_t[2] = depth_to_tag
+                    estimate_pose_t = results[0].pose_t
+
+                    pose_pixel = project_3d_to_2d(intrinsics, estimate_pose_t)
+
+                    delta_t = estimate_pose_t - my_pose_t
+                    estimate_pose_t[2] = depth_to_tag
                     print(f"Translation vector (after correction of z-axis value): {results[0].pose_t}")
 
-                    apriltag_detector.show_saved_detection_image(saved_image_path)
+                    test_apriltag_detection.test_tvec_difference(delta_t, my_pose_t, saved_image_path, intrinsics, apriltag_detector, pose_pixel)
 
                     """for result in results:
                         print(f"Tag ID: {result.tag_id}, Decision margin: {result.decision_margin}")

@@ -27,15 +27,7 @@ class AprilTagDetector:
                                        tag_size=self.tag_size)
         return results
     
-    def show_saved_detection_image(self, saved_image_path):
-        # Lade das Bild von der Festplatte
-        image = cv2.imread(saved_image_path)
-
-        # Überprüfe, ob das Bild erfolgreich geladen wurde
-        if image is None:
-            print(f"Fehler beim Laden des Bildes: {saved_image_path}")
-            return
-
+    def show_saved_detection_image(self, image):
         # Zeige das Bild in einem neuen Fenster an
         cv2.imshow("Gespeichertes Bild", image)
 

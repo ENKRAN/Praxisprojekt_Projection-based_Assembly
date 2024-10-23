@@ -42,9 +42,14 @@ def pixelcoords_to_apriltagcoords(u, v, depth_frame, intrinsics, april_tag_pose)
 
     return None
 
+def project_3d_to_2d(intrinsics, point_3d):
+    fx = intrinsics.fx
+    fy = intrinsics.fy
+    cx = intrinsics.ppx
+    cy = intrinsics.ppy
 
-def check_pixel_to_camera_conversion(intrinsics, x_c, y_c, z_c):
-    u_ = (intrinsics["fx"] * x_c / z_c) + intrinsics["ppx"]
-    v_ = (intrinsics["fy"] * y_c / z_c) + intrinsics["ppy"]
+    x, y, z = point_3d
+    u = int((x * fx) / z + cx)
+    v = int((y * fy) / z + cy)
 
-    print(f"Reconstructed pixel coordinates: ({u_}px, {v_}px)")
+    return (u, v)

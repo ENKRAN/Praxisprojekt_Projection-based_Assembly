@@ -105,7 +105,11 @@ class Camera:
         """
         z = depth_frame.get_distance(u, v)  # Get depth from depth frame
         x, y, z = rs.rs2_deproject_pixel_to_point(intrinsics, [u, v], z)
-        return [x, y, z]
+
+        t_depth = np.array([x, y, z])
+        t_depth_vec = np.reshape(t_depth, (3, 1))
+
+        return t_depth_vec
 
     def stop(self) -> None:
         """
