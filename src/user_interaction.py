@@ -60,13 +60,13 @@ def draw(event, x, y, flags, params) -> None:
             april_tag_pose = (rvec, tvec)
 
             # Konvertiere die Intrinsiken in das richtige Format
-            at_coords = pixelcoords_to_apriltagcoords(ix, iy, depth_frame, depth_intrinsics, april_tag_pose)
+            """at_coords = pixelcoords_to_apriltagcoords(ix, iy, depth_frame, depth_intrinsics, april_tag_pose)
 
             if at_coords is not None:
                 print(f"3D-Koordinaten relativ zum AprilTag: {at_coords}")
             else:
                 # print("Konnte die 3D-Koordinaten nicht berechnen.")
-                pass
+                pass"""
 
         elif mode == 'line':
             # Finalize the line on the original image

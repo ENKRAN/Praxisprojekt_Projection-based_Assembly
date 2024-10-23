@@ -1,5 +1,6 @@
 from pupil_apriltags import Detector
 from typing import List
+import cv2
 
 class AprilTagDetector:
     """
@@ -25,3 +26,21 @@ class AprilTagDetector:
                                        camera_params=[self.fx, self.fy, self.cx, self.cy], 
                                        tag_size=self.tag_size)
         return results
+    
+    def show_saved_detection_image(self, saved_image_path):
+        # Lade das Bild von der Festplatte
+        image = cv2.imread(saved_image_path)
+
+        # Überprüfe, ob das Bild erfolgreich geladen wurde
+        if image is None:
+            print(f"Fehler beim Laden des Bildes: {saved_image_path}")
+            return
+
+        # Zeige das Bild in einem neuen Fenster an
+        cv2.imshow("Gespeichertes Bild", image)
+
+        # Warte auf eine beliebige Taste, um das Fenster zu schließen
+        cv2.waitKey(0)
+
+        # Schließe das Fenster
+        cv2.destroyAllWindows()

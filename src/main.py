@@ -61,11 +61,34 @@ def main() -> None:
             if key == ord(' '):
                 if results:
                     # Save the image of the component if a tag was detected and open it for editing
-                    visualize_depth_image(depth_image)  # Visualisiere hier das Tiefenbild
+                    # visualize_depth_image(depth_image)  # Visualisiere hier das Tiefenbild
                     saved_image_path = save_component_img(color_image, results[0].tag_id)
+
                     print("-----------------------------------------------------------------")
                     print(f"{len(results)} Apriltags detected.")
-                    for result in results:
+                    
+                    print(f"Center of AprilTag in pixel coordinates: {results[0].center}")
+
+                    u_center_of_tag, v_center_of_tag = int(results[0].center[0]), int(results[0].center[1])
+                    depth_to_tag = depth_frame.get_distance(u_center_of_tag, v_center_of_tag)
+                    print(f"Depth to AprilTag: {depth_to_tag}m")
+
+                    intrinsics = depth_frame.profile.as_video_stream_profile().get_intrinsics()
+                    tag_3d_coords = camera.get_3d_coordinates(u_center_of_tag, v_center_of_tag, depth_to_tag, depth_frame, intrinsics)
+                    print(f"3D coordinates of the center of the detected Apriltag (in camera coordinate system): {tag_3d_coords}")
+
+                    print("-----------------------------------------------------------------")
+                    print(f"Rotation matrix: {results[0].pose_R}")
+                    print("-----------------------------------------------------------------")
+                    print(f"Translation vector (before correction of z-axis value): {results[0].pose_t}")
+                    print("-----------------------------------------------------------------")
+                    result_pose_t = results[0].pose_t
+                    result_pose_t[2] = depth_to_tag
+                    print(f"Translation vector (after correction of z-axis value): {results[0].pose_t}")
+
+                    apriltag_detector.show_saved_detection_image(saved_image_path)
+
+                    """for result in results:
                         print(f"Tag ID: {result.tag_id}, Decision margin: {result.decision_margin}")
                         print(f"Center: {result.center}")
                         print(f"Corners: {result.corners}")
@@ -73,10 +96,10 @@ def main() -> None:
                         print(f"Pose T: {result.pose_t}")
                         print(f"Pose Error: {result.pose_err}")
                         print("R * R^T: ", np.dot(result.pose_R, result.pose_R.T))
-                        print("determinant: ", np.linalg.det(result.pose_R))
+                        print("determinant: ", np.linalg.det(result.pose_R))"""
 
 
-                    edit_saved_image(saved_image_path, results[0], camera_matrix, depth_frame, depth_intrinsics)
+                    # edit_saved_image(saved_image_path, results[0], camera_matrix, depth_frame, depth_intrinsics)
             # Close the window if the 'q' key is pressed
             if key == ord('q'):
                 break

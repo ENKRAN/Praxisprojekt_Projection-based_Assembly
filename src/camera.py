@@ -1,6 +1,6 @@
 import pyrealsense2 as rs
 import numpy as np
-from typing import Tuple, Dict
+from typing import Tuple, Dict, List
 
 class Camera:
     """
@@ -94,6 +94,18 @@ class Camera:
             "dist_coeffs": np.array(intrinsics.coeffs)
         }
 
+    def get_3d_coordinates(self, u, v, z, depth_frame, intrinsics) -> List[float]:
+        """
+        Get 3D coordinates of the center of the detected Apriltag.
+
+        :param detection: The detected Apriltag
+        :param depth_frame: Depth frame to get the depth information
+        :param intrinsics: Intrinsics of the depth sensor
+        :return: 3D coordinates (x, y, z) in meters
+        """
+        z = depth_frame.get_distance(u, v)  # Get depth from depth frame
+        x, y, z = rs.rs2_deproject_pixel_to_point(intrinsics, [u, v], z)
+        return [x, y, z]
 
     def stop(self) -> None:
         """
