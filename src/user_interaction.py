@@ -1,5 +1,5 @@
 import cv2
-from utils import pixelcoords_to_apriltagcoords
+from .utils import pixelcoords_to_apriltagcoords
 
 # Global variables for drawing
 drawing = False  # True if the mouse is pressed
@@ -15,14 +15,13 @@ def draw(event, x, y, flags, params) -> None:
     :param x: X-coordinate of the mouse position
     :param y: Y-coordinate of the mouse position
     :param flags: Any flags passed by OpenCV
-    :param param: The original image being drawn on (passed as parameter)
+    :param params: Additional parameters for the callback function
     """
     global ix, iy, drawing, mode, temp_img
 
     # Extract the parameters from the dictionary
     rvec = params["rvec"]
     tvec = params["tvec"]
-    camera_matrix = params["camera_matrix"]
     img = params["image"]
     depth_frame = params["depth_frame"]
     depth_intrinsics = params["depth_intrinsics"]
@@ -41,7 +40,7 @@ def draw(event, x, y, flags, params) -> None:
             img[:] = temp_img.copy()
             if mode == 'circle':
                 # Draw a circle as a preview
-                cv2.circle(img, (ix, iy), int(((x-ix)**2 + (y-iy)**2)**0.5), (0, 255, 0), 2)
+                cv2.circle(img, (ix, iy), int(((x-ix)**2 + (y-iy)**2)**0.5), (255, 255, 0), 2)
             elif mode == 'line':
                 # Draw a line as a preview
                 cv2.line(img, (ix, iy), (x, y), (255, 0, 0), 2)
@@ -52,36 +51,35 @@ def draw(event, x, y, flags, params) -> None:
 
         if mode == 'circle':
             # Finalize the circle on the original image
-            cv2.circle(img, (ix, iy), int(((x-ix)**2 + (y-iy)**2)**0.5), (0, 255, 0), 2)
+            cv2.circle(img, (ix, iy), int(((x-ix)**2 + (y-iy)**2)**0.5), (255, 255, 0), 2)
             cv2.putText(img, f"(x: {ix}px, y: {iy}px)", (ix, iy), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 2)
-
             print(f"Circle drawn at: (x: {ix}px, y: {iy}px) with radius: {int(((x-ix)**2 + (y-iy)**2)**0.5)}px")
-
-            april_tag_pose = (rvec, tvec)
-
-            # Konvertiere die Intrinsiken in das richtige Format
-            """at_coords = pixelcoords_to_apriltagcoords(ix, iy, depth_frame, depth_intrinsics, april_tag_pose)
-
-            if at_coords is not None:
-                print(f"3D-Koordinaten relativ zum AprilTag: {at_coords}")
-            else:
-                # print("Konnte die 3D-Koordinaten nicht berechnen.")
-                pass"""
-
         elif mode == 'line':
             # Finalize the line on the original image
             cv2.line(img, (ix, iy), (x, y), (255, 0, 0), 2)
             print(f"Line drawn from: (x: {ix}px, y: {iy}px) to (x: {x}px, y: {y}px)")
 
-        print(f"Mouse coordinates (Pixel): (x: {x}px, y: {y}px)")
+        april_tag_pose = (rvec, tvec)
 
-        # FIXME: fix the pixel_to_tag_coords function in utils.py
+        # Calculate the 3D coordinates relative to the AprilTag by transforming the pixel coordinates
+        at_coords = pixelcoords_to_apriltagcoords(ix, iy, depth_frame, depth_intrinsics, april_tag_pose)
 
-def edit_saved_image(image_path, result, camera_matrix, depth_frame, depth_intrinsics) -> None:    
+        if at_coords is not None:
+            print(f"3D-Coordinates relative to AprilTag: ({at_coords[0]}, {at_coords[1]}, {at_coords[2]})")
+        else:
+            print("Could not calculate 3D-Coordinates relative to AprilTag")
+
+        # print(f"Mouse coordinates (Pixel): (x: {x}px, y: {y}px)") # Debugging
+
+def edit_saved_image(image_path, rvec, tvec_manual, depth_frame, depth_intrinsics) -> None:    
     """
     Opens a saved image and allows the user to draw on it.
 
-    :param image_path: Path to the saved image to be edited
+    :param image_path: The path to the saved image
+    :param rvec: The rotation vector from the AprilTag detection
+    :param tvec_manual: The manually calculated translation vector
+    :param depth_frame: The depth frame from the RealSense camera
+    :param depth_intrinsics: The depth intrinsics from the RealSense camera
     """
     global temp_img
 
@@ -93,13 +91,10 @@ def edit_saved_image(image_path, result, camera_matrix, depth_frame, depth_intri
 
     temp_img = img.copy()  # Temporary image for drawing
 
-    # rvec, _ = cv2.Rodrigues(result.pose_R)
-
     # Pack the additional parameters into a dictionary
     params = {
-        "rvec": result.pose_R,
-        "tvec": result.pose_t,
-        "camera_matrix": camera_matrix,
+        "rvec": rvec,
+        "tvec": tvec_manual,
         "image": img,
         "depth_frame": depth_frame,
         "depth_intrinsics": depth_intrinsics
@@ -126,7 +121,7 @@ def edit_saved_image(image_path, result, camera_matrix, depth_frame, depth_intri
 
         # Save the edited image with 's'
         if key == ord('s'):
-            cv2.imwrite('../data/saved_images/edited_image.png', img)
+            cv2.imwrite('data/saved_images/edited_image.png', img)
             print("Edited image saved at: ../data/saved_images/edited_image.png")
 
         # Quit the editing with 'q'

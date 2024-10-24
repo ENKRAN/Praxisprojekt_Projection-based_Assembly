@@ -1,18 +1,19 @@
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
+from typing import Any
 
-def draw_axes(img, R_ct, tvec, camera_matrix, dist_coeffs, axis_length) -> np.ndarray:
+def draw_axes(img, R_ct, tvec, camera_matrix, dist_coeffs, axis_length) -> Any:
     """
     Draws the 3D coordinate axes on the image.
 
     :param img: Image to draw on
-    :param rvec: Rotation vector of the tag
-    :param tvec: Translation vector of the tag
-    :param camera_matrix: Camera matrix with intrinsics
-    :param dist_coeffs: Distortion coefficients of the camera
-    :param axis_length: Length of the axes to draw
-    :return: Image with the coordinate axes drawn
+    :param R_ct: Rotation matrix from the camera to the tag
+    :param tvec: Translation vector from the camera to the tag
+    :param camera_matrix: Camera matrix
+    :param dist_coeffs: Distortion coefficients
+    :param axis_length: Length of the axes in the visualization
+    :return: Image with the 3D coordinate axes drawn
     """
     rvec, _ = cv2.Rodrigues(R_ct)
 
@@ -36,7 +37,7 @@ def draw_axes(img, R_ct, tvec, camera_matrix, dist_coeffs, axis_length) -> np.nd
 
     return img
 
-def draw_tag_border_and_id(frame, result) -> np.ndarray:
+def draw_tag_border_and_id(frame, result) -> Any:
     """
     Draws the border and ID of the detected AprilTag.
 

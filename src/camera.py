@@ -1,12 +1,21 @@
 import pyrealsense2 as rs
 import numpy as np
-from typing import Tuple, Dict, List
+from typing import Tuple, Dict, List, Any
 
 class Camera:
     """
     Class to interface with a RealSense camera
     """
     def __init__(self, width=640, height=480, fps=60, enable_depth=True, enable_color=True) -> None:
+        """
+        Initialize the camera pipeline with the desired settings.
+
+        :param width: Width of the frames
+        :param height: Height of the frames
+        :param fps: Frames per second
+        :param enable_depth: Enable depth stream
+        :param enable_color: Enable color stream
+        """
         self.pipeline = rs.pipeline()
         self.config = rs.config()
 
@@ -27,7 +36,7 @@ class Camera:
         else:
             self.depth_scale = None
 
-    def get_frames(self) -> Tuple[rs.frame, rs.frame, np.ndarray, np.ndarray]:
+    def get_frames(self) -> Tuple[np.ndarray, np.ndarray, Any, Any]:
         """
         Get color and depth frames from the camera, along with their numpy array representations.
 
@@ -54,14 +63,12 @@ class Camera:
 
         return color_image, depth_image, depth_frame, color_frame
 
-
     def get_color_sensor_intrinsics(self) -> Dict:
         """
         Get the intrinsics of the color sensor as a dictionary.
 
-        :return: Dictionary with keys 'fx', 'fy', 'ppx', 'ppy', and 'dist_coeffs'
+        :return: Tuple of fx, fy, ppx, ppy, the distortion coefficients and the raw intrinsics
         """
-        # Hole das aktive Farbprofil
         color_stream = self.profile.get_stream(rs.stream.color)
         video_stream_profile = color_stream.as_video_stream_profile()
         intrinsics = video_stream_profile.get_intrinsics()
@@ -71,17 +78,16 @@ class Camera:
             "fy": intrinsics.fy,
             "ppx": intrinsics.ppx,
             "ppy": intrinsics.ppy,
-            "dist_coeffs": np.array(intrinsics.coeffs)
+            "dist_coeffs": np.array(intrinsics.coeffs),
+            "intrinsics_raw": intrinsics
         }
-
 
     def get_depth_sensor_intrinsics(self) -> Dict:
         """
         Get the intrinsics of the depth sensor
 
-        :return: Tuple of fx, fy, ppx, ppy, and the distortion coefficients
+        :return: Tuple of fx, fy, ppx, ppy, the distortion coefficients and the raw intrinsics
         """
-        # Hole das aktive Tiefenprofil
         depth_stream = self.profile.get_stream(rs.stream.depth)
         video_stream_profile = depth_stream.as_video_stream_profile()
         intrinsics = video_stream_profile.get_intrinsics()
@@ -91,23 +97,23 @@ class Camera:
             "fy": intrinsics.fy,
             "ppx": intrinsics.ppx,
             "ppy": intrinsics.ppy,
-            "dist_coeffs": np.array(intrinsics.coeffs)
+            "dist_coeffs": np.array(intrinsics.coeffs),
+            "intrinsics_raw": intrinsics
         }
 
-    def get_3d_coordinates(self, u, v, z, depth_frame, intrinsics) -> List[float]:
+    def get_3d_coordinates(self, u, v, depth_to_tag, intrinsics) -> np.ndarray[Any, np.dtype]:
         """
         Get 3D coordinates of the center of the detected Apriltag.
 
-        :param detection: The detected Apriltag
-        :param depth_frame: Depth frame to get the depth information
+        :param u: x-coordinate of the center of the tag
+        :param v: y-coordinate of the center of the tag
+        :param depth_to_tag: Depth to the tag (z-coordinate)
         :param intrinsics: Intrinsics of the depth sensor
-        :return: 3D coordinates (x, y, z) in meters
+        :return: 3D coordinates of the center of the tag
         """
-        z = depth_frame.get_distance(u, v)  # Get depth from depth frame
-        x, y, z = rs.rs2_deproject_pixel_to_point(intrinsics, [u, v], z)
+        x, y, depth_to_tag = rs.rs2_deproject_pixel_to_point(intrinsics, [u, v], depth_to_tag)
 
-        t_depth = np.array([x, y, z])
-        t_depth_vec = np.reshape(t_depth, (3, 1))
+        t_depth_vec =  np.array([x, y, depth_to_tag]).reshape(3, 1)
 
         return t_depth_vec
 
