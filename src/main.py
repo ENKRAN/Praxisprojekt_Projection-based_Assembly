@@ -53,14 +53,7 @@ def main() -> None:
                 if depth_to_tag >= min_distance:
                     # axis_length = depth_to_tag / 4.0  # May be used to scale the axes according to the distance to the tag
 
-                    # original_tvec = result.pose_t
-
-                    # manual calculation of the translation vector (Position relative to the camera)
-                    x_manual = (u_center_of_tag - color_intrinsics["ppx"]) * depth_to_tag / color_intrinsics["fx"]
-                    y_manual = (v_center_of_tag - color_intrinsics["ppy"]) * depth_to_tag / color_intrinsics["fy"]
-                    tvec_manual = np.array([x_manual, y_manual, depth_to_tag]).reshape(3, 1)
-
-                    # FIXME: RealSense method, not accurate enough because of the distortion coefficients -> use manual calculation for now
+                    # Translation vector (Position relative to the camera) -> calculated with the RealSense camera
                     tvec_realsense = camera.get_3D_camera_coords(u_center_of_tag, v_center_of_tag, depth_to_tag, color_intrinsics["intrinsics_raw"])
 
                     # Draw the axes and tag border with ID
@@ -85,9 +78,6 @@ def main() -> None:
 
                     # Test the difference between the original estimated tvec and the manual calculation
                     test_apriltag_detection.test_tvec_difference(results, depth_to_tag, camera, color_intrinsics, tvec_realsense, saved_image_path, apriltag_detector)
-
-                    # print("manual calculation of new tvec:", tvec_manual.flatten())
-                    # print("RealSense method of calculation of new tvec:", tvec_realsense.flatten())
 
                     edit_saved_image(saved_image_path, rvec, tvec_realsense, depth_frame, color_intrinsics)
             # Close the window if the 'q' key is pressed
