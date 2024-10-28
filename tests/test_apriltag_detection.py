@@ -1,8 +1,7 @@
 import numpy as np
 import cv2
-from src.utils import project_3d_to_2d
 
-def test_tvec_difference(results, depth_to_tag, camera, u_center_of_tag, v_center_of_tag, depth_intrinsics, tvec_manual, saved_image_path, apriltag_detector):
+def test_tvec_difference(results, depth_to_tag, camera, color_intrinsics, tvec_realsense, saved_image_path, apriltag_detector):
     """
     Test the difference between the original translation vector and the new translation vector.
 
@@ -11,7 +10,7 @@ def test_tvec_difference(results, depth_to_tag, camera, u_center_of_tag, v_cente
     :param camera: Camera object
     :param u_center_of_tag: x-coordinate of the center of the AprilTag
     :param v_center_of_tag: y-coordinate of the center of the AprilTag
-    :param depth_intrinsics: Intrinsics of the depth sensor
+    :param color_intrinsics: Intrinsics of the color sensor
     :param tvec_manual: Manual calculation of the translation vector
     :param saved_image_path: Path to the saved image
     :param apriltag_detector: AprilTagDetector object
@@ -22,19 +21,16 @@ def test_tvec_difference(results, depth_to_tag, camera, u_center_of_tag, v_cente
     print(f"Center of AprilTag in pixel coordinates: {results[0].center}")
     print(f"Depth to AprilTag: {depth_to_tag}m")
 
-    # Calculate the 3D coordinates of the center of the detected AprilTag
-    my_pose_t = camera.get_3d_coordinates(u_center_of_tag, v_center_of_tag, depth_to_tag, depth_intrinsics["intrinsics_raw"])
 
-    print(f"3D coordinates of the center of the detected Apriltag (in camera coordinate system): {my_pose_t}")
-    print("-----------------------------------------------------------------")
     print(f"Rotation matrix: {results[0].pose_R}")
-    print("-----------------------------------------------------------------")  
-    print(f"Oringinal estimated translation vector: {results[0].pose_t}")
     print("-----------------------------------------------------------------")
-    print(f"New translation vector (calculated with messurements of depth and intrinsics of camera): {tvec_manual}")
+    print(f"Oringinal estimated translation vector: {results[0].pose_t}")
+    print("-----------------------------------------------------------------")  
+    print(f"New translation vector (RealSense Method): {tvec_realsense}")
+    print("-----------------------------------------------------------------")
 
     # Calculate the difference between the original translation vector and the new translation vector
-    delta_t = results[0].pose_t - my_pose_t
+    delta_t = results[0].pose_t - tvec_realsense
     
     # Calculate the euclidean distance between the original translation vector and the new translation vector
     euclidean_distance = np.linalg.norm(delta_t)
@@ -43,10 +39,10 @@ def test_tvec_difference(results, depth_to_tag, camera, u_center_of_tag, v_cente
     print(f"Euclidean distance between the two translation vectors: {euclidean_distance:.6f} meters")
 
     # Transform the 3D coordinates of the original translation vector to pixel coordinates
-    pose_pixel = project_3d_to_2d(depth_intrinsics["intrinsics_raw"], results[0].pose_t)
+    pose_pixel = camera.get_2D_pixel_coords(color_intrinsics["intrinsics_raw"], results[0].pose_t)
 
     # Transform the 3D coordinates of the new translation vector to pixel coordinates
-    depth_pixel = project_3d_to_2d(depth_intrinsics["intrinsics_raw"], my_pose_t)
+    depth_pixel = camera.get_2D_pixel_coords(color_intrinsics["intrinsics_raw"], tvec_realsense)
 
     print(f"Path to saved image: '{saved_image_path}'")  
 

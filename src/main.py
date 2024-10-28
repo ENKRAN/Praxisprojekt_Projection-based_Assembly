@@ -53,16 +53,18 @@ def main() -> None:
                 if depth_to_tag >= min_distance:
                     # axis_length = depth_to_tag / 4.0  # May be used to scale the axes according to the distance to the tag
 
+                    # original_tvec = result.pose_t
+
                     # manual calculation of the translation vector (Position relative to the camera)
                     x_manual = (u_center_of_tag - color_intrinsics["ppx"]) * depth_to_tag / color_intrinsics["fx"]
                     y_manual = (v_center_of_tag - color_intrinsics["ppy"]) * depth_to_tag / color_intrinsics["fy"]
                     tvec_manual = np.array([x_manual, y_manual, depth_to_tag]).reshape(3, 1)
 
                     # FIXME: RealSense method, not accurate enough because of the distortion coefficients -> use manual calculation for now
-                    # tvec_realsense = camera.get_3d_coordinates(u_center_of_tag, v_center_of_tag, depth_to_tag, depth_intrinsics["intrinsics_raw"])
+                    tvec_realsense = camera.get_3D_camera_coords(u_center_of_tag, v_center_of_tag, depth_to_tag, color_intrinsics["intrinsics_raw"])
 
                     # Draw the axes and tag border with ID
-                    color_image = draw_axes(color_image, rvec, tvec_manual, camera_matrix, color_intrinsics["dist_coeffs"], axis_length)
+                    color_image = draw_axes(color_image, rvec, tvec_realsense, camera_matrix, color_intrinsics["dist_coeffs"], axis_length)
                 else:
                     cv2.putText(color_image, "Too close!, please move away a few cm.", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
 
@@ -82,12 +84,12 @@ def main() -> None:
                     saved_image_path = save_component_img(color_image, results[0].tag_id)
 
                     # Test the difference between the original estimated tvec and the manual calculation
-                    test_apriltag_detection.test_tvec_difference(results, depth_to_tag, camera, u_center_of_tag, v_center_of_tag, depth_intrinsics, tvec_manual, saved_image_path, apriltag_detector)
+                    test_apriltag_detection.test_tvec_difference(results, depth_to_tag, camera, color_intrinsics, tvec_realsense, saved_image_path, apriltag_detector)
 
                     # print("manual calculation of new tvec:", tvec_manual.flatten())
                     # print("RealSense method of calculation of new tvec:", tvec_realsense.flatten())
 
-                    edit_saved_image(saved_image_path, rvec, tvec_manual, depth_frame, depth_intrinsics)
+                    edit_saved_image(saved_image_path, rvec, tvec_realsense, depth_frame, color_intrinsics)
             # Close the window if the 'q' key is pressed
             if key == ord('q'):
                 break

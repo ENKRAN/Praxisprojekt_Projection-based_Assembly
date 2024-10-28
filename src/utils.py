@@ -1,5 +1,6 @@
 import numpy as np
 from typing import Tuple
+from .camera import Camera
 
 def pixelcoords_to_apriltagcoords(u, v, depth_frame, intrinsics, april_tag_pose) -> np.ndarray:
     """
@@ -14,24 +15,19 @@ def pixelcoords_to_apriltagcoords(u, v, depth_frame, intrinsics, april_tag_pose)
     """
     print(f"Pixel coordinates: ({u}px, {v}px)")
 
-    # Step 1: Get the camera depth sensor intrinsics
+    # Step 1: Get the camera depth sensor value
     Z_c = depth_frame.get_distance(int(u), int(v))  # Depth value in meters
 
     if Z_c == 0:
         print("No depth value found")
         return None
     
-    print(f"Distance to AprilTag: {Z_c}m")
+    print(f"Distance to Point: {Z_c}m")
 
     # Step 2: Convert the pixel coordinates to camera coordinates
-    X_c = (int(u) - intrinsics["ppx"]) * Z_c / intrinsics["fx"]
-    Y_c = (int(v) - intrinsics["ppy"]) * Z_c / intrinsics["fy"]
+    cam_vec = Camera.get_3D_camera_coords(int(u), int(v), Z_c, intrinsics["intrinsics_raw"])
 
-    print (f"Point in camera coordinates: ({X_c}, {Y_c}, {Z_c})")
-
-    Cvec = np.array([[X_c], 
-                     [Y_c], 
-                     [Z_c]])
+    print (f"Point in camera coordinates: ({cam_vec[0]}, {cam_vec[1]}, {cam_vec[2]})")
 
     # Step 3: Transform the camera coordinates to AprilTag coordinates
     rmat = np.array(april_tag_pose[0])
@@ -44,26 +40,6 @@ def pixelcoords_to_apriltagcoords(u, v, depth_frame, intrinsics, april_tag_pose)
     rinv = rmat.T
 
     # Calculate the AprilTag coordinates
-    Avec = np.dot(rinv, Cvec - tvec)
+    ATvec = np.dot(rinv, cam_vec - tvec)
     
-    return Avec
-
-def project_3d_to_2d(intrinsics, point_3d) -> Tuple[int, int]:
-    """
-    Project a 3D point to a 2D point    
-    ### FIXME: Maybe change it so that it uses the RealSense method for the projection ###
-
-    :param intrinsics: Camera intrinsics
-    :param point_3d: 3D point
-    :return: 2D point
-    """
-    fx = intrinsics.fx
-    fy = intrinsics.fy
-    cx = intrinsics.ppx
-    cy = intrinsics.ppy
-
-    x, y, z = point_3d
-    u = int((x * fx) / z + cx)
-    v = int((y * fy) / z + cy)
-
-    return (u, v)
+    return ATvec

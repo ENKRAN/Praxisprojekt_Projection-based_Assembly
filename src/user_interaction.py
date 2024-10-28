@@ -24,7 +24,7 @@ def draw(event, x, y, flags, params) -> None:
     tvec = params["tvec"]
     img = params["image"]
     depth_frame = params["depth_frame"]
-    depth_intrinsics = params["depth_intrinsics"]
+    color_intrinsics = params["color_intrinsics"]
 
 
     # Left mouse button pressed - set the initial point
@@ -62,7 +62,7 @@ def draw(event, x, y, flags, params) -> None:
         april_tag_pose = (rvec, tvec)
 
         # Calculate the 3D coordinates relative to the AprilTag by transforming the pixel coordinates
-        at_coords = pixelcoords_to_apriltagcoords(ix, iy, depth_frame, depth_intrinsics, april_tag_pose)
+        at_coords = pixelcoords_to_apriltagcoords(ix, iy, depth_frame, color_intrinsics, april_tag_pose)
 
         if at_coords is not None:
             print(f"3D-Coordinates relative to AprilTag: ({at_coords[0]}, {at_coords[1]}, {at_coords[2]})")
@@ -71,15 +71,15 @@ def draw(event, x, y, flags, params) -> None:
 
         # print(f"Mouse coordinates (Pixel): (x: {x}px, y: {y}px)") # Debugging
 
-def edit_saved_image(image_path, rvec, tvec_manual, depth_frame, depth_intrinsics) -> None:    
+def edit_saved_image(image_path, rvec, tvec_realsense, depth_frame, color_intrinsics) -> None:    
     """
     Opens a saved image and allows the user to draw on it.
 
     :param image_path: The path to the saved image
     :param rvec: The rotation vector from the AprilTag detection
-    :param tvec_manual: The manually calculated translation vector
+    :param tvec_realsense: The translation vector from the RealSense camera
     :param depth_frame: The depth frame from the RealSense camera
-    :param depth_intrinsics: The depth intrinsics from the RealSense camera
+    :param color_intrinsics: The intrinsics of the color sensor
     """
     global temp_img
 
@@ -94,10 +94,10 @@ def edit_saved_image(image_path, rvec, tvec_manual, depth_frame, depth_intrinsic
     # Pack the additional parameters into a dictionary
     params = {
         "rvec": rvec,
-        "tvec": tvec_manual,
+        "tvec": tvec_realsense,
         "image": img,
         "depth_frame": depth_frame,
-        "depth_intrinsics": depth_intrinsics
+        "color_intrinsics": color_intrinsics
     }
 
     cv2.namedWindow('Editing')

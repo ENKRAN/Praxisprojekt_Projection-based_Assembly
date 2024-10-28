@@ -101,21 +101,36 @@ class Camera:
             "intrinsics_raw": intrinsics
         }
 
-    def get_3d_coordinates(self, u, v, depth_to_tag, intrinsics) -> np.ndarray[Any, np.dtype]:
+    @staticmethod
+    def get_3D_camera_coords(u, v, z, intrinsics) -> np.ndarray[Any, np.dtype]:
         """
-        Get 3D coordinates of the center of the detected Apriltag.
+        Get the 3D coordinates of a pixel in the camera frame.
 
-        :param u: x-coordinate of the center of the tag
-        :param v: y-coordinate of the center of the tag
-        :param depth_to_tag: Depth to the tag (z-coordinate)
-        :param intrinsics: Intrinsics of the depth sensor
-        :return: 3D coordinates of the center of the tag
+        :param u: x pixel coordinate
+        :param v: y pixel coordinate
+        :param z: Depth value
+        :param intrinsics: Intrinsics of the camera
+        :return: 3D coordinates as a numpy array
         """
-        x, y, depth_to_tag = rs.rs2_deproject_pixel_to_point(intrinsics, [u, v], depth_to_tag)
+        x, y, z = rs.rs2_deproject_pixel_to_point(intrinsics, [u, v], z)
 
-        t_depth_vec =  np.array([x, y, depth_to_tag]).reshape(3, 1)
+        t_depth_vec =  np.array([x, y, z]).reshape(3, 1)
 
         return t_depth_vec
+    
+    @staticmethod
+    def get_2D_pixel_coords(intrinsics, tvec) -> Tuple[int, int]:
+        """
+        Get the 2D pixel coordinates of a 3D point.
+
+        :param depth_intrinsics: Intrinsics of the depth sensor
+        :param tvec: Translation vector
+        :return: Tuple of x, y pixel coordinates
+        """
+        x, y, z = tvec
+        u, v = rs.rs2_project_point_to_pixel(intrinsics, [x, y, z])
+
+        return int(u), int(v)
 
     def stop(self) -> None:
         """
