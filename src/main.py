@@ -50,7 +50,7 @@ def main() -> None:
                 rvec = result.pose_R
 
                 # Check if camera is too close to the tag
-                if depth_to_tag >= min_distance:
+                if depth_to_tag > min_distance:
                     # axis_length = depth_to_tag / 4.0  # May be used to scale the axes according to the distance to the tag
 
                     # Translation vector (Position relative to the camera) -> calculated with the RealSense camera
