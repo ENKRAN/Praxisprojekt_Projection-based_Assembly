@@ -6,9 +6,17 @@ from .visualization import draw_axes, draw_tag_border_and_id, visualize_depth_im
 from .image_processing import save_component_img
 from .user_interaction import edit_saved_image
 from tests import test_apriltag_detection
+from .paint_app import open_image_in_paint, analyze_multiple_drawings_with_advanced_filters
 
 def main() -> None:
-    # Initialize the camera
+    unedited_img = "data\saved_images\component_0_20241101-161159.png"
+    drawing = "data\saved_images\drawing_edited_component_0_20241101-161159.jpg"
+
+    open_image_in_paint(unedited_img)
+    analyze_multiple_drawings_with_advanced_filters(drawing)
+    
+
+    """# Initialize the camera
     camera = Camera()
 
     # Get the intrinsics of the camera
@@ -77,15 +85,16 @@ def main() -> None:
                     saved_image_path = save_component_img(color_image, results[0].tag_id)
 
                     # Test the difference between the original estimated tvec and the manual calculation
-                    test_apriltag_detection.test_tvec_difference(results, depth_to_tag, camera, color_intrinsics, tvec_realsense, saved_image_path, apriltag_detector)
+                    # test_apriltag_detection.test_tvec_difference(results, depth_to_tag, camera, color_intrinsics, tvec_realsense, saved_image_path, apriltag_detector)
 
-                    edit_saved_image(saved_image_path, rvec, tvec_realsense, depth_frame, color_intrinsics)
+                    # edit_saved_image(saved_image_path, rvec, tvec_realsense, depth_frame, color_intrinsics)
+
             # Close the window if the 'q' key is pressed
             if key == ord('q'):
                 break
     finally:
         camera.stop()
-        cv2.destroyAllWindows()
+        cv2.destroyAllWindows()"""
 
 if __name__ == "__main__":
     main() 
