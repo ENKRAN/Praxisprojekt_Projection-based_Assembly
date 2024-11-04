@@ -78,31 +78,43 @@ def visualize_depth_image(depth_image):
     plt.axis('off')
     plt.show()
 
-def draw_bounding_box_3d(img, bounding_box_points_3d, R_ct, tvec, camera_matrix, dist_coeffs):
+def draw_bounding_box_with_content(img, drawing, R_ct, tvec, camera_matrix, dist_coeffs, original_image):
     """
-    Zeichnet die projizierten 3D-Bounding-Box-Eckpunkte auf das Bild und verbindet sie, um die Box zu visualisieren.
+    Zeichnet die projizierte Bounding Box mit dem Inhalt der Zeichnung (perspektivisch transformiert).
 
     :param img: Bild, auf das gezeichnet wird
-    :param bounding_box_points_3d: Liste der 3D-Eckpunkte der Bounding Box relativ zum AprilTag
+    :param drawing: Dictionary mit Bounding Box-Daten und 3D-Koordinaten
     :param R_ct: Rotationsmatrix von der Kamera zum Tag
     :param tvec: Translationsvektor von der Kamera zum Tag
     :param camera_matrix: Kameramatrix
     :param dist_coeffs: Verzerrungskoeffizienten der Kamera
-    :return: Bild mit der projizierten Bounding Box
+    :param original_image: Bild mit den originalen Zeichnungen
+    :return: Bild mit projizierter Bounding Box und deren Inhalt
     """
-    # Wandeln Sie die 3D-Eckpunkte in das benötigte Format für OpenCV um
-    box_points_3d = np.array(bounding_box_points_3d, dtype=np.float32)
-
-    # Projektion der 3D-Punkte auf 2D-Bildkoordinaten
-    imgpts, _ = cv2.projectPoints(box_points_3d, R_ct, tvec, camera_matrix, dist_coeffs)
+    # 1. 2D- und 3D-Eckpunkte der Bounding Box vorbereiten
+    box_points_2d = np.array(drawing["bounding_box_points"], dtype=np.float32)  # 2D-Eckpunkte
+    box_points_3d = np.array(drawing["bounding_box_points_3d"], dtype=np.float32)  # 3D-Eckpunkte
     
-    # Konvertieren der projizierten Punkte in Ganzzahlen für die Darstellung
+    # 2. 3D-Eckpunkte projizieren, um die Position auf dem 2D-Bild zu bestimmen
+    imgpts, _ = cv2.projectPoints(box_points_3d, R_ct, tvec, camera_matrix, dist_coeffs)
     imgpts = np.int32(imgpts).reshape(-1, 2)
-
-    # Zeichnen der Linien, die die Eckpunkte verbinden
-    img = cv2.line(img, tuple(imgpts[0]), tuple(imgpts[1]), (0, 255, 255), 2)  # obere Kante
-    img = cv2.line(img, tuple(imgpts[1]), tuple(imgpts[2]), (0, 255, 255), 2)  # rechte Kante
-    img = cv2.line(img, tuple(imgpts[2]), tuple(imgpts[3]), (0, 255, 255), 2)  # untere Kante
-    img = cv2.line(img, tuple(imgpts[3]), tuple(imgpts[0]), (0, 255, 255), 2)  # linke Kante
+    
+    # 3. Perspektivische Transformation definieren
+    # Perspektivische Transformation von originaler Bounding Box zu projizierter Bounding Box
+    M = cv2.getPerspectiveTransform(box_points_2d, imgpts.astype(np.float32))
+    
+    # 4. Originalbild innerhalb der Bounding Box zuschneiden
+    x, y, w, h = drawing["bounding_box"]
+    cropped_image = original_image[y:y+h, x:x+w]
+    
+    # 5. Perspektivisch transformiertes Bild erstellen
+    warped = cv2.warpPerspective(cropped_image, M, (img.shape[1], img.shape[0]))
+    
+    # 6. Erstelle eine Maske in Form der projizierten Bounding Box
+    mask = np.zeros_like(img, dtype=np.uint8)
+    cv2.fillConvexPoly(mask, imgpts, (255, 255, 255))
+    
+    # 7. Kopiere das transformierte Bild auf das Hauptbild basierend auf der Maske
+    cv2.copyTo(warped, mask, img)  # Kopiere das `warped` Bild an die Position auf `img`
     
     return img

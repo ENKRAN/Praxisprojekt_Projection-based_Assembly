@@ -2,7 +2,7 @@ import numpy as np
 import cv2
 from .camera import Camera
 from .apriltag_detection import AprilTagDetector
-from .visualization import draw_axes, draw_tag_border_and_id, draw_bounding_box_3d
+from .visualization import draw_axes, draw_tag_border_and_id, draw_bounding_box_with_content
 from .image_processing import save_component_img
 from .user_interaction import edit_saved_image
 from tests import test_apriltag_detection
@@ -63,14 +63,18 @@ def main() -> None:
                     color_image = draw_axes(color_image, rvec, tvec_realsense, camera_matrix, color_intrinsics["dist_coeffs"], axis_length)
 
                     if drawings_3D is not None:
+                        original_image = cv2.imread(drawing_path)
+
                         for drawing in drawings_3D:
-                            color_image = draw_bounding_box_3d(
-                                img=color_image,  # Original image
-                                bounding_box_points_3d=drawing["bounding_box_points_3d"],  # 3D-Eckpunkte der Zeichnung
-                                R_ct=rvec,  # Rotationsmatrix Kamera -> AprilTag
-                                tvec=tvec_realsense,  # Translationsvektor Kamera -> AprilTag
-                                camera_matrix=camera_matrix,  # Kameramatrix
-                                dist_coeffs=color_intrinsics["dist_coeffs"]  # Verzerrungskoeffizienten
+                            color_image = draw_bounding_box_with_content(
+                                img=color_image,
+                                drawing=drawing,
+                                R_ct=rvec,
+                                tvec=tvec_realsense,
+                                camera_matrix=camera_matrix,
+                                dist_coeffs=color_intrinsics["dist_coeffs"],
+                                original_image=original_image,  # Bild mit den Zeichnungen
+                                debug=True
                             )
                 else:
                     cv2.putText(color_image, "Too close!, please move away a few cm.", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
