@@ -1,6 +1,11 @@
 import numpy as np
 from typing import Tuple
 from .camera import Camera
+import subprocess
+import os
+import time
+import pyautogui
+import cv2
 
 def pixelcoords_to_apriltagcoords(u, v, depth_frame, intrinsics, april_tag_pose) -> np.ndarray:
     """
@@ -22,19 +27,19 @@ def pixelcoords_to_apriltagcoords(u, v, depth_frame, intrinsics, april_tag_pose)
         print("No depth value found")
         return None
     
-    print(f"Distance to Point: {Z_c}m")
+    # print(f"Distance to Point: {Z_c}m")
 
     # Step 2: Convert the pixel coordinates to camera coordinates
     cam_vec = Camera.get_3D_camera_coords(int(u), int(v), Z_c, intrinsics["intrinsics_raw"])
 
-    print (f"Point in camera coordinates: ({cam_vec[0]}, {cam_vec[1]}, {cam_vec[2]})")
+    # print (f"Point in camera coordinates: ({cam_vec[0]}, {cam_vec[1]}, {cam_vec[2]})")
 
     # Step 3: Transform the camera coordinates to AprilTag coordinates
     rmat = np.array(april_tag_pose[0])
     tvec = np.array(april_tag_pose[1])
 
-    print(f"Rotation matrix: {rmat}")
-    print(f"Translation vector: {tvec}")
+    # print(f"Rotation matrix: {rmat}")
+    # print(f"Translation vector: {tvec}")
 
     # Inverse of the rotation matrix
     rinv = rmat.T
@@ -43,3 +48,37 @@ def pixelcoords_to_apriltagcoords(u, v, depth_frame, intrinsics, april_tag_pose)
     ATvec = np.dot(rinv, cam_vec - tvec)
     
     return ATvec
+
+def open_image_in_paint(image_path: str) -> None:
+    """
+    Open an image in MS Paint and create a new layer.
+
+    :param image_path: The path to the image
+    """
+    # Check if the image exists
+    if os.path.isfile(image_path):
+        # MS Paint mit dem Bild öffnen
+        process = subprocess.Popen(['mspaint', image_path])
+
+        # Wartezeit, damit MS Paint vollständig geladen wird
+        time.sleep(2)
+
+        # Neue Ebene erstellen (Anpassung je nach Tastenkombination)
+        pyautogui.hotkey('ctrl', 'shift', 'n')
+
+        process.wait()
+
+        print("MS paint is closed.")
+    else:
+        print(f"The image at {image_path} was not found.")
+
+def show_img(image_path: str) -> None:
+    """
+    Show an image using opencv
+
+    :param image_path: The path to the image
+    """
+    cv2.imshow("Image", cv2.imread(image_path))
+    cv2.waitKey(0)
+
+

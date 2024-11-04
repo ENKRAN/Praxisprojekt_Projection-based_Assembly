@@ -77,3 +77,32 @@ def visualize_depth_image(depth_image):
     plt.title("Visualized Depth Image")
     plt.axis('off')
     plt.show()
+
+def draw_bounding_box_3d(img, bounding_box_points_3d, R_ct, tvec, camera_matrix, dist_coeffs):
+    """
+    Zeichnet die projizierten 3D-Bounding-Box-Eckpunkte auf das Bild und verbindet sie, um die Box zu visualisieren.
+
+    :param img: Bild, auf das gezeichnet wird
+    :param bounding_box_points_3d: Liste der 3D-Eckpunkte der Bounding Box relativ zum AprilTag
+    :param R_ct: Rotationsmatrix von der Kamera zum Tag
+    :param tvec: Translationsvektor von der Kamera zum Tag
+    :param camera_matrix: Kameramatrix
+    :param dist_coeffs: Verzerrungskoeffizienten der Kamera
+    :return: Bild mit der projizierten Bounding Box
+    """
+    # Wandeln Sie die 3D-Eckpunkte in das benötigte Format für OpenCV um
+    box_points_3d = np.array(bounding_box_points_3d, dtype=np.float32)
+
+    # Projektion der 3D-Punkte auf 2D-Bildkoordinaten
+    imgpts, _ = cv2.projectPoints(box_points_3d, R_ct, tvec, camera_matrix, dist_coeffs)
+    
+    # Konvertieren der projizierten Punkte in Ganzzahlen für die Darstellung
+    imgpts = np.int32(imgpts).reshape(-1, 2)
+
+    # Zeichnen der Linien, die die Eckpunkte verbinden
+    img = cv2.line(img, tuple(imgpts[0]), tuple(imgpts[1]), (0, 255, 255), 2)  # obere Kante
+    img = cv2.line(img, tuple(imgpts[1]), tuple(imgpts[2]), (0, 255, 255), 2)  # rechte Kante
+    img = cv2.line(img, tuple(imgpts[2]), tuple(imgpts[3]), (0, 255, 255), 2)  # untere Kante
+    img = cv2.line(img, tuple(imgpts[3]), tuple(imgpts[0]), (0, 255, 255), 2)  # linke Kante
+    
+    return img
