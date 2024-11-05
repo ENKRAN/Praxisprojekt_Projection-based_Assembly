@@ -2,7 +2,7 @@ import numpy as np
 import cv2
 from .camera import Camera
 from .apriltag_detection import AprilTagDetector
-from .visualization import draw_axes, draw_tag_border_and_id, draw_bounding_box
+from .visualization import *
 from .image_processing import save_component_img
 from .user_interaction import edit_saved_image
 from tests import test_apriltag_detection
@@ -64,15 +64,28 @@ def main() -> None:
 
                     # Visualize the 3D bounding boxes if things were drawn on the image (to check if the 3D coordinates are correct)
                     if drawings_3D is not None:
+                        original_image = cv2.imread(drawing_path)
+
                         for drawing in drawings_3D:
-                            color_image = draw_bounding_box(
+                            """color_image = draw_bounding_box(
                                 img=color_image,
                                 bounding_box_points_3d=drawing["bounding_box_points_3d"],
                                 R_ct=rvec,
                                 tvec=tvec_realsense,
                                 camera_matrix=camera_matrix,
                                 dist_coeffs=color_intrinsics["dist_coeffs"]
+                            )"""
+
+                            color_image = draw_bounding_box_with_content(
+                                img=color_image,
+                                drawing=drawing,
+                                R_ct=rvec,
+                                tvec=tvec_realsense,
+                                camera_matrix=camera_matrix,
+                                dist_coeffs=color_intrinsics["dist_coeffs"],
+                                original_image=original_image  # Image with the drawings
                             )
+
                 else:
                     cv2.putText(color_image, "Too close!, please move away a few cm.", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
 

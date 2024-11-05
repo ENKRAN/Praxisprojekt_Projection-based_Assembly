@@ -110,3 +110,41 @@ def draw_bounding_box(img, bounding_box_points_3d, R_ct, tvec, camera_matrix, di
         print("Warning: Not enough points to draw the bounding box.")
 
     return img
+
+def draw_bounding_box_with_content(img, drawing, R_ct, tvec, camera_matrix, dist_coeffs, original_image):
+    """
+    Draws the projected 3D bounding box and inserts the content of the drawing (perspectively transformed).
+
+    :param img: Image to draw on
+    :param drawing: Dictionary containing bounding box data and 3D coordinates
+    :param R_ct: Rotation matrix from the camera to the tag
+    :param tvec: Translation vector from the camera to the tag
+    :param camera_matrix: Camera matrix
+    :param dist_coeffs: Camera distortion coefficients
+    :param original_image: Image containing the original drawings
+    :return: Image with the projected bounding box and its content
+    """
+    # 1. Prepare the 2D and 3D corner points of the bounding box
+    box_points_2d = np.array(drawing["bounding_box_points"], dtype=np.float32)  # 2D corner points
+    box_points_3d = np.array(drawing["bounding_box_points_3d"], dtype=np.float32)  # 3D corner points
+    
+    # 2. Project the 3D corner points to determine their 2D positions in the image
+    imgpts, _ = cv2.projectPoints(box_points_3d, R_ct, tvec, camera_matrix, dist_coeffs)
+    imgpts = np.int32(imgpts).reshape(-1, 2)
+    
+    # 3. Define the perspective transformation from the original 2D bounding box to the projected 2D bounding box
+    M = cv2.getPerspectiveTransform(box_points_2d, imgpts.astype(np.float32))
+    
+    # 4. Crop the original image within the bounding box
+    x, y, w, h = drawing["bounding_box"]
+    cropped_image = original_image[y:y+h, x:x+w]
+    
+    # 5. Apply the perspective transformation to the cropped image
+    warped = cv2.warpPerspective(cropped_image, M, (img.shape[1], img.shape[0]))
+
+    # 6. Insert the transformed image directly into the bounding box area
+    mask = np.zeros_like(img)
+    cv2.fillConvexPoly(mask, imgpts, (255, 255, 255))
+    img = cv2.add(cv2.bitwise_and(img, cv2.bitwise_not(mask)), warped)
+    
+    return img
