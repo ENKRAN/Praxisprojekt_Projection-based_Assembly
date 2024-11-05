@@ -51,22 +51,22 @@ def pixelcoords_to_apriltagcoords(u, v, depth_frame, intrinsics, april_tag_pose)
 
 def open_image_in_paint(image_path: str) -> None:
     """
-    Open an image in MS Paint and create a new layer.
+    Open an image in MS Paint and create two new layers.
 
     :param image_path: The path to the image
     """
     # Check if the image exists
     if os.path.isfile(image_path):
-        # MS Paint mit dem Bild öffnen
-        process = subprocess.Popen(['mspaint', image_path])
+        process = subprocess.Popen(['mspaint', image_path]) # Open the image in MS Paint
 
-        # Wartezeit, damit MS Paint vollständig geladen wird
+        time.sleep(2) # Wait for MS Paint to open
+
+        # Create two new layers
+        pyautogui.hotkey('ctrl', 'shift', 'n')
         time.sleep(2)
-
-        # Neue Ebene erstellen (Anpassung je nach Tastenkombination)
         pyautogui.hotkey('ctrl', 'shift', 'n')
 
-        process.wait()
+        process.wait()  # Wait until the user closes MS Paint
 
         print("MS paint is closed.")
     else:

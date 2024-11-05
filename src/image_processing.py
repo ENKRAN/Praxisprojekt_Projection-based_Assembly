@@ -29,30 +29,37 @@ def save_component_img(frame, tag_id, save_dir="data/saved_images") -> str:
 
     return filepath, filename
 
-def analyze_multiple_drawings(image_path: str, min_area: float = 5.0, min_width: int = 10, min_height: int = 10):
-    # Bild laden
+def find_drawings_in_img(image_path: str, min_area: float = 5.0, min_width: int = 10, min_height: int = 10) -> List[Dict]:
+    """
+    Find drawings in an image and return their details.
+
+    :param image_path: The path to the image
+    :param min_area: The minimum area of a drawing
+    :param min_width: The minimum width of a drawing
+    :param min_height: The minimum height of a drawing
+    :return: A list of dictionaries containing the details of the drawings
+    """
     image = cv2.imread(image_path)
     
-    # Erstellen einer Maske für alle nicht-schwarzen Pixel
+    # Create a mask to filter out black areas in the image
     non_black_mask = cv2.inRange(image, (1, 1, 1), (255, 255, 255))
     
-    # Konturen und Hierarchie im Bild finden
+    # Find contours in the mask and get the hierarchy
     contours, hierarchy = cv2.findContours(non_black_mask, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
     
-    # Liste, um Details aller gefilterten Zeichnungen zu speichern
+    # List to store the details of the drawings
     drawings = []
     
-    # Jede Kontur in der Hierarchie analysieren
     for i, contour in enumerate(contours):
-        # Nur äußere Konturen ohne übergeordnete Elemente berücksichtigen
+        # Just consider the outermost contours
         if hierarchy[0][i][3] == -1:
-            # Konturfläche und Bounding Box prüfen
+            # Check the area, width and height of the bounding box
             area = cv2.contourArea(contour)
             x, y, w, h = cv2.boundingRect(contour)
             
-            # Filter nach Fläche, Breite und Höhe der Bounding Box
+            # Filter out small contours
             if area >= min_area and w >= min_width and h >= min_height:
-                # Mittelpunkt der aktuellen Zeichnung berechnen
+                # Calculate the center of the contour
                 M = cv2.moments(contour)
                 if M["m00"] != 0:
                     center_x = int(M["m10"] / M["m00"])
@@ -60,69 +67,76 @@ def analyze_multiple_drawings(image_path: str, min_area: float = 5.0, min_width:
                 else:
                     center_x, center_y = 0, 0
                 
-                # Berechnung der 2D-Eckpunkte der Bounding Box
+                # Calculate the bounding box points
                 top_left = (x, y)
                 top_right = (x + w, y)
                 bottom_left = (x, y + h)
                 bottom_right = (x + w, y + h)
                 bounding_box_points = [top_left, top_right, bottom_right, bottom_left]
                 
-                # Speichern der Konturkoordinaten für spätere Referenz
+                # Save the contour coordinates
                 contour_coordinates = contour.reshape(-1, 2).tolist()
                 
-                # Zeichne die Bounding Box und den Mittelpunkt für die Verifikation
-                cv2.circle(image, top_left, 5, (0, 255, 255), -1) # Eckpunkte in Gelb
+                # Draw the bounding box, center and contour on the image
+                # Corners in yellow
+                cv2.circle(image, top_left, 5, (0, 255, 255), -1)
                 cv2.circle(image, top_right, 5, (0, 255, 255), -1)
                 cv2.circle(image, bottom_left, 5, (0, 255, 255), -1)
                 cv2.circle(image, bottom_right, 5, (0, 255, 255), -1)
-                cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 2)  # Bounding Box in Grün
-                cv2.drawMarker(image, (center_x, center_y), (0, 0, 255), markerType=cv2.MARKER_CROSS, markerSize=10, thickness=2)  # Mittelpunkt als Kreuz
-                cv2.drawContours(image, [contour], -1, (255, 0, 0), 2)  # Kontur in Blau
+
+                cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 2)  # Bounding Box in green
+                cv2.drawMarker(image, (center_x, center_y), (0, 0, 255), markerType=cv2.MARKER_CROSS, markerSize=10, thickness=2)  # Center in red as a cross
+                cv2.drawContours(image, [contour], -1, (255, 0, 0), 2)  # Contour in blue
                 
-                # Speichere die Details dieser Zeichnung in der Liste
                 drawings.append({
                     "bounding_box": (x, y, w, h),
-                    "bounding_box_points": bounding_box_points,  # 2D-Eckpunkte
+                    "bounding_box_points": bounding_box_points,
                     "center": (center_x, center_y),
                     "contour_coordinates": contour_coordinates,
                     "area": area
                 })
     
-    # Zeige das Bild mit allen Bounding Boxes, Mittelpunkten und Konturen
-    cv2.imshow("Mehrere Zeichnungen erkennen", image)
+    cv2.imshow("Found drawings", image)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
     
-    # Ausgabe der Anzahl und Details der Zeichnungen
-    print(f"Anzahl gefundener Zeichnungen: {len(drawings)}")
+    print(f"Found drawings: {len(drawings)}")
     for i, drawing in enumerate(drawings):
-        print(f"Zeichnung {i + 1}:")
+        print(f"Drawing {i + 1}:")
         print(f"  Bounding Box: {drawing['bounding_box']}")
         print(f"  Bounding Box Points (2D): {drawing['bounding_box_points']}")
-        print(f"  Mittelpunkt: {drawing['center']}")
-        print(f"  Fläche: {drawing['area']}")
-        print(f"  Anzahl Konturpunkte: {len(drawing['contour_coordinates'])}")
+        print(f"  Center: {drawing['center']}")
+        print(f"  Area: {drawing['area']}")
+        print(f"  Count contour coordinates: {len(drawing['contour_coordinates'])}")
     
-    # Rückgabe der Details aller Zeichnungen
     return drawings
 
-def analyze_drawings_and_transform_to_3d(image_path: str, depth_frame, intrinsics, april_tag_pose) -> List[Dict]:
-    # Bild laden und Zeichnungen analysieren
-    drawings = analyze_multiple_drawings(image_path)
+def transform_bounding_boxes_to_3D(image_path: str, depth_frame, intrinsics, april_tag_pose) -> List[Dict]:
+    """
+    Transform the bounding boxes of drawings to 3D coordinates.
+
+    :param image_path: The path to the image
+    :param depth_frame: The depth frame
+    :param intrinsics: The camera intrinsics
+    :param april_tag_pose: The pose of the AprilTag
+    :return: A list of dictionaries containing the details of the drawings with 3D coordinates
+    """
+    # Find the drawings in the image and get their details
+    drawings = find_drawings_in_img(image_path)
     
     for drawing in drawings:
-        # Liste, um die 3D-Koordinaten der Eckpunkte zu speichern
-        drawing["bounding_box_points_3d"] = []
+        drawing["bounding_box_points_3d"] = []  # List to store the 3D coordinates
         
-        # Iteriere über die Eckpunkte und transformiere sie in 3D
+        # Convert each 2D point to 3D relative to the AprilTag
         for (u, v) in drawing["bounding_box_points"]:
             point_3d = pixelcoords_to_apriltagcoords(u, v, depth_frame, intrinsics, april_tag_pose)
+
             if point_3d is not None:
                 drawing["bounding_box_points_3d"].append(point_3d)
             else:
-                print(f"Warnung: Keine gültige 3D-Koordinate für Punkt ({u}, {v}) gefunden.")
+                print(f"Warning: No depth value found for pixel coordinates ({u}, {v})")
     
-    # Ausgabe der Ergebnisse für die Überprüfung
+    # Print the 3D coordinates of the bounding boxes for debugging
     for i, drawing in enumerate(drawings):
         print(f"Zeichnung {i + 1}:")
         print(f"  2D-Eckpunkte der Bounding Box: {drawing['bounding_box_points']}")

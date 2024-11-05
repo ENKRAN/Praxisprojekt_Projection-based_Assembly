@@ -2,12 +2,12 @@ import numpy as np
 import cv2
 from .camera import Camera
 from .apriltag_detection import AprilTagDetector
-from .visualization import draw_axes, draw_tag_border_and_id, draw_bounding_box_with_content
+from .visualization import draw_axes, draw_tag_border_and_id, draw_bounding_box
 from .image_processing import save_component_img
 from .user_interaction import edit_saved_image
 from tests import test_apriltag_detection
 from .utils import *
-from .image_processing import analyze_multiple_drawings, analyze_drawings_and_transform_to_3d
+from .image_processing import transform_bounding_boxes_to_3D
 
 def main() -> None:
     # Initialize the camera
@@ -62,19 +62,16 @@ def main() -> None:
                     # Draw the axes and tag border with ID
                     color_image = draw_axes(color_image, rvec, tvec_realsense, camera_matrix, color_intrinsics["dist_coeffs"], axis_length)
 
+                    # Visualize the 3D bounding boxes if things were drawn on the image (to check if the 3D coordinates are correct)
                     if drawings_3D is not None:
-                        original_image = cv2.imread(drawing_path)
-
                         for drawing in drawings_3D:
-                            color_image = draw_bounding_box_with_content(
+                            color_image = draw_bounding_box(
                                 img=color_image,
-                                drawing=drawing,
+                                bounding_box_points_3d=drawing["bounding_box_points_3d"],
                                 R_ct=rvec,
                                 tvec=tvec_realsense,
                                 camera_matrix=camera_matrix,
-                                dist_coeffs=color_intrinsics["dist_coeffs"],
-                                original_image=original_image,  # Bild mit den Zeichnungen
-                                debug=True
+                                dist_coeffs=color_intrinsics["dist_coeffs"]
                             )
                 else:
                     cv2.putText(color_image, "Too close!, please move away a few cm.", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
@@ -91,17 +88,19 @@ def main() -> None:
             # Save the image of the component if a tag was detected and open it for editing
             if key == ord(' '):
                 if results:
-                    # visualize_depth_image(depth_image)  # Uncomment to visualize the depth image
+                    # Save the image of the component and open it for editing
                     saved_image_path, saved_filename = save_component_img(color_image, results[0].tag_id)
                     open_image_in_paint(saved_image_path)
 
+                    # FIXME: Paths for the edited image and the drawing (currently "hard coded")
                     edited_img_path = "data/saved_images/edited_" + saved_filename
                     drawing_path = "data/saved_images/drawing_edited_" + saved_filename
 
+                    # Open the edited image in a window
                     show_img(edited_img_path)
 
-                    drawings_3D = analyze_drawings_and_transform_to_3d(drawing_path, depth_frame, color_intrinsics, (rvec, tvec_realsense))
-
+                    # Get the drawings and transform the 2D bounding boxes to 3D
+                    drawings_3D = transform_bounding_boxes_to_3D(drawing_path, depth_frame, color_intrinsics, (rvec, tvec_realsense))
 
                     # Test the difference between the original estimated tvec and the manual calculation
                     # test_apriltag_detection.test_tvec_difference(results, depth_to_tag, camera, color_intrinsics, tvec_realsense, saved_image_path, apriltag_detector)
