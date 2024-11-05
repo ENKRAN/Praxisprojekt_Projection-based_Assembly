@@ -60,6 +60,7 @@ def draw_tag_border_and_id(frame, result) -> Any:
 
 def visualize_depth_image(depth_image):
     """
+    TODO: Maybe delete this function bcs no longer in use
     Visualizes the depth image by normalizing it to a displayable range and using a color map.
     
     :param depth_image: Depth image as a numpy array
@@ -78,43 +79,34 @@ def visualize_depth_image(depth_image):
     plt.axis('off')
     plt.show()
 
-def draw_bounding_box_with_content(img, drawing, R_ct, tvec, camera_matrix, dist_coeffs, original_image):
+def draw_bounding_box(img, bounding_box_points_3d, R_ct, tvec, camera_matrix, dist_coeffs) -> Any:
     """
-    Zeichnet die projizierte Bounding Box mit dem Inhalt der Zeichnung (perspektivisch transformiert).
+    Visualizes a 3D bounding box in the image using the projected 2D points.
 
-    :param img: Bild, auf das gezeichnet wird
-    :param drawing: Dictionary mit Bounding Box-Daten und 3D-Koordinaten
-    :param R_ct: Rotationsmatrix von der Kamera zum Tag
-    :param tvec: Translationsvektor von der Kamera zum Tag
-    :param camera_matrix: Kameramatrix
-    :param dist_coeffs: Verzerrungskoeffizienten der Kamera
-    :param original_image: Bild mit den originalen Zeichnungen
-    :return: Bild mit projizierter Bounding Box und deren Inhalt
+    :param img: Image to draw on
+    :param bounding_box_points_3d: 3D points of the bounding box
+    :param R_ct: Rotation matrix from the camera to the tag
+    :param tvec: Translation vector from the camera to the tag
+    :param camera_matrix: Camera matrix
+    :param dist_coeffs: Distortion coefficients
+    :return: Image with the 3D bounding box drawn
     """
-    # 1. 2D- und 3D-Eckpunkte der Bounding Box vorbereiten
-    box_points_2d = np.array(drawing["bounding_box_points"], dtype=np.float32)  # 2D-Eckpunkte
-    box_points_3d = np.array(drawing["bounding_box_points_3d"], dtype=np.float32)  # 3D-Eckpunkte
-    
-    # 2. 3D-Eckpunkte projizieren, um die Position auf dem 2D-Bild zu bestimmen
+    # Convert the 3D points of the bounding box to a numpy array for opencv
+    box_points_3d = np.array(bounding_box_points_3d, dtype=np.float32)
+
+    # Project the 3D bounding box points onto the 2D image
     imgpts, _ = cv2.projectPoints(box_points_3d, R_ct, tvec, camera_matrix, dist_coeffs)
+    
+    # Convert the points into integer pixel coordinates to accurately draw the lines
     imgpts = np.int32(imgpts).reshape(-1, 2)
-    
-    # 3. Perspektivische Transformation definieren
-    # Perspektivische Transformation von originaler Bounding Box zu projizierter Bounding Box
-    M = cv2.getPerspectiveTransform(box_points_2d, imgpts.astype(np.float32))
-    
-    # 4. Originalbild innerhalb der Bounding Box zuschneiden
-    x, y, w, h = drawing["bounding_box"]
-    cropped_image = original_image[y:y+h, x:x+w]
-    
-    # 5. Perspektivisch transformiertes Bild erstellen
-    warped = cv2.warpPerspective(cropped_image, M, (img.shape[1], img.shape[0]))
-    
-    # 6. Erstelle eine Maske in Form der projizierten Bounding Box
-    mask = np.zeros_like(img, dtype=np.uint8)
-    cv2.fillConvexPoly(mask, imgpts, (255, 255, 255))
-    
-    # 7. Kopiere das transformierte Bild auf das Hauptbild basierend auf der Maske
-    cv2.copyTo(warped, mask, img)  # Kopiere das `warped` Bild an die Position auf `img`
-    
+
+    # Draw the bounding box lines if there are enough points
+    if len(imgpts) >= 4:
+        img = cv2.line(img, tuple(imgpts[0]), tuple(imgpts[1]), (0, 255, 255), 2)  # upper edge
+        img = cv2.line(img, tuple(imgpts[1]), tuple(imgpts[2]), (0, 255, 255), 2)  # right edge
+        img = cv2.line(img, tuple(imgpts[2]), tuple(imgpts[3]), (0, 255, 255), 2)  # lower edge
+        img = cv2.line(img, tuple(imgpts[3]), tuple(imgpts[0]), (0, 255, 255), 2)  # left edge
+    else:
+        print("Warning: Not enough points to draw the bounding box.")
+
     return img
