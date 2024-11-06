@@ -38,31 +38,3 @@ class AprilTagDetector:
                                        camera_params=[self.fx, self.fy, self.cx, self.cy], 
                                        tag_size=self.tag_size)
         return results
-    
-    def show_tvec_comparison_image(self, image) -> None:
-        """
-        Show the original and new tvec comparison image
-
-        :param image: Image with the detected apriltags
-        """
-        while True:
-            # Show the image and wait for a key press
-            cv2.imshow("Original and new tvec comparison image", image)
-            key = cv2.waitKey(1) & 0xFF
-
-            if key == ord('s'):
-                # Generate a filename and timestamp
-                timestamp = time.strftime("%Y%m%d-%H%M%S")
-                filename = f"tvce_test_image_{timestamp}.png"
-
-                # Full path to the file
-                filepath = os.path.join("data\saved_images", filename)
-
-                # Save the image to disk
-                cv2.imwrite(filepath, image)
-                print(f"Image saved at: {filepath}")
-
-            if key == ord('q'):
-                break
-            
-        cv2.destroyAllWindows()

@@ -54,7 +54,7 @@ class Camera:
         depth_frame = aligned_frames.get_depth_frame()
 
         if not color_frame or not depth_frame:
-            print("Fehler beim Abrufen der Frames.")
+            print("Error: No frames received")
             return None, None, None, None
 
         # Convert frames to numpy arrays
@@ -119,9 +119,9 @@ class Camera:
         return t_depth_vec
     
     @staticmethod
-    def get_2D_pixel_coords(intrinsics, tvec) -> Tuple[int, int]:
+    def get_2D_camera_coords(intrinsics, tvec) -> Tuple[int, int]:
         """
-        Get the 2D pixel coordinates of a 3D point.
+        Get the pixel coordinates of a 3D point in the camera frame.
 
         :param depth_intrinsics: Intrinsics of the depth sensor
         :param tvec: Translation vector

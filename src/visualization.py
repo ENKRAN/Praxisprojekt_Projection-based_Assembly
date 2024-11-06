@@ -79,39 +79,6 @@ def visualize_depth_image(depth_image):
     plt.axis('off')
     plt.show()
 
-def draw_bounding_box(img, bounding_box_points_3d, R_ct, tvec, camera_matrix, dist_coeffs) -> Any:
-    """
-    Visualizes a 3D bounding box in the image using the projected 2D points.
-
-    :param img: Image to draw on
-    :param bounding_box_points_3d: 3D points of the bounding box
-    :param R_ct: Rotation matrix from the camera to the tag
-    :param tvec: Translation vector from the camera to the tag
-    :param camera_matrix: Camera matrix
-    :param dist_coeffs: Distortion coefficients
-    :return: Image with the 3D bounding box drawn
-    """
-    # Convert the 3D points of the bounding box to a numpy array for opencv
-    box_points_3d = np.array(bounding_box_points_3d, dtype=np.float32)
-
-    # Project the 3D bounding box points onto the 2D image
-    imgpts, _ = cv2.projectPoints(box_points_3d, R_ct, tvec, camera_matrix, dist_coeffs)
-    
-    # Convert the points into integer pixel coordinates to accurately draw the lines
-    imgpts = np.int32(imgpts).reshape(-1, 2)
-
-    # Draw the bounding box lines if there are enough points
-    if len(imgpts) >= 4:
-        img = cv2.line(img, tuple(imgpts[0]), tuple(imgpts[1]), (0, 255, 255), 2)  # upper edge
-        img = cv2.line(img, tuple(imgpts[1]), tuple(imgpts[2]), (0, 255, 255), 2)  # right edge
-        img = cv2.line(img, tuple(imgpts[2]), tuple(imgpts[3]), (0, 255, 255), 2)  # lower edge
-        img = cv2.line(img, tuple(imgpts[3]), tuple(imgpts[0]), (0, 255, 255), 2)  # left edge
-    else:
-        print("Warning: Not enough points to draw the bounding box.")
-
-    return img
-
-
 def draw_bounding_box_and_drawing(img, drawing_img, drawing, R_ct, tvec, camera_matrix, dist_coeffs):
     """
     Visualisiert eine 3D-Bounding-Box im Bild und projiziert die Zeichnung ohne Hintergrund auf das Kamerabild.
@@ -141,13 +108,13 @@ def draw_bounding_box_and_drawing(img, drawing_img, drawing, R_ct, tvec, camera_
     imgpts_float = np.float32(imgpts).reshape(-1, 2)
 
     # Zeichnen der Bounding-Box-Linien
-    if len(imgpts_int) >= 4:
+    """if len(imgpts_int) >= 4:
         cv2.line(img, tuple(imgpts_int[0]), tuple(imgpts_int[1]), (0, 255, 255), 2)
         cv2.line(img, tuple(imgpts_int[1]), tuple(imgpts_int[2]), (0, 255, 255), 2)
         cv2.line(img, tuple(imgpts_int[2]), tuple(imgpts_int[3]), (0, 255, 255), 2)
         cv2.line(img, tuple(imgpts_int[3]), tuple(imgpts_int[0]), (0, 255, 255), 2)
     else:
-        print("Warnung: Nicht genügend Punkte zum Zeichnen der Bounding-Box.")
+        print("Warnung: Nicht genügend Punkte zum Zeichnen der Bounding-Box.")"""
 
     # ROI aus dem Ursprungsbild extrahieren
     x, y, w, h = drawing["bounding_box"]

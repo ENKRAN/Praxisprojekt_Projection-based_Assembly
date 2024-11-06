@@ -67,15 +67,6 @@ def main() -> None:
                         drawing_img = cv2.imread(drawing_path)
 
                         for drawing in drawings_3D:
-                            """color_image = draw_bounding_box(
-                                img=color_image,
-                                bounding_box_points_3d=drawing["bounding_box_points_3d"],
-                                R_ct=rvec,
-                                tvec=tvec_realsense,
-                                camera_matrix=camera_matrix,
-                                dist_coeffs=color_intrinsics["dist_coeffs"]
-                            )"""
-
                             color_image = draw_bounding_box_and_drawing(
                                 img=color_image,
                                 drawing_img=drawing_img,
