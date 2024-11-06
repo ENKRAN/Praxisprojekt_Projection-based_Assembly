@@ -64,7 +64,7 @@ def main() -> None:
 
                     # Visualize the 3D bounding boxes if things were drawn on the image (to check if the 3D coordinates are correct)
                     if drawings_3D is not None:
-                        original_image = cv2.imread(drawing_path)
+                        drawing_img = cv2.imread(drawing_path)
 
                         for drawing in drawings_3D:
                             """color_image = draw_bounding_box(
@@ -76,14 +76,14 @@ def main() -> None:
                                 dist_coeffs=color_intrinsics["dist_coeffs"]
                             )"""
 
-                            color_image = draw_bounding_box_with_content(
+                            color_image = draw_bounding_box_and_drawing(
                                 img=color_image,
+                                drawing_img=drawing_img,
                                 drawing=drawing,
                                 R_ct=rvec,
                                 tvec=tvec_realsense,
                                 camera_matrix=camera_matrix,
-                                dist_coeffs=color_intrinsics["dist_coeffs"],
-                                original_image=original_image  # Image with the drawings
+                                dist_coeffs=color_intrinsics["dist_coeffs"]
                             )
 
                 else:

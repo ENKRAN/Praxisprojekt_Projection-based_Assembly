@@ -111,40 +111,89 @@ def draw_bounding_box(img, bounding_box_points_3d, R_ct, tvec, camera_matrix, di
 
     return img
 
-def draw_bounding_box_with_content(img, drawing, R_ct, tvec, camera_matrix, dist_coeffs, original_image):
-    """
-    Draws the projected 3D bounding box and inserts the content of the drawing (perspectively transformed).
 
-    :param img: Image to draw on
-    :param drawing: Dictionary containing bounding box data and 3D coordinates
-    :param R_ct: Rotation matrix from the camera to the tag
-    :param tvec: Translation vector from the camera to the tag
-    :param camera_matrix: Camera matrix
-    :param dist_coeffs: Camera distortion coefficients
-    :param original_image: Image containing the original drawings
-    :return: Image with the projected bounding box and its content
+def draw_bounding_box_and_drawing(img, drawing_img, drawing, R_ct, tvec, camera_matrix, dist_coeffs):
     """
-    # 1. Prepare the 2D and 3D corner points of the bounding box
-    box_points_2d = np.array(drawing["bounding_box_points"], dtype=np.float32)  # 2D corner points
-    box_points_3d = np.array(drawing["bounding_box_points_3d"], dtype=np.float32)  # 3D corner points
-    
-    # 2. Project the 3D corner points to determine their 2D positions in the image
+    Visualisiert eine 3D-Bounding-Box im Bild und projiziert die Zeichnung ohne Hintergrund auf das Kamerabild.
+
+    :param img: Bild, auf das gezeichnet werden soll
+    :param drawing_img: Ursprungsbild mit den Zeichnungen
+    :param drawing: Dictionary mit Details der Zeichnung
+    :param R_ct: Rotationsmatrix von der Kamera zum Tag
+    :param tvec: Translationsvektor von der Kamera zum Tag
+    :param camera_matrix: Kameramatrix
+    :param dist_coeffs: Verzerrungskoeffizienten
+    :return: Bild mit gezeichneter 3D-Bounding-Box und projizierter Zeichnung ohne Hintergrund
+    """
+    # 3D-Punkte der Bounding-Box erhalten
+    bounding_box_points_3d = drawing["bounding_box_points_3d"]
+
+    # Konvertieren der 3D-Punkte der Bounding-Box in ein numpy-Array
+    box_points_3d = np.array(bounding_box_points_3d, dtype=np.float32)
+
+    # Projizieren der 3D-Bounding-Box-Punkte auf das 2D-Bild
     imgpts, _ = cv2.projectPoints(box_points_3d, R_ct, tvec, camera_matrix, dist_coeffs)
-    imgpts = np.int32(imgpts).reshape(-1, 2)
-    
-    # 3. Define the perspective transformation from the original 2D bounding box to the projected 2D bounding box
-    M = cv2.getPerspectiveTransform(box_points_2d, imgpts.astype(np.float32))
-    
-    # 4. Crop the original image within the bounding box
-    x, y, w, h = drawing["bounding_box"]
-    cropped_image = original_image[y:y+h, x:x+w]
-    
-    # 5. Apply the perspective transformation to the cropped image
-    warped = cv2.warpPerspective(cropped_image, M, (img.shape[1], img.shape[0]))
 
-    # 6. Insert the transformed image directly into the bounding box area
-    mask = np.zeros_like(img)
-    cv2.fillConvexPoly(mask, imgpts, (255, 255, 255))
-    img = cv2.add(cv2.bitwise_and(img, cv2.bitwise_not(mask)), warped)
-    
+    # Konvertieren der Punkte in ganzzahlige Pixelkoordinaten für das Zeichnen
+    imgpts_int = np.int32(imgpts).reshape(-1, 2)
+
+    # Konvertieren der Punkte in float32 für die Homographie
+    imgpts_float = np.float32(imgpts).reshape(-1, 2)
+
+    # Zeichnen der Bounding-Box-Linien
+    if len(imgpts_int) >= 4:
+        cv2.line(img, tuple(imgpts_int[0]), tuple(imgpts_int[1]), (0, 255, 255), 2)
+        cv2.line(img, tuple(imgpts_int[1]), tuple(imgpts_int[2]), (0, 255, 255), 2)
+        cv2.line(img, tuple(imgpts_int[2]), tuple(imgpts_int[3]), (0, 255, 255), 2)
+        cv2.line(img, tuple(imgpts_int[3]), tuple(imgpts_int[0]), (0, 255, 255), 2)
+    else:
+        print("Warnung: Nicht genügend Punkte zum Zeichnen der Bounding-Box.")
+
+    # ROI aus dem Ursprungsbild extrahieren
+    x, y, w, h = drawing["bounding_box"]
+    roi = drawing_img[y:y+h, x:x+w]
+
+    # Erstellen der Maske basierend auf Pixelintensitäten
+    # Konvertieren der ROI in Graustufen
+    roi_gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+    # Erstellen einer binären Maske, wobei nicht schwarze Pixel auf 255 gesetzt werden
+    _, mask = cv2.threshold(roi_gray, 10, 255, cv2.THRESH_BINARY)
+
+    # Zeichnung mit Maske extrahieren
+    drawing_extracted = cv2.bitwise_and(roi, roi, mask=mask)
+
+    # Eckpunkte der ROI (Zeichnung)
+    drawing_corners = np.array([[0, 0], [w - 1, 0], [w -1, h -1], [0, h -1]], dtype=np.float32)
+
+    # Berechnen der Homographie zwischen Zeichnung und projizierter Bounding-Box
+    if len(imgpts_float) >= 4:
+        H, status = cv2.findHomography(drawing_corners, imgpts_float)
+
+        # Projizieren der Zeichnung und der Maske auf das Kamerabild
+        warped_drawing = cv2.warpPerspective(drawing_extracted, H, (img.shape[1], img.shape[0]))
+        warped_mask = cv2.warpPerspective(mask, H, (img.shape[1], img.shape[0]))
+
+        # Inverse Maske erstellen
+        mask_inv = cv2.bitwise_not(warped_mask)
+
+        # Sicherstellen, dass die Masken drei Kanäle haben
+        if len(img.shape) == 3 and img.shape[2] == 3:
+            warped_mask_color = cv2.merge([warped_mask, warped_mask, warped_mask])
+            mask_inv_color = cv2.merge([mask_inv, mask_inv, mask_inv])
+        else:
+            warped_mask_color = warped_mask
+            mask_inv_color = mask_inv
+
+        # Hintergrund des Kamerabildes im Bereich der Zeichnung ausblenden
+        img_bg = cv2.bitwise_and(img, img, mask=mask_inv)
+
+        # Vordergrund der Zeichnung extrahieren
+        img_fg = cv2.bitwise_and(warped_drawing, warped_drawing, mask=warped_mask)
+
+        # Vordergrund und Hintergrund kombinieren
+        img = cv2.add(img_bg, img_fg)
+    else:
+        print("Warnung: Nicht genügend Punkte zum Berechnen der Homographie.")
+
     return img
+
