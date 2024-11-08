@@ -1,6 +1,5 @@
 import numpy as np
 import cv2
-import matplotlib.pyplot as plt
 from typing import Any
 
 def draw_axes(img, R_ct, tvec, camera_matrix, dist_coeffs, axis_length) -> Any:
@@ -142,6 +141,40 @@ def draw_bounding_box_and_drawing(img, drawing_img, drawing, R_ct, tvec, camera_
         img = cv2.add(img_bg, img_fg)
     else:
         print("Warning: Not enough points to draw the drawing.")
+
+    return img
+
+def draw_bounding_box_and_drawing_projector(img, drawing_img, drawing, R_ct, tvec, camera_matrix, dist_coeffs):
+    # 3D-Punkte der Bounding-Box erhalten
+    bounding_box_points_3d = drawing["bounding_box_points_3d"]
+
+    # Konvertieren der 3D-Punkte der Bounding-Box in ein numpy-Array
+    box_points_3d = np.array(bounding_box_points_3d, dtype=np.float32)
+
+    # Projizieren der 3D-Bounding-Box-Punkte auf das 2D-Projektorbild
+    imgpts, _ = cv2.projectPoints(box_points_3d, R_ct, tvec, camera_matrix, dist_coeffs)
+
+    # Konvertieren der Punkte in float für die Homographie
+    imgpts_float = np.float32(imgpts).reshape(-1, 2)
+
+    # Extrahieren der ROI (Region of Interest) der Zeichnung
+    x, y, w, h = drawing["bounding_box"]
+    roi = drawing_img[y:y+h, x:x+w]
+
+    # Eckpunkte der ROI (Zeichnung)
+    drawing_corners = np.array([[0, 0], [w - 1, 0], [w -1, h -1], [0, h -1]], dtype=np.float32)
+
+    # Berechnen der Homographie zwischen Zeichnung und projizierter Bounding-Box
+    if len(imgpts_float) >= 4:
+        H, status = cv2.findHomography(drawing_corners, imgpts_float)
+
+        # Projizieren der Zeichnung auf das Projektorbild
+        warped_drawing = cv2.warpPerspective(roi, H, (img.shape[1], img.shape[0]))
+
+        # Überlagern der projizierten Zeichnung direkt auf das Projektorbild
+        img = cv2.add(img, warped_drawing)
+    else:
+        print("Warnung: Nicht genügend Punkte zum Zeichnen der Zeichnung.")
 
     return img
 

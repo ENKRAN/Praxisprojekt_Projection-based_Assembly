@@ -1,8 +1,5 @@
 from pupil_apriltags import Detector
 from typing import List, Any
-import cv2
-import os
-import time
 
 class AprilTagDetector:
     """
