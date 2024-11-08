@@ -6,7 +6,7 @@ class Camera:
     """
     Class to interface with a RealSense camera
     """
-    def __init__(self, width=640, height=480, fps=60, enable_depth=True, enable_color=True) -> None:
+    def __init__(self, color_width=1920, color_height=1080, depth_width=1280, depth_height=720, fps=30, enable_depth=True, enable_color=True) -> None:
         """
         Initialize the camera pipeline with the desired settings.
 
@@ -21,11 +21,11 @@ class Camera:
 
         # Enable color stream if desired
         if enable_color:
-            self.config.enable_stream(rs.stream.color, width, height, rs.format.bgr8, fps)
+            self.config.enable_stream(rs.stream.color, color_width, color_height, rs.format.bgr8, fps)
 
         # Enable depth stream if desired
         if enable_depth:
-            self.config.enable_stream(rs.stream.depth, width, height, rs.format.z16, fps)
+            self.config.enable_stream(rs.stream.depth, depth_width, depth_height, rs.format.z16, fps)
 
         self.profile = self.pipeline.start(self.config)
 
