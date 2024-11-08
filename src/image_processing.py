@@ -3,6 +3,7 @@ import time
 import os
 from .utils import pixelcoords_to_apriltagcoords
 from typing import List, Dict
+import numpy as np
 
 def save_component_img(frame, tag_id, save_dir="data/saved_images") -> str:
     """
@@ -29,7 +30,7 @@ def save_component_img(frame, tag_id, save_dir="data/saved_images") -> str:
 
     return filepath, filename
 
-def find_drawings_in_img(image_path: str, min_area: float = 5.0, min_width: int = 10, min_height: int = 10) -> List[Dict]:
+def find_drawings_in_img(image_path: str, min_area: float = 1000.0, min_width: int = 50, min_height: int = 50) -> List[Dict]:
     """
     Find drawings in an image and return their details.
 
@@ -40,66 +41,68 @@ def find_drawings_in_img(image_path: str, min_area: float = 5.0, min_width: int 
     :return: A list of dictionaries containing the details of the drawings
     """
     image = cv2.imread(image_path)
-    
-    # Create a mask to filter out black areas in the image
-    non_black_mask = cv2.inRange(image, (1, 1, 1), (255, 255, 255))
-    
-    # Find contours in the mask and get the hierarchy
-    contours, hierarchy = cv2.findContours(non_black_mask, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
-    
-    # List to store the details of the drawings
-    drawings = []
-    
-    for i, contour in enumerate(contours):
-        # Just consider the outermost contours
-        if hierarchy[0][i][3] == -1:
-            # Check the area, width and height of the bounding box
-            area = cv2.contourArea(contour)
-            x, y, w, h = cv2.boundingRect(contour)
-            
-            # Filter out small contours
-            if area >= min_area and w >= min_width and h >= min_height:
-                # Calculate the center of the contour
-                M = cv2.moments(contour)
-                if M["m00"] != 0:
-                    center_x = int(M["m10"] / M["m00"])
-                    center_y = int(M["m01"] / M["m00"])
-                else:
-                    center_x, center_y = 0, 0
-                
-                # Calculate the bounding box points
-                top_left = (x, y)
-                top_right = (x + w, y)
-                bottom_left = (x, y + h)
-                bottom_right = (x + w, y + h)
-                bounding_box_points = [top_left, top_right, bottom_right, bottom_left]
-                
-                # Save the contour coordinates
-                contour_coordinates = contour.reshape(-1, 2).tolist()
-                
-                # Draw the bounding box, center and contour on the image
-                # Corners in yellow
-                cv2.circle(image, top_left, 5, (0, 255, 255), -1)
-                cv2.circle(image, top_right, 5, (0, 255, 255), -1)
-                cv2.circle(image, bottom_left, 5, (0, 255, 255), -1)
-                cv2.circle(image, bottom_right, 5, (0, 255, 255), -1)
 
-                cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 2)  # Bounding Box in green
-                cv2.drawMarker(image, (center_x, center_y), (0, 0, 255), markerType=cv2.MARKER_CROSS, markerSize=10, thickness=2)  # Center in red as a cross
-                cv2.drawContours(image, [contour], -1, (255, 0, 0), 2)  # Contour in blue
-                
-                drawings.append({
-                    "bounding_box": (x, y, w, h),
-                    "bounding_box_points": bounding_box_points,
-                    "center": (center_x, center_y),
-                    "contour_coordinates": contour_coordinates,
-                    "area": area
-                })
-    
+    # Check if the image was loaded successfully
+    if image is None:
+        print(f"Error: Image not found at {image_path}")
+        return []
+
+    # Create a mask to filter out black areas
+    non_black_mask = cv2.inRange(image, (1, 1, 1), (255, 255, 255))
+
+    # Using closing to fill in the gaps in the drawings and connect the lines
+    kernel = np.ones((10, 10), np.uint8)  # TODO: Test different kernel sizes
+    closing = cv2.morphologyEx(non_black_mask, cv2.MORPH_CLOSE, kernel)
+
+    # Find contours in the image
+    contours, hierarchy = cv2.findContours(closing, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    drawings = []
+
+    for i, contour in enumerate(contours):
+        area = cv2.contourArea(contour)
+        x, y, w, h = cv2.boundingRect(contour)
+
+        # Filter out small contours
+        if area >= min_area and w >= min_width and h >= min_height:
+            # Calculate the center of the contour
+            M = cv2.moments(contour)
+            if M["m00"] != 0:
+                center_x = int(M["m10"] / M["m00"])
+                center_y = int(M["m01"] / M["m00"])
+            else:
+                center_x, center_y = 0, 0
+
+            # Calculate the bounding box points
+            top_left = (x, y)
+            top_right = (x + w, y)
+            bottom_left = (x, y + h)
+            bottom_right = (x + w, y + h)
+            bounding_box_points = [top_left, top_right, bottom_right, bottom_left]
+
+            # Save the contour coordinates
+            contour_coordinates = contour.reshape(-1, 2).tolist()
+
+            # Optional: draw the bounding box, contour and center on the image
+            cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 2)
+            cv2.drawContours(image, [contour], -1, (255, 0, 0), 2)
+            cv2.drawMarker(image, (center_x, center_y), (0, 0, 255), markerType=cv2.MARKER_CROSS, markerSize=10, thickness=2)
+
+            # Save the details of the drawing
+            drawings.append({
+                "bounding_box": (x, y, w, h),
+                "bounding_box_points": bounding_box_points,
+                "center": (center_x, center_y),
+                "contour_coordinates": contour_coordinates,
+                "area": area
+            })
+
+    # Show the found drawings (optional)
     cv2.imshow("Found drawings", image)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
-    
+
+    # Print drawing details (optional)
     print(f"Found drawings: {len(drawings)}")
     for i, drawing in enumerate(drawings):
         print(f"Drawing {i + 1}:")
@@ -107,8 +110,8 @@ def find_drawings_in_img(image_path: str, min_area: float = 5.0, min_width: int 
         print(f"  Bounding Box Points (2D): {drawing['bounding_box_points']}")
         print(f"  Center: {drawing['center']}")
         print(f"  Area: {drawing['area']}")
-        print(f"  Count contour coordinates: {len(drawing['contour_coordinates'])}")
-    
+        print(f"  contour coordinate count: {len(drawing['contour_coordinates'])}")
+
     return drawings
 
 def transform_bounding_boxes_to_3D(image_path: str, depth_frame, intrinsics, april_tag_pose) -> List[Dict]:

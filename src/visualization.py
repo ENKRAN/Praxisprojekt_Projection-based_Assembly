@@ -82,7 +82,7 @@ def draw_bounding_box_and_drawing(img, drawing_img, drawing, R_ct, tvec, camera_
     # Project the 3D bounding box points onto the 2D image with correct perspective
     imgpts, _ = cv2.projectPoints(box_points_3d, R_ct, tvec, camera_matrix, dist_coeffs)
 
-    # Convert the points into integer pixel coordinates for drawing
+    # Convert the points into integer pixel coordinates for drawing (optional)
     imgpts_int = np.int32(imgpts).reshape(-1, 2)
 
     # Convert the points into float pixel coordinates for homography
