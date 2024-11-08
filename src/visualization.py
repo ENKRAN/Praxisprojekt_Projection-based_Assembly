@@ -74,6 +74,8 @@ def draw_bounding_box_and_drawing(img, drawing_img, drawing, R_ct, tvec, camera_
     # Get the 3D points of the corners of the bounding box
     bounding_box_points_3d = drawing["bounding_box_points_3d"]
 
+    # print(f'bounding_box_points_3d: {bounding_box_points_3d}')
+
     # Convert the points to a numpy array for opencv
     box_points_3d = np.array(bounding_box_points_3d, dtype=np.float32)
 

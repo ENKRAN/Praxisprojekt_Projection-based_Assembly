@@ -15,7 +15,7 @@ def main() -> None:
 
     # Get the intrinsics of the camera
     color_intrinsics = camera.get_color_sensor_intrinsics()
-    depth_intrinsics = camera.get_depth_sensor_intrinsics()
+    # depth_intrinsics = camera.get_depth_sensor_intrinsics()
 
     # Initialize the AprilTag detector
     apriltag_detector = AprilTagDetector(fx=color_intrinsics["fx"], fy=color_intrinsics["fy"], cx=color_intrinsics["ppx"], cy=color_intrinsics["ppy"])
@@ -24,7 +24,7 @@ def main() -> None:
     camera_matrix = np.array([[apriltag_detector.fx, 0, apriltag_detector.cx],
                             [0, apriltag_detector.fy, apriltag_detector.cy],
                             [0, 0, 1]])
-    
+        
     # Length of the axes in the visualization and the minimum distance to the tag in meters
     axis_length = apriltag_detector.tag_size
     min_distance = 0.15
