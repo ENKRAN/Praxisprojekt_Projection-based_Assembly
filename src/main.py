@@ -15,7 +15,7 @@ def main() -> None:
 
     # Get the intrinsics of the camera
     color_intrinsics = camera.get_color_sensor_intrinsics()
-    depth_intrinsics = camera.get_depth_sensor_intrinsics()
+    # depth_intrinsics = camera.get_depth_sensor_intrinsics()
 
     # Initialize the AprilTag detector
     apriltag_detector = AprilTagDetector(fx=color_intrinsics["fx"], fy=color_intrinsics["fy"], cx=color_intrinsics["ppx"], cy=color_intrinsics["ppy"])
@@ -29,6 +29,16 @@ def main() -> None:
     axis_length = apriltag_detector.tag_size
     min_distance = 0.15
     drawings_3D = None 
+
+    projector_width = 1920
+    projector_height = 1080
+
+    projector_window_name = 'Projector Window'
+    cv2.namedWindow(projector_window_name, cv2.WINDOW_NORMAL)
+    cv2.setWindowProperty(projector_window_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+
+    projector_screen_x = 1920
+    cv2.moveWindow(projector_window_name, projector_screen_x, 0)
     
     try:
         while True:
@@ -42,6 +52,9 @@ def main() -> None:
 
             # Detect AprilTags in the image
             results = apriltag_detector.detect(gray)
+
+            # Create an image for the projector
+            projector_image = np.zeros((projector_height, projector_width, 3), dtype=np.uint8)
 
             for result in results:
                 # Get the distance to the center of the AprilTag
@@ -67,22 +80,26 @@ def main() -> None:
                         drawing_img = cv2.imread(drawing_path)
 
                         for drawing in drawings_3D:
-                            color_image = draw_bounding_box_and_drawing(
-                                img=color_image,
-                                drawing_img=drawing_img,
-                                drawing=drawing,
-                                R_ct=rvec,
-                                tvec=tvec_realsense,
-                                camera_matrix=camera_matrix,
-                                dist_coeffs=color_intrinsics["dist_coeffs"]
-                            )
-
+                            projector_image = draw_bounding_box_and_drawing_projector(
+                            img=projector_image,
+                            drawing_img=drawing_img,
+                            drawing=drawing,
+                            R_ct=rvec,
+                            tvec=tvec_realsense,
+                            camera_matrix=camera_matrix,
+                            dist_coeffs=np.zeros(5)
+                            # Optional: pass H_proj if calibration was done 
+                        )
                 else:
                     cv2.putText(color_image, "Too close!, please move away a few cm.", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
 
                 # Always draw the tag border and ID
                 color_image = draw_tag_border_and_id(color_image, result)
-                
+            
+            # Display on the projector
+            cv2.imshow(projector_window_name, projector_image)
+            cv2.waitKey(1)
+
             # Display the image with the AprilTag detection
             cv2.imshow('AprilTag Detection with Axes and IDs', color_image)
 
