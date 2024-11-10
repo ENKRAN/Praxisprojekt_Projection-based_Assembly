@@ -15,7 +15,7 @@ This document provides a detailed guide to setting up and using the Projection-B
 
 1. **Intel RealSense D435 Camera**:
    - Connect the camera to a USB 3.2 port on your computer.
-   - Position the camera at an angle where it can capture the entire assembly workspace.
+   - Position the camera next to the projector and in an angle where it can capture the entire assembly workspace.
 
 2. **Samsung Freestyle Projector**:
    - Connect the projector to your computer via wireless screen mirroring or HDMI if available.
@@ -24,7 +24,6 @@ This document provides a detailed guide to setting up and using the Projection-B
 
 3. **iiyama TV Monitor**:
    - Set up the monitor as an extended display for monitoring camera feeds and displaying instructions.
-   - This will help in verifying if the instructions are being projected correctly.
 
 4. **AprilTags**:
    - Print AprilTags as required and attach them to the assembly components.
