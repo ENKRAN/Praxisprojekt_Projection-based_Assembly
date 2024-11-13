@@ -32,6 +32,7 @@ def save_component_img(frame, tag_id, save_dir="data/saved_images") -> Tuple[str
 
 def find_drawings_in_img(image_path: str, min_area: float = 1000.0, min_width: int = 50, min_height: int = 50, debug: bool = False) -> List[Dict]:
     """
+    FIXME: Don't know if i need this function in future or not
     Find drawings in an image and return their details.
 
     :param image_path: The path to the image
@@ -115,6 +116,7 @@ def find_drawings_in_img(image_path: str, min_area: float = 1000.0, min_width: i
 
 def transform_bounding_boxes_to_3D(image_path: str, depth_frame, intrinsics, april_tag_pose) -> List[Dict]:
     """
+    FIXME: Don't know if i need this function in future or not
     Transform the bounding boxes of drawings to 3D coordinates.
 
     :param image_path: The path to the image

@@ -28,6 +28,7 @@ def setup_projector_window():
     return projector_window_name, screen_width, screen_height
 
 def calibrate_projector_camera(square_size=0.06, camera_matrix=None, dist_coeffs=None) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    # FIXME: This function needs to be changed to replace the homography with the calculation of the projector parameters
     # Vorbereiten der Objektpunkte (Projektor-Koordinaten)
     pattern_size = (9, 6)  # Anzahl der inneren Ecken im Schachbrett (Breite, Höhe)
     objp = np.zeros((pattern_size[0]*pattern_size[1], 3), np.float32)

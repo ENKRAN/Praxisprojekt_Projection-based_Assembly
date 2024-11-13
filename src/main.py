@@ -7,20 +7,22 @@ from .image_processing import transform_bounding_boxes_to_3D
 from .setup import initialize_system
 from .projection import setup_projector_window, calibrate_projector_camera
 from .utils import open_image_in_paint, show_img
-from .visualization import draw_axes, draw_tag_border_and_id, draw_bounding_box_and_drawing_projector
+from .visualization import draw_axes, draw_tag_border_and_id, draw_bounding_box_and_drawing
 
 def update_windows() -> None:
     while True:
-        if cv2.getWindowProperty('AprilTag Detection with Axes and IDs', cv2.WND_PROP_VISIBLE) < 1 and \
+        if cv2.getWindowProperty('AprilTag Detection', cv2.WND_PROP_VISIBLE) < 1 and \
            cv2.getWindowProperty(projector_window_name, cv2.WND_PROP_VISIBLE) < 1:
             break
         cv2.waitKey(1)
-        time.sleep(0.01)  # Entlastet die CPU
+        time.sleep(0.01)
 
 def main() -> None:
     # Initialize the camera and AprilTag detector
     camera, apriltag_detector, camera_matrix, color_intrinsics, _ = initialize_system()
 
+    """
+    FIXME: Change to sth else to calibrate the projector-camera setup for the projector parameters
     try:
         H_proj = np.load('data/homography/homography_proj_cam.npy')
         print("Homography-matrix loaded.")
@@ -31,21 +33,21 @@ def main() -> None:
             time.sleep(2)
         else:
             print("Exiting the program.")
-            return
+            return"""
 
     # Setup the projector window
     global projector_window_name
     projector_window_name, projector_width, projector_height = setup_projector_window()
 
-
+    # Start the thread to update the windows
     window_thread = threading.Thread(target=update_windows)
     window_thread.start()
 
     # Length of the axes in the visualization and the minimum distance to the tag in meters
     axis_length = apriltag_detector.tag_size
     min_distance = 0.15
-    drawings_3D = None 
-    drawing_path = None
+    """drawings_3D = None 
+    drawing_path = None"""
 
     """chess_board_pattern_path = "data/saved_images/pattern.png"
     chessboard_pattern = cv2.imread(chess_board_pattern_path)
@@ -85,25 +87,26 @@ def main() -> None:
                     color_image = draw_axes(color_image, R_ct, tvec_realsense, camera_matrix, color_intrinsics["dist_coeffs"], axis_length)
 
                     # Visualize the 3D bounding boxes if things were drawn on the image (to check if the 3D coordinates are correct)
+                    """
+                    FIXME: Don't know if this is still needed or if it should be removed
                     if drawings_3D is not None:
                         if drawing_path is not None:
                             drawing_img = cv2.imread(drawing_path)
 
                             for drawing in drawings_3D:
-                                projector_image = draw_bounding_box_and_drawing_projector(
+                                projector_image = draw_bounding_box_and_drawing(
                                 img=projector_image,
                                 drawing_img=drawing_img,
                                 drawing=drawing,
                                 R_ct=R_ct,
                                 tvec=tvec_realsense,
                                 camera_matrix=camera_matrix,
-                                dist_coeffs=np.zeros(5),
-                                H_proj=H_proj
+                                dist_coeffs=color_intrinsics["dist_coeffs"]
                             )
                         else:
                             print("No drawing path provided. Please provide a path to the drawing image.")
                     else:
-                        print("No 3D drawings found.")
+                        print("No 3D drawings found.")"""
                 else:
                     cv2.putText(color_image, "Too close!, please move away a few cm.", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
 
@@ -114,7 +117,7 @@ def main() -> None:
             cv2.imshow(projector_window_name, projector_image)
 
             # Display the image with the AprilTag detection
-            cv2.imshow('AprilTag Detection with Axes and IDs', color_image)
+            cv2.imshow('AprilTag Detection', color_image)
 
             # Wait for a key press
             key = cv2.waitKey(1) & 0xFF
@@ -138,10 +141,7 @@ def main() -> None:
                     show_img(edited_img_path)
 
                     # Get the drawings and transform the 2D bounding boxes to 3D
-                    drawings_3D = transform_bounding_boxes_to_3D(drawing_path, depth_frame, color_intrinsics, (R_ct, tvec_realsense))
-
-                    # Test the difference between the original estimated tvec and the manual calculation
-                    # test_apriltag_detection.test_tvec_difference(results, depth_to_tag, camera, color_intrinsics, tvec_realsense, saved_image_path, apriltag_detector)
+                    # drawings_3D = transform_bounding_boxes_to_3D(drawing_path, depth_frame, color_intrinsics, (R_ct, tvec_realsense))
 
             # Close the window if the 'q' key is pressed
             if key == ord('q'):
