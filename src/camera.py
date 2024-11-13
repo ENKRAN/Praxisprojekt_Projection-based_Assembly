@@ -1,6 +1,6 @@
 import pyrealsense2 as rs
 import numpy as np
-from typing import Tuple, Dict, List, Any
+from typing import Tuple, Dict, Optional
 
 class Camera:
     """
@@ -36,7 +36,7 @@ class Camera:
         else:
             self.depth_scale = None
 
-    def get_frames(self) -> Tuple[np.ndarray, np.ndarray, Any, Any]:
+    def get_frames(self) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[rs.frame], Optional[rs.frame]]:        
         """
         Get color and depth frames from the camera, along with their numpy array representations.
 
@@ -102,7 +102,7 @@ class Camera:
         }
 
     @staticmethod
-    def get_3D_camera_coords(u, v, z, intrinsics) -> np.ndarray[Any, np.dtype]:
+    def get_3D_camera_coords(u, v, z, intrinsics) -> np.ndarray:
         """
         Get the 3D coordinates of a pixel in the camera frame.
 

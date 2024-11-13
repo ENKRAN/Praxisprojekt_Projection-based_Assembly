@@ -2,10 +2,10 @@ import cv2
 import time
 import os
 from .utils import pixelcoords_to_apriltagcoords
-from typing import List, Dict
+from typing import List, Dict, Tuple
 import numpy as np
 
-def save_component_img(frame, tag_id, save_dir="data/saved_images") -> str:
+def save_component_img(frame, tag_id, save_dir="data/saved_images") -> Tuple[str, str]:
     """
     Save the component image to disk.
 
@@ -30,7 +30,7 @@ def save_component_img(frame, tag_id, save_dir="data/saved_images") -> str:
 
     return filepath, filename
 
-def find_drawings_in_img(image_path: str, min_area: float = 1000.0, min_width: int = 50, min_height: int = 50) -> List[Dict]:
+def find_drawings_in_img(image_path: str, min_area: float = 1000.0, min_width: int = 50, min_height: int = 50, debug: bool = False) -> List[Dict]:
     """
     Find drawings in an image and return their details.
 
@@ -97,20 +97,19 @@ def find_drawings_in_img(image_path: str, min_area: float = 1000.0, min_width: i
                 "area": area
             })
 
-    # Show the found drawings (optional)
-    cv2.imshow("Found drawings", image)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    if debug:
+        # Show the found drawings (optional)
+        cv2.imshow("Found drawings", image)
 
-    # Print drawing details (optional)
-    print(f"Found drawings: {len(drawings)}")
-    for i, drawing in enumerate(drawings):
-        print(f"Drawing {i + 1}:")
-        print(f"  Bounding Box: {drawing['bounding_box']}")
-        print(f"  Bounding Box Points (2D): {drawing['bounding_box_points']}")
-        print(f"  Center: {drawing['center']}")
-        print(f"  Area: {drawing['area']}")
-        print(f"  contour coordinate count: {len(drawing['contour_coordinates'])}")
+        # Print drawing details (optional)
+        print(f"Found drawings: {len(drawings)}")
+        for i, drawing in enumerate(drawings):
+            print(f"Drawing {i + 1}:")
+            print(f"  Bounding Box: {drawing['bounding_box']}")
+            print(f"  Bounding Box Points (2D): {drawing['bounding_box_points']}")
+            print(f"  Center: {drawing['center']}")
+            print(f"  Area: {drawing['area']}")
+            print(f"  contour coordinate count: {len(drawing['contour_coordinates'])}")
 
     return drawings
 
@@ -125,7 +124,7 @@ def transform_bounding_boxes_to_3D(image_path: str, depth_frame, intrinsics, apr
     :return: A list of dictionaries containing the details of the drawings with 3D coordinates
     """
     # Find the drawings in the image and get their details
-    drawings = find_drawings_in_img(image_path)
+    drawings = find_drawings_in_img(image_path, debug=True)
     
     for drawing in drawings:
         drawing["bounding_box_points_3d"] = []  # List to store the 3D coordinates

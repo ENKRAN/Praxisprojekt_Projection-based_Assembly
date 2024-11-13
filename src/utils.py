@@ -55,6 +55,10 @@ def open_image_in_paint(image_path: str) -> None:
 
     :param image_path: The path to the image
     """
+    if os.name != 'nt':
+        print("This function is only supported on Windows.")
+        return
+    
     # Check if the image exists
     if os.path.isfile(image_path):
         process = subprocess.Popen(['mspaint', image_path]) # Open the image in MS Paint
@@ -79,6 +83,6 @@ def show_img(image_path: str) -> None:
     :param image_path: The path to the image
     """
     cv2.imshow("Image", cv2.imread(image_path))
-    cv2.waitKey(0)
+    # cv2.waitKey(1)
 
 

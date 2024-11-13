@@ -1,45 +1,57 @@
 import numpy as np
 import cv2
-from .camera import Camera
-from .apriltag_detection import AprilTagDetector
-from .visualization import *
+import time
+import threading
 from .image_processing import save_component_img
-from .user_interaction import edit_saved_image
-from tests import test_apriltag_detection
-from .utils import *
 from .image_processing import transform_bounding_boxes_to_3D
+from .setup import initialize_system
+from .projection import setup_projector_window, calibrate_projector_camera
+from .utils import open_image_in_paint, show_img
+from .visualization import draw_axes, draw_tag_border_and_id, draw_bounding_box_and_drawing_projector
+
+def update_windows() -> None:
+    while True:
+        if cv2.getWindowProperty('AprilTag Detection with Axes and IDs', cv2.WND_PROP_VISIBLE) < 1 and \
+           cv2.getWindowProperty(projector_window_name, cv2.WND_PROP_VISIBLE) < 1:
+            break
+        cv2.waitKey(1)
+        time.sleep(0.01)  # Entlastet die CPU
 
 def main() -> None:
-    # Initialize the camera
-    camera = Camera()
+    # Initialize the camera and AprilTag detector
+    camera, apriltag_detector, camera_matrix, color_intrinsics, _ = initialize_system()
 
-    # Get the intrinsics of the camera
-    color_intrinsics = camera.get_color_sensor_intrinsics()
-    # depth_intrinsics = camera.get_depth_sensor_intrinsics()
+    try:
+        H_proj = np.load('data/homography/homography_proj_cam.npy')
+        print("Homography-matrix loaded.")
+    except FileNotFoundError:
+        user_input = input("Homographie-matrix not found. Do you want to calibrate the projector-camera setup? (j/n): ")
+        if user_input.lower() == 'j':
+            H_proj = calibrate_projector_camera(0.06, camera_matrix, color_intrinsics["dist_coeffs"])
+            time.sleep(2)
+        else:
+            print("Exiting the program.")
+            return
 
-    # Initialize the AprilTag detector
-    apriltag_detector = AprilTagDetector(fx=color_intrinsics["fx"], fy=color_intrinsics["fy"], cx=color_intrinsics["ppx"], cy=color_intrinsics["ppy"])
+    # Setup the projector window
+    global projector_window_name
+    projector_window_name, projector_width, projector_height = setup_projector_window()
 
-    # Set the camera matrix with the intrinsics
-    camera_matrix = np.array([[apriltag_detector.fx, 0, apriltag_detector.cx],
-                            [0, apriltag_detector.fy, apriltag_detector.cy],
-                            [0, 0, 1]])
-        
+
+    window_thread = threading.Thread(target=update_windows)
+    window_thread.start()
+
     # Length of the axes in the visualization and the minimum distance to the tag in meters
     axis_length = apriltag_detector.tag_size
     min_distance = 0.15
     drawings_3D = None 
+    drawing_path = None
 
-    projector_width = 1920
-    projector_height = 1080
+    """chess_board_pattern_path = "data/saved_images/pattern.png"
+    chessboard_pattern = cv2.imread(chess_board_pattern_path)
+    chessboard_pattern_resized = cv2.resize(chessboard_pattern, (projector_width, projector_height), interpolation=cv2.INTER_AREA)
+    count = 0"""
 
-    projector_window_name = 'Projector Window'
-    cv2.namedWindow(projector_window_name, cv2.WINDOW_NORMAL)
-    cv2.setWindowProperty(projector_window_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
-
-    projector_screen_x = 1920
-    cv2.moveWindow(projector_window_name, projector_screen_x, 0)
-    
     try:
         while True:
             # Get the frames from the camera
@@ -47,14 +59,11 @@ def main() -> None:
             if color_image is None or depth_image is None or depth_frame is None:
                 continue
 
-            # Convert the frame to grayscale for AprilTag detection
-            gray = cv2.cvtColor(color_image, cv2.COLOR_BGR2GRAY)
-
-            # Detect AprilTags in the image
-            results = apriltag_detector.detect(gray)
-
             # Create an image for the projector
             projector_image = np.zeros((projector_height, projector_width, 3), dtype=np.uint8)
+
+            gray = cv2.cvtColor(color_image, cv2.COLOR_BGR2GRAY)
+            results = apriltag_detector.detect(gray)
 
             for result in results:
                 # Get the distance to the center of the AprilTag
@@ -63,7 +72,7 @@ def main() -> None:
                 print(f"Depth to AprilTag: {depth_to_tag}m")
 
                 # Rotation vector (Orientation relative to the camera)
-                rvec = result.pose_R
+                R_ct = result.pose_R
 
                 # Check if camera is too close to the tag
                 if depth_to_tag > min_distance:
@@ -73,32 +82,36 @@ def main() -> None:
                     tvec_realsense = camera.get_3D_camera_coords(u_center_of_tag, v_center_of_tag, depth_to_tag, color_intrinsics["intrinsics_raw"])
 
                     # Draw the axes and tag border with ID
-                    color_image = draw_axes(color_image, rvec, tvec_realsense, camera_matrix, color_intrinsics["dist_coeffs"], axis_length)
+                    color_image = draw_axes(color_image, R_ct, tvec_realsense, camera_matrix, color_intrinsics["dist_coeffs"], axis_length)
 
                     # Visualize the 3D bounding boxes if things were drawn on the image (to check if the 3D coordinates are correct)
                     if drawings_3D is not None:
-                        drawing_img = cv2.imread(drawing_path)
+                        if drawing_path is not None:
+                            drawing_img = cv2.imread(drawing_path)
 
-                        for drawing in drawings_3D:
-                            projector_image = draw_bounding_box_and_drawing_projector(
-                            img=projector_image,
-                            drawing_img=drawing_img,
-                            drawing=drawing,
-                            R_ct=rvec,
-                            tvec=tvec_realsense,
-                            camera_matrix=camera_matrix,
-                            dist_coeffs=np.zeros(5)
-                            # Optional: pass H_proj if calibration was done 
-                        )
+                            for drawing in drawings_3D:
+                                projector_image = draw_bounding_box_and_drawing_projector(
+                                img=projector_image,
+                                drawing_img=drawing_img,
+                                drawing=drawing,
+                                R_ct=R_ct,
+                                tvec=tvec_realsense,
+                                camera_matrix=camera_matrix,
+                                dist_coeffs=np.zeros(5),
+                                H_proj=H_proj
+                            )
+                        else:
+                            print("No drawing path provided. Please provide a path to the drawing image.")
+                    else:
+                        print("No 3D drawings found.")
                 else:
                     cv2.putText(color_image, "Too close!, please move away a few cm.", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
 
                 # Always draw the tag border and ID
-                color_image = draw_tag_border_and_id(color_image, result)
-            
+                # color_image = draw_tag_border_and_id(color_image, result)
+
             # Display on the projector
             cv2.imshow(projector_window_name, projector_image)
-            cv2.waitKey(1)
 
             # Display the image with the AprilTag detection
             cv2.imshow('AprilTag Detection with Axes and IDs', color_image)
@@ -108,10 +121,14 @@ def main() -> None:
 
             # Save the image of the component if a tag was detected and open it for editing
             if key == ord(' '):
+                """saved_image_path, saved_filename = save_component_img(color_image, count)
+                count += 1"""
+
                 if results:
                     # Save the image of the component and open it for editing
                     saved_image_path, saved_filename = save_component_img(color_image, results[0].tag_id)
                     open_image_in_paint(saved_image_path)
+
 
                     # FIXME: Paths for the edited image and the drawing (currently "hard coded")
                     edited_img_path = "data/saved_images/edited_" + saved_filename
@@ -121,12 +138,10 @@ def main() -> None:
                     show_img(edited_img_path)
 
                     # Get the drawings and transform the 2D bounding boxes to 3D
-                    drawings_3D = transform_bounding_boxes_to_3D(drawing_path, depth_frame, color_intrinsics, (rvec, tvec_realsense))
+                    drawings_3D = transform_bounding_boxes_to_3D(drawing_path, depth_frame, color_intrinsics, (R_ct, tvec_realsense))
 
                     # Test the difference between the original estimated tvec and the manual calculation
                     # test_apriltag_detection.test_tvec_difference(results, depth_to_tag, camera, color_intrinsics, tvec_realsense, saved_image_path, apriltag_detector)
-
-                    # edit_saved_image(saved_image_path, rvec, tvec_realsense, depth_frame, color_intrinsics)
 
             # Close the window if the 'q' key is pressed
             if key == ord('q'):

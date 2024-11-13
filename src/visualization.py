@@ -144,19 +144,40 @@ def draw_bounding_box_and_drawing(img, drawing_img, drawing, R_ct, tvec, camera_
 
     return img
 
-def draw_bounding_box_and_drawing_projector(img, drawing_img, drawing, R_ct, tvec, camera_matrix, dist_coeffs):
+def draw_bounding_box_and_drawing_projector(img, drawing_img, drawing, R_ct, tvec, camera_matrix, dist_coeffs, H_proj):
+    print("draw_bounding_box_and_drawing_projector called!")
+    print(f'H_proj: {H_proj}')
+
     # 3D-Punkte der Bounding-Box erhalten
     bounding_box_points_3d = drawing["bounding_box_points_3d"]
 
-    # Konvertieren der 3D-Punkte der Bounding-Box in ein numpy-Array
+    # Konvertieren der 3D-Punkte in ein numpy-Array
     box_points_3d = np.array(bounding_box_points_3d, dtype=np.float32)
 
-    # Projizieren der 3D-Bounding-Box-Punkte auf das 2D-Projektorbild
-    imgpts, _ = cv2.projectPoints(box_points_3d, R_ct, tvec, camera_matrix, dist_coeffs)
+    # Projizieren der 3D-Punkte auf das Kamerabild
+    imgpts_cam, _ = cv2.projectPoints(box_points_3d, R_ct, tvec, camera_matrix, dist_coeffs)
+    imgpts_cam = imgpts_cam.reshape(-1, 2)
 
-    # Konvertieren der Punkte in float für die Homographie
-    imgpts_float = np.float32(imgpts).reshape(-1, 2)
+    print(f'imgpts_cam: {imgpts_cam}')
 
+    # Transformieren der Punkte vom Kamerabild ins Projektorbild
+    imgpts_proj = cv2.perspectiveTransform(np.array([imgpts_cam], dtype=np.float32), H_proj)
+    imgpts_proj = imgpts_proj.reshape(-1, 2)  # Extrahieren Sie die Punkte
+
+    imgpts_proj_lines = np.int32(imgpts_proj)
+
+    print(f'imgpts_proj: {imgpts_proj}')
+
+    # Draw the bounding box on the image (for debugging)
+    if len(imgpts_proj_lines) >= 4:
+        cv2.line(img, tuple(imgpts_proj_lines[0]), tuple(imgpts_proj_lines[1]), (0, 255, 255), 2)
+        cv2.line(img, tuple(imgpts_proj_lines[1]), tuple(imgpts_proj_lines[2]), (0, 255, 255), 2)
+        cv2.line(img, tuple(imgpts_proj_lines[2]), tuple(imgpts_proj_lines[3]), (0, 255, 255), 2)
+        cv2.line(img, tuple(imgpts_proj_lines[3]), tuple(imgpts_proj_lines[0]), (0, 255, 255), 2)
+    else:
+        print("Warnung: Nicht genügend Punkte zum Zeichnen der Bounding-Box.")
+
+    """# Fortfahren wie bisher
     # Extrahieren der ROI (Region of Interest) der Zeichnung
     x, y, w, h = drawing["bounding_box"]
     roi = drawing_img[y:y+h, x:x+w]
@@ -164,17 +185,25 @@ def draw_bounding_box_and_drawing_projector(img, drawing_img, drawing, R_ct, tve
     # Eckpunkte der ROI (Zeichnung)
     drawing_corners = np.array([[0, 0], [w - 1, 0], [w -1, h -1], [0, h -1]], dtype=np.float32)
 
-    # Berechnen der Homographie zwischen Zeichnung und projizierter Bounding-Box
-    if len(imgpts_float) >= 4:
-        H, status = cv2.findHomography(drawing_corners, imgpts_float)
-
+    # Berechnen der Homographie zwischen Zeichnung und projizierten Punkten
+    if len(imgpts_proj) >= 4:
+        H, status = cv2.findHomography(drawing_corners, imgpts_proj)
+    
         # Projizieren der Zeichnung auf das Projektorbild
         warped_drawing = cv2.warpPerspective(roi, H, (img.shape[1], img.shape[0]))
-
+    
         # Überlagern der projizierten Zeichnung direkt auf das Projektorbild
-        img = cv2.add(img, warped_drawing)
+        # Verwenden Sie eine Maske, um die Überlagerung korrekt durchzuführen
+        gray_warped = cv2.cvtColor(warped_drawing, cv2.COLOR_BGR2GRAY)
+        _, mask = cv2.threshold(gray_warped, 1, 255, cv2.THRESH_BINARY)
+        mask_inv = cv2.bitwise_not(mask)
+
+        img_bg = cv2.bitwise_and(img, img, mask=mask_inv)
+        img_fg = cv2.bitwise_and(warped_drawing, warped_drawing, mask=mask)
+
+        img = cv2.add(img_bg, img_fg)
     else:
-        print("Warnung: Nicht genügend Punkte zum Zeichnen der Zeichnung.")
+        print("Warnung: Nicht genügend Punkte zum Zeichnen der Zeichnung.")"""
 
     return img
 
