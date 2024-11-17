@@ -45,32 +45,29 @@ def main() -> None:
     # Length of the axes in the visualization and the minimum distance to the tag in meters
     axis_length = apriltag_detector.tag_size
     min_distance = 0.15
-    """drawings_3D = None 
-    drawing_path = None"""
-
-    """chess_board_pattern_path = "data/saved_images/pattern.png"
-    chessboard_pattern = cv2.imread(chess_board_pattern_path)
-    chessboard_pattern_resized = cv2.resize(chessboard_pattern, (projector_width, projector_height), interpolation=cv2.INTER_AREA)
-    count = 0"""
-    chessboard_img = create_chessboard_image((9, 6), 80, (projector_width, projector_height))
-    obj_points, img_points, proj_img_points = None, None, None
-
-    obj_points, img_points, proj_img_points = analyze_chessboard_pattern(0.05, 80, chessboard_img, color_intrinsics['intrinsics_raw'], None)
     
-    if obj_points is None and img_points is None and proj_img_points is None:
-        print("No projector calibration points found. Do you want to calibrate the projector? (j/n)")
-        user_input = input()
+    chessboard_img = create_chessboard_image((9, 6), 80, (projector_width, projector_height))
+    
+    # Erstelle das Schachbrettmusterbild
+    chessboard_img = create_chessboard_image((9, 6), 80, (projector_width, projector_height))
 
-        if user_input.lower() == 'j':
-            print("Analyzing chessboard pattern...")
-            obj_points, img_points, proj_img_points = analyze_chessboard_pattern(0.05, 80, chessboard_img, color_intrinsics['intrinsics_raw'], None)
-            time.sleep(2)
-        else:
-            print("Exiting the program.")
-            return
+    # Kalibrierung durchführen
+    obj_points, img_points, proj_img_points = analyze_chessboard_pattern(
+        square_size=0.05,
+        square_size_px=80,
+        camera=camera,
+        color_intrinsics=color_intrinsics['intrinsics_raw'],
+        projector_window_name=projector_window_name,
+        chessboard_img=chessboard_img
+    )
+
+    # Prüfe, ob genügend Bilder erfasst wurden
+    if len(obj_points) < 5:
+        print("Nicht genügend Bilder für die Kalibrierung erfasst. Bitte erneut versuchen.")
+        return
 
 
-    try:
+    """try:
         while True:
             # Get the frames from the camera
             color_image, depth_image, depth_frame, _ = camera.get_frames()
@@ -88,7 +85,7 @@ def main() -> None:
             # Create an image for the projector
             projector_image = np.zeros((projector_height, projector_width, 3), dtype=np.uint8)
 
-            """gray = cv2.cvtColor(color_image, cv2.COLOR_BGR2GRAY)
+            gray = cv2.cvtColor(color_image, cv2.COLOR_BGR2GRAY)
             results = apriltag_detector.detect(gray)
 
             for result in results:
@@ -135,7 +132,7 @@ def main() -> None:
                     cv2.putText(color_image, "Too close!, please move away a few cm.", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
 
                 # Always draw the tag border and ID
-                # color_image = draw_tag_border_and_id(color_image, result)"""
+                # color_image = draw_tag_border_and_id(color_image, result)
 
 
             # Wait for a key press
@@ -143,10 +140,10 @@ def main() -> None:
 
             # Save the image of the component if a tag was detected and open it for editing
             if key == ord(' '):
-                """saved_image_path, saved_filename = save_component_img(color_image, count)
-                count += 1"""
+                saved_image_path, saved_filename = save_component_img(color_image, count)
+                count += 1
 
-                """if results:
+                if results:
                     # Save the image of the component and open it for editing
                     saved_image_path, saved_filename = save_component_img(color_image, results[0].tag_id)
                     open_image_in_paint(saved_image_path)
@@ -160,14 +157,14 @@ def main() -> None:
                     show_img(edited_img_path)
 
                     # Get the drawings and transform the 2D bounding boxes to 3D
-                    # drawings_3D = transform_bounding_boxes_to_3D(drawing_path, depth_frame, color_intrinsics, (R_ct, tvec_realsense))"""
+                    # drawings_3D = transform_bounding_boxes_to_3D(drawing_path, depth_frame, color_intrinsics, (R_ct, tvec_realsense))
 
             # Close the window if the 'q' key is pressed
             if key == ord('q'):
                 break
     finally:
         camera.stop()
-        cv2.destroyAllWindows()
+        cv2.destroyAllWindows()"""
 
 if __name__ == "__main__":
     main() 
