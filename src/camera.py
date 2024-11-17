@@ -1,6 +1,7 @@
 import pyrealsense2 as rs
 import numpy as np
 from typing import Tuple, Dict, Optional
+import open3d as o3d
 
 class Camera:
     """
@@ -131,6 +132,28 @@ class Camera:
         u, v = rs.rs2_project_point_to_pixel(intrinsics, [x, y, z])
 
         return int(u), int(v)
+
+    def create_pointcloud(self, color_frame, depth_frame) -> np.ndarray:
+        """
+        Create a pointcloud from the depth frame
+
+        :param depth_frame: Depth frame to create the pointcloud from
+        :return: Pointcloud as a numpy array
+        """
+        # Create a pointcloud object and map it to the color frame
+        pc = rs.pointcloud()
+        pc.map_to(color_frame)
+        points = pc.calculate(depth_frame)
+
+        # Get the vertices and texture coordinates
+        vtx = np.asanyarray(points.get_vertices()).view(np.float32).reshape(-1, 3)
+        tex = np.asanyarray(points.get_texture_coordinates()).view(np.float32).reshape(-1, 2)
+
+        # Create a open3d pointcloud object
+        pcd = o3d.geometry.PointCloud()
+        pcd.points = o3d.utility.Vector3dVector(vtx)
+
+        return pcd
 
     def stop(self) -> None:
         """

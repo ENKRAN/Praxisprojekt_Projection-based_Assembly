@@ -1,7 +1,7 @@
 from pupil_apriltags import Detector
 from typing import Any
 import cv2
-from .visualization import draw_axes, draw_tag_border_and_id, draw_bounding_box_and_drawing_projector
+from .visualization import draw_axes, draw_tag_border_and_id
 import numpy as np
 
 class AprilTagDetector:

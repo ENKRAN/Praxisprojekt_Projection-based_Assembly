@@ -1,9 +1,9 @@
 import cv2
 import sys
 import numpy as np
-import glob
 from screeninfo import get_monitors
 from typing import Tuple
+import pyrealsense2 as rs
 
 def setup_projector_window():
     # Get the second screen (projector)
@@ -14,10 +14,10 @@ def setup_projector_window():
 
     # Get the second screen properties
     second_screen = monitors[1]
-    screen_width = second_screen.width
-    screen_height = second_screen.height
     screen_x = second_screen.x
     screen_y = second_screen.y
+    projector_width = 1280
+    projector_height = 720
 
     projector_window_name = 'Projector Window'
 
@@ -25,78 +25,93 @@ def setup_projector_window():
     cv2.setWindowProperty(projector_window_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
     cv2.moveWindow(projector_window_name, screen_x, screen_y)  # Positioning on second screen
 
-    return projector_window_name, screen_width, screen_height
+    return projector_window_name, projector_width, projector_height
 
-def calibrate_projector_camera(square_size=0.06, camera_matrix=None, dist_coeffs=None) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    # FIXME: This function needs to be changed to replace the homography with the calculation of the projector parameters
-    # Vorbereiten der Objektpunkte (Projektor-Koordinaten)
-    pattern_size = (9, 6)  # Anzahl der inneren Ecken im Schachbrett (Breite, Höhe)
+def create_chessboard_image(pattern_size, square_size_px, image_size):
+    cols, rows = pattern_size
+    img_width, img_height = image_size
+    chessboard_image = np.full((img_height, img_width), 255, dtype=np.uint8)
+
+    # Berechnung der Startposition, um das Muster zentriert zu platzieren
+    start_x = (img_width - cols * square_size_px) // 2
+    start_y = (img_height - rows * square_size_px) // 2
+
+    for i in range(rows):
+        for j in range(cols):
+            if (i + j) % 2 == 0:
+                top_left_x = start_x + j * square_size_px
+                top_left_y = start_y + i * square_size_px
+                bottom_right_x = top_left_x + square_size_px
+                bottom_right_y = top_left_y + square_size_px
+                cv2.rectangle(
+                    chessboard_image,
+                    (top_left_x, top_left_y),
+                    (bottom_right_x, bottom_right_y),
+                    0,
+                    -1
+                )
+    return chessboard_image
+
+def analyze_chessboard_pattern(square_size=0.05, square_size_px=80, color_image=None, color_intrinsics=None, depth_frame=None) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    # Vorbereitung der Objektpunkte (3D-Punkte im Weltkoordinatensystem)
+    pattern_size = (9, 6)
     objp = np.zeros((pattern_size[0]*pattern_size[1], 3), np.float32)
     objp[:, :2] = np.mgrid[0:pattern_size[0], 0:pattern_size[1]].T.reshape(-1, 2)
-    objp *= square_size  # Skalieren auf die tatsächliche Größe der Quadrate
+    objp *= square_size  # Skalieren auf die tatsächliche Größe in Metern
 
-    objpoints = []  # 3D-Punkte im Projektorraum
-    imgpoints = []  # 2D-Punkte im Kamerabild
+    # Listen zum Speichern der Punkte
+    obj_points = []       # 3D-Punkte im Weltkoordinatensystem
+    img_points = []       # 2D-Punkte im Kamerabild
+    proj_img_points = []  # 2D-Punkte im Projektorbild
 
-    images = glob.glob('data/saved_images/projector_calib_images/*.jpg')
-    print(f"Anzahl der zu verarbeitenden Bilder: {len(images)}")
+    # Anzahl der zu erfassenden Bilder
+    num_images = 10
+    captured_images = 0
 
-    for fname in images:
-        img = cv2.imread(fname)
-        if img is None:
-            print(f"Fehler: Bild konnte nicht geladen werden: {fname}")
-            continue
+    while captured_images < num_images:
 
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        gray = cv2.cvtColor(color_image, cv2.COLOR_BGR2GRAY)
 
-        # Finden der Ecken des Schachbretts
-        ret, corners = cv2.findChessboardCorners(gray, pattern_size, None)
+        # Suche nach Schachbrettmuster-Ecken
+        ret_corners, corners = cv2.findChessboardCorners(gray, pattern_size, None)
 
-        if ret:
-            objpoints.append(objp)
-            imgpoints.append(corners)
+        if ret_corners:
+            # Ecken verfeinern
+            criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
+            corners_subpix = cv2.cornerSubPix(gray, corners, (11,11), (-1,-1), criteria)
 
-            # Optional: Zeichnen der Ecken
-            cv2.drawChessboardCorners(img, pattern_size, corners, ret)
-            cv2.imshow('Ecken', img)
-            cv2.waitKey(1000)
+            # 3D-Koordinaten der Ecken berechnen
+            object_points = []
+            for corner in corners_subpix:
+                u, v = corner.ravel()
+                depth = depth_frame.get_distance(int(u), int(v))
+                if depth == 0:
+                    continue  # Ungültiger Tiefenwert, überspringen
+                point_3d = rs.rs2_deproject_pixel_to_point(color_intrinsics, [u, v], depth)
+                object_points.append(point_3d)
+
+            if len(object_points) != len(corners_subpix):
+                print(f"Nicht alle Tiefenwerte gültig in Bild {captured_images + 1}, Bild wird übersprungen.")
+                continue
+
+            obj_points.append(np.array(object_points, dtype=np.float32))
+            img_points.append(corners_subpix.reshape(-1, 2))
+
+            # Projektorbildpunkte (bekannte 2D-Koordinaten im Projektorbild)
+            proj_img = objp[:, :2] * square_size_px / square_size  # Skalierung auf Pixelgröße
+            proj_img_points.append(proj_img)
+
+            captured_images += 1
+            print(f"Bild {captured_images}/{num_images} erfasst.")
+
+            # Zeichne die erkannten Ecken
+            cv2.drawChessboardCorners(color_image, pattern_size, corners_subpix, ret_corners)
+            cv2.imshow('Erkannte Ecken', color_image)
+            cv2.waitKey(500)  # Warte eine halbe Sekunde
         else:
-            print(f"Ecken nicht gefunden in Bild: {fname}")
+            cv2.imshow('Erkannte Ecken', color_image)
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
 
-    cv2.destroyAllWindows()
+    return obj_points, img_points, proj_img_points
 
-    print(f"Anzahl erkannter Muster: {len(objpoints)}")
-
-    if len(objpoints) < 4:
-        print("Fehler: Nicht genügend Muster erkannt für die Kalibrierung.")
-        return None
-
-    # Kalibrierung der Kamera (falls noch nicht erfolgt)
-    ret, camera_matrix, dist_coeffs, rvecs, tvecs = cv2.calibrateCamera(
-        objpoints, imgpoints, gray.shape[::-1], None, None)
-
-    # Berechnen der Homographien für jedes Bild
-    homographies = []
-    for i in range(len(objpoints)):
-        # Unverzerrte Bildpunkte berechnen
-        imgpoints_undist = cv2.undistortPoints(imgpoints[i], camera_matrix, dist_coeffs)
-        # Berechnen der Homographie zwischen Objektpunkten und Bildpunkten
-        H, _ = cv2.findHomography(objpoints[i][:, :2], imgpoints_undist.reshape(-1, 2))
-        if H is not None:
-            homographies.append(H)
-        else:
-            print(f"Homographie konnte nicht berechnet werden für Bildindex {i}")
-
-    if not homographies:
-        print("Fehler: Keine Homographien berechnet. Kalibrierung fehlgeschlagen.")
-        return None
-
-    # Durchschnittliche Homographie berechnen
-    H_proj = np.mean(homographies, axis=0)
-
-    # Speichern der Homographie
-    np.save('data/homography/homography_proj_cam.npy', H_proj)
-
-    print("Kalibrierung abgeschlossen. Homographie gespeichert als 'homography_proj_cam.npy'.")
-
-    return H_proj

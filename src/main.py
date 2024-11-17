@@ -3,11 +3,10 @@ import cv2
 import time
 import threading
 from .image_processing import save_component_img
-from .image_processing import transform_bounding_boxes_to_3D
 from .setup import initialize_system
-from .projection import setup_projector_window, calibrate_projector_camera
+from .projection import setup_projector_window, create_chessboard_image, analyze_chessboard_pattern
 from .utils import open_image_in_paint, show_img
-from .visualization import draw_axes, draw_tag_border_and_id, draw_bounding_box_and_drawing
+from .visualization import draw_axes, draw_tag_border_and_id
 
 def update_windows() -> None:
     while True:
@@ -53,6 +52,23 @@ def main() -> None:
     chessboard_pattern = cv2.imread(chess_board_pattern_path)
     chessboard_pattern_resized = cv2.resize(chessboard_pattern, (projector_width, projector_height), interpolation=cv2.INTER_AREA)
     count = 0"""
+    chessboard_img = create_chessboard_image((9, 6), 80, (projector_width, projector_height))
+    obj_points, img_points, proj_img_points = None, None, None
+
+    obj_points, img_points, proj_img_points = analyze_chessboard_pattern(0.05, 80, chessboard_img, color_intrinsics['intrinsics_raw'], None)
+    
+    if obj_points is None and img_points is None and proj_img_points is None:
+        print("No projector calibration points found. Do you want to calibrate the projector? (j/n)")
+        user_input = input()
+
+        if user_input.lower() == 'j':
+            print("Analyzing chessboard pattern...")
+            obj_points, img_points, proj_img_points = analyze_chessboard_pattern(0.05, 80, chessboard_img, color_intrinsics['intrinsics_raw'], None)
+            time.sleep(2)
+        else:
+            print("Exiting the program.")
+            return
+
 
     try:
         while True:
@@ -61,10 +77,18 @@ def main() -> None:
             if color_image is None or depth_image is None or depth_frame is None:
                 continue
 
+            # Display on the projector
+            cv2.imshow(projector_window_name, chessboard_img)
+
+            # Display the image with the AprilTag detection
+            cv2.imshow('AprilTag Detection', color_image)
+            
+            obj_points, img_points, proj_img_points = analyze_chessboard_pattern(0.05, 80, color_image, color_intrinsics['intrinsics_raw'], depth_frame)
+
             # Create an image for the projector
             projector_image = np.zeros((projector_height, projector_width, 3), dtype=np.uint8)
 
-            gray = cv2.cvtColor(color_image, cv2.COLOR_BGR2GRAY)
+            """gray = cv2.cvtColor(color_image, cv2.COLOR_BGR2GRAY)
             results = apriltag_detector.detect(gray)
 
             for result in results:
@@ -87,7 +111,7 @@ def main() -> None:
                     color_image = draw_axes(color_image, R_ct, tvec_realsense, camera_matrix, color_intrinsics["dist_coeffs"], axis_length)
 
                     # Visualize the 3D bounding boxes if things were drawn on the image (to check if the 3D coordinates are correct)
-                    """
+                    
                     FIXME: Don't know if this is still needed or if it should be removed
                     if drawings_3D is not None:
                         if drawing_path is not None:
@@ -106,18 +130,13 @@ def main() -> None:
                         else:
                             print("No drawing path provided. Please provide a path to the drawing image.")
                     else:
-                        print("No 3D drawings found.")"""
+                        print("No 3D drawings found.")
                 else:
                     cv2.putText(color_image, "Too close!, please move away a few cm.", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
 
                 # Always draw the tag border and ID
-                # color_image = draw_tag_border_and_id(color_image, result)
+                # color_image = draw_tag_border_and_id(color_image, result)"""
 
-            # Display on the projector
-            cv2.imshow(projector_window_name, projector_image)
-
-            # Display the image with the AprilTag detection
-            cv2.imshow('AprilTag Detection', color_image)
 
             # Wait for a key press
             key = cv2.waitKey(1) & 0xFF
@@ -127,7 +146,7 @@ def main() -> None:
                 """saved_image_path, saved_filename = save_component_img(color_image, count)
                 count += 1"""
 
-                if results:
+                """if results:
                     # Save the image of the component and open it for editing
                     saved_image_path, saved_filename = save_component_img(color_image, results[0].tag_id)
                     open_image_in_paint(saved_image_path)
@@ -141,7 +160,7 @@ def main() -> None:
                     show_img(edited_img_path)
 
                     # Get the drawings and transform the 2D bounding boxes to 3D
-                    # drawings_3D = transform_bounding_boxes_to_3D(drawing_path, depth_frame, color_intrinsics, (R_ct, tvec_realsense))
+                    # drawings_3D = transform_bounding_boxes_to_3D(drawing_path, depth_frame, color_intrinsics, (R_ct, tvec_realsense))"""
 
             # Close the window if the 'q' key is pressed
             if key == ord('q'):
