@@ -5,7 +5,7 @@ from .utils import pixelcoords_to_apriltagcoords
 from typing import List, Dict, Tuple
 import numpy as np
 
-def save_component_img(frame, tag_id, save_dir="data/saved_images") -> Tuple[str, str]:
+def save_component_img(frame, tag_id=None, save_dir="data/saved_images") -> Tuple[str, str]:
     """
     Save the component image to disk.
 

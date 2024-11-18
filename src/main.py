@@ -4,9 +4,10 @@ import time
 import threading
 from .image_processing import save_component_img
 from .setup import initialize_system
-from .projection import setup_projector_window, create_chessboard_image, analyze_chessboard_pattern
+from .projection import setup_projector_window, capture_calib_images
 from .utils import open_image_in_paint, show_img
 from .visualization import draw_axes, draw_tag_border_and_id
+import os
 
 def update_windows() -> None:
     while True:
@@ -36,35 +37,22 @@ def main() -> None:
 
     # Setup the projector window
     global projector_window_name
-    projector_window_name, projector_width, projector_height = setup_projector_window()
+    # projector_window_name, projector_width, projector_height = setup_projector_window()
 
     # Start the thread to update the windows
-    window_thread = threading.Thread(target=update_windows)
-    window_thread.start()
+    # window_thread = threading.Thread(target=update_windows)
+    # window_thread.start()
 
     # Length of the axes in the visualization and the minimum distance to the tag in meters
     axis_length = apriltag_detector.tag_size
     min_distance = 0.15
     
-    chessboard_img = create_chessboard_image((9, 6), 80, (projector_width, projector_height))
-    
-    # Erstelle das Schachbrettmusterbild
-    chessboard_img = create_chessboard_image((9, 6), 80, (projector_width, projector_height))
+    pattern_size = (9, 6)  # Anzahl der inneren Ecken (Breite, Höhe)
+    square_size = 0.06  # Größe eines Quadrats in Metern (z.B., 25mm)
+    calibration_images_dir = "data/calibration_images"
+    num_images = 5  # Anzahl der zu erfassenden Kalibrierungsbilder
 
-    # Kalibrierung durchführen
-    obj_points, img_points, proj_img_points = analyze_chessboard_pattern(
-        square_size=0.05,
-        square_size_px=80,
-        camera=camera,
-        color_intrinsics=color_intrinsics['intrinsics_raw'],
-        projector_window_name=projector_window_name,
-        chessboard_img=chessboard_img
-    )
-
-    # Prüfe, ob genügend Bilder erfasst wurden
-    if len(obj_points) < 5:
-        print("Nicht genügend Bilder für die Kalibrierung erfasst. Bitte erneut versuchen.")
-        return
+    capture_calib_images(num_images, camera, calibration_images_dir)
 
 
     """try:
