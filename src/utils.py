@@ -83,6 +83,6 @@ def show_img(image_path: str) -> None:
     :param image_path: The path to the image
     """
     cv2.imshow("Image", cv2.imread(image_path))
-    # cv2.waitKey(1)
+    cv2.waitKey(0)
 
 

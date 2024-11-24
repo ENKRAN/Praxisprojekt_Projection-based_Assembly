@@ -4,7 +4,7 @@ import numpy as np
 from typing import Tuple, Optional, Dict
 
 def initialize_system(depth_intrinsics: bool = False) -> Tuple[Camera, AprilTagDetector, np.ndarray, Dict[str, float], Optional[Dict[str, float]]]:
-    camera = Camera(1280, 720, 1280, 720, 30)
+    camera = Camera(640, 480, 640, 480)
     color_intrinsics = camera.get_color_sensor_intrinsics()
 
     if depth_intrinsics:
