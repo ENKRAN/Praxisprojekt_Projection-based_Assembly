@@ -17,28 +17,9 @@ def update_windows() -> None:
         cv2.waitKey(1)
         time.sleep(0.01)
 
-def select_point(event, x, y, flags, param):
-    if event == cv2.EVENT_LBUTTONDOWN:
-        param['point'] = (x, y)
-        cv2.destroyWindow('drawing_test')
-
 def main() -> None:
     # Initialize the camera and AprilTag detector
     camera, apriltag_detector, camera_matrix, color_intrinsics, _ = initialize_system()
-
-    """
-    FIXME: Change to sth else to calibrate the projector-camera setup for the projector parameters
-    try:
-        H_proj = np.load('data/homography/homography_proj_cam.npy')
-        print("Homography-matrix loaded.")
-    except FileNotFoundError:
-        user_input = input("Homographie-matrix not found. Do you want to calibrate the projector-camera setup? (j/n): ")
-        if user_input.lower() == 'j':
-            H_proj = calibrate_projector_camera(0.06, camera_matrix, color_intrinsics["dist_coeffs"])
-            time.sleep(2)
-        else:
-            print("Exiting the program.")
-            return"""
 
     # Setup the projector window
     global projector_window_name
@@ -164,73 +145,6 @@ def main() -> None:
                 proj_image[v_p, u_p] = valid_projected_colors
 
                 cv2.imshow(projector_window_name, proj_image)
-
-                """drawing_img = cv2.imread(image_name)
-                params = {}
-                cv2.namedWindow('drawing_test')
-                cv2.setMouseCallback('drawing_test', select_point, params)
-                cv2.imshow('drawing_test', drawing_img)
-                
-                while True:
-                    cv2.waitKey(1)
-                    if 'point' in params:
-                        break
-                    
-                if 'point' not in params:
-                    print("No point selected.")
-                    exit()
-
-                u = params['point'][0]
-                v = params['point'][1]
-                cv2.circle(color_image, (u, v), 5, (0, 0, 255), -1)
-                print("Selected point: ", u, v)
-
-                Z_c = depth_frame.get_distance(u, v)
-                print("Image point z: ", Z_c)
-
-                # Prepare R and T for the projection
-                rvec, _ = cv2.Rodrigues(R)
-                T = T.reshape(3, 1) / 1000
-
-
-                print("Translation vector (meter): ", T)
-
-
-                image_point = np.array([[u, v]], dtype=np.float32)
-                undistorted = cv2.undistortPoints(image_point, cam_K, cam_kc)
-                x_c = undistorted[0][0][0]
-                y_c = undistorted[0][0][1]
-
-                print("undistorted image point in camera coordinates (pixels): ", x_c, y_c)
-
-                X_c = x_c * Z_c
-                Y_c = y_c * Z_c
-                Z_c = Z_c
-                point_cam_3D = np.array([[X_c], [Y_c], [Z_c]])
-                print("Image point in camera coordinates (meters): ", point_cam_3D)
-                
-                # Vorbereitung für die Projektion
-                object_points = point_cam_3D.T  # Form (1, 3)
-                object_points = object_points.reshape(-1, 1, 3)  # Form (N, 1, 3)
-
-                # Projektion auf die Projektorbildebene
-                image_points, _ = cv2.projectPoints(object_points, rvec, T, proj_K, proj_kc)
-
-                # scale_x = projector_width / 1920
-                # scale_y = projector_height / 1080
-
-                u_p = image_points[0][0][0]
-                v_p = image_points[0][0][1]
-
-                # u_p = u_p * scale_x
-                # v_p = v_p * scale_y
-
-                point_proj_2D = (int(u_p), int(v_p))
-                print("Image point in projector coordinates (2D): ", point_proj_2D)
-
-                cv2.circle(proj_image, point_proj_2D, 5, (0, 0, 255), -1)
-
-                cv2.imshow(projector_window_name, proj_image)"""
 
             elif key == ord('q'):
                 break
