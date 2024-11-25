@@ -48,6 +48,9 @@ class Camera:
         align = rs.align(align_to)
         aligned_frames = align.process(frames)
 
+        depth_sensor = self.profile.get_device().first_depth_sensor()
+        depth_scale = depth_sensor.get_depth_scale()
+
         # Get color frame (if enabled)
         color_frame = aligned_frames.get_color_frame()
 
@@ -62,7 +65,7 @@ class Camera:
         color_image = np.asanyarray(color_frame.get_data())
         depth_image = np.asanyarray(depth_frame.get_data())
 
-        return color_image, depth_image, depth_frame, color_frame
+        return color_image, depth_image, depth_frame, depth_scale, color_frame
 
     def get_color_sensor_intrinsics(self) -> Dict:
         """

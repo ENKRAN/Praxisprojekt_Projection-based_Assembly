@@ -69,10 +69,15 @@ def main() -> None:
 
     fs.release()
 
+    # Überprüfen, ob die Kalibrierungsdaten geladen wurden
+    if cam_K is None or cam_kc is None or proj_K is None or proj_kc is None or R is None or T is None:
+        print('Kalibrierungsdaten konnten nicht geladen werden.')
+        exit()
+
     count = 0
     try:
         while True:
-            color_image, depth_image, depth_frame, _ = camera.get_frames()
+            color_image, depth_image, depth_frame, depth_scale, _ = camera.get_frames()
             if color_image is None or depth_image is None or depth_frame is None:
                 continue
 
@@ -89,14 +94,78 @@ def main() -> None:
                 print("Camera intrinsics (Calibration): ", cam_K)
                 print("Camera distortion coefficients (Calibration): ", cam_kc)
 
-
-
                 # save the image
-                image_name = os.path.join("data/calibration_images", f"drawing_test_img_{count + 1}.png")
+                image_name = os.path.join("data/calibration_images", f"drawing_test_img_{count + 1}.jpg")
                 cv2.imwrite(image_name, color_image)
                 count += 1
 
-                drawing_img = cv2.imread(image_name)
+                open_image_in_paint(image_name)
+
+                image_with_drawings = cv2.imread("data/saved_images/test_drawing.jpg")
+
+                if image_with_drawings is None:
+                    print("No image found.")
+                    continue
+                    
+                # Extract all non-black pixels
+                non_black_mask = np.any(image_with_drawings != [0, 0, 0], axis=-1)                
+                
+                # Get the coordinates and colors of the non-black pixels
+                non_black_coords = np.column_stack(np.nonzero(non_black_mask))
+                non_black_colors = image_with_drawings[non_black_mask]
+
+                depth_image = depth_image * depth_scale
+
+                # Get the depth values of the non-black pixels
+                depth_values = depth_image[non_black_coords[:, 0], non_black_coords[:, 1]]
+
+                # Filter out the invalid depth values
+                valid_depth_mask = (depth_values > 0) & (~np.isnan(depth_values))
+
+                # Save the valid coordinates, colors and depth values
+                valid_coords = non_black_coords[valid_depth_mask]
+                valid_colors = non_black_colors[valid_depth_mask]
+                valid_depths = depth_values[valid_depth_mask]
+
+                image_points = valid_coords[:, [1, 0]].astype(np.float32).reshape(-1, 1, 2)  # (u, v)
+
+                undistorted_points = cv2.undistortPoints(image_points, cam_K, cam_kc)
+
+                x_c = undistorted_points[:, 0, 0]
+                y_c = undistorted_points[:, 0, 1]
+                Z_c = valid_depths  # Tiefenwerte in Meter
+
+                X_c = x_c * Z_c
+                Y_c = y_c * Z_c
+                point_cam_3D = np.vstack((X_c, Y_c, Z_c)).T  # Form: (N, 3)
+
+                rvec, _ = cv2.Rodrigues(R)
+                T = T.reshape(3, 1) / 1000  # Umrechnung in Meter, falls erforderlich
+
+                object_points = point_cam_3D.reshape(-1, 1, 3)
+
+                image_points_proj, _ = cv2.projectPoints(object_points, rvec, T, proj_K, proj_kc)
+
+                projected_points = image_points_proj.reshape(-1, 2)
+
+                valid_proj_mask = (projected_points[:, 0] >= 0) & (projected_points[:, 0] < projector_width) & (projected_points[:, 1] >= 0) & (projected_points[:, 1] < projector_height)
+                
+                valid_projected_points = projected_points[valid_proj_mask]
+                valid_projected_colors = valid_colors[valid_proj_mask]
+
+                u_p = valid_projected_points[:, 0].astype(int)
+                v_p = valid_projected_points[:, 1].astype(int)
+
+                within_bounds_mask = (u_p >= 0) & (u_p < projector_width) & (v_p >= 0) & (v_p < projector_height)
+                u_p = u_p[within_bounds_mask]
+                v_p = v_p[within_bounds_mask]
+                valid_projected_colors = valid_projected_colors[within_bounds_mask]
+
+                proj_image[v_p, u_p] = valid_projected_colors
+
+                cv2.imshow(projector_window_name, proj_image)
+
+                """drawing_img = cv2.imread(image_name)
                 params = {}
                 cv2.namedWindow('drawing_test')
                 cv2.setMouseCallback('drawing_test', select_point, params)
@@ -161,7 +230,7 @@ def main() -> None:
 
                 cv2.circle(proj_image, point_proj_2D, 5, (0, 0, 255), -1)
 
-                cv2.imshow(projector_window_name, proj_image)
+                cv2.imshow(projector_window_name, proj_image)"""
 
             elif key == ord('q'):
                 break
