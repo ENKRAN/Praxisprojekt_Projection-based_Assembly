@@ -116,16 +116,12 @@ def main() -> None:
                 u_p = valid_projected_points[:, 0].astype(int)
                 v_p = valid_projected_points[:, 1].astype(int)
 
-                # FIXME: Check if this is even neccessary because i already have the valid_projected_points, or not?
-                within_bounds_mask = (u_p >= 0) & (u_p < projector_width) & (v_p >= 0) & (v_p < projector_height)
-                u_p = u_p[within_bounds_mask]
-                v_p = v_p[within_bounds_mask]
-                valid_projected_colors = valid_projected_colors[within_bounds_mask]
-
                 # 13. Create the projector image and display it
-                proj_image[v_p, u_p] = valid_projected_colors"""
+                proj_image[v_p, u_p] = valid_projected_colors
 
-                ### 1. Take a photo of the camera image ###
+                cv2.imshow(projector_window_name, proj_image)"""
+
+                """### 1. Take a photo of the camera image ###
                 image_name = os.path.join("data/calibration_images", f"drawing_test_img_{count + 1}.jpg")
                 cv2.imwrite(image_name, color_image)
                 count += 1
@@ -227,7 +223,7 @@ def main() -> None:
                 proj_image = np.asarray(proj_image)
 
                 ### 7. Display the image on the projector ###
-                cv2.imshow(projector_window_name, proj_image)
+                cv2.imshow(projector_window_name, proj_image)"""
 
             elif key == ord('q'):
                 break
