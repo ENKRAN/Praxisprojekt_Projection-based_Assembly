@@ -17,10 +17,6 @@ def update_windows() -> None:
         cv2.waitKey(1)
         time.sleep(0.01)
 
-def select_point(event, x, y, flags, param):
-    if event == cv2.EVENT_LBUTTONDOWN:
-        param['point'] = (x, y)
-        cv2.destroyWindow('drawing_test')
 
 def cam_2D_to_cam_3D(image_with_drawings, depth_image, depth_scale, cam_K, cam_kc):
     # Extract all non-black pixels
@@ -109,14 +105,14 @@ def main() -> None:
     projector_window_name, projector_width, projector_height = setup_projector_window()
 
     # Start the thread to update the windows
-    window_thread = threading.Thread(target=update_windows)
-    window_thread.start()
+    # window_thread = threading.Thread(target=update_windows)
+    # window_thread.start()
 
     # Length of the axes in the visualization and the minimum distance to the tag in meters
     axis_length = apriltag_detector.tag_size
     min_distance = 0.15
     
-    # Laden der Kalibrierungsdaten
+    """# Laden der Kalibrierungsdaten
     fs = cv2.FileStorage('C:\\Users\\cenko\\Desktop\\Studium\\FH Aachen\\7. Semester\\Bachelor\\Projektor_Kamera_Kalibrierung\\calibration.yml', cv2.FILE_STORAGE_READ)
 
     # Kameraparameter
@@ -217,12 +213,12 @@ def main() -> None:
                 break
     finally:
         camera.stop()
-        cv2.destroyAllWindows()
+        cv2.destroyAllWindows()"""
 
-    """try:
+    try:
         while True:
             # Get the frames from the camera
-            color_image, depth_image, depth_frame, _ = camera.get_frames()
+            color_image, depth_image, depth_frame, _, _ = camera.get_frames()
             if color_image is None or depth_image is None or depth_frame is None:
                 continue
 
@@ -254,27 +250,7 @@ def main() -> None:
                     # Draw the axes and tag border with ID
                     color_image = draw_axes(color_image, R_ct, tvec_realsense, camera_matrix, color_intrinsics["dist_coeffs"], axis_length)
 
-                    # Visualize the 3D bounding boxes if things were drawn on the image (to check if the 3D coordinates are correct)
                     
-                    FIXME: Don't know if this is still needed or if it should be removed
-                    if drawings_3D is not None:
-                        if drawing_path is not None:
-                            drawing_img = cv2.imread(drawing_path)
-
-                            for drawing in drawings_3D:
-                                projector_image = draw_bounding_box_and_drawing(
-                                img=projector_image,
-                                drawing_img=drawing_img,
-                                drawing=drawing,
-                                R_ct=R_ct,
-                                tvec=tvec_realsense,
-                                camera_matrix=camera_matrix,
-                                dist_coeffs=color_intrinsics["dist_coeffs"]
-                            )
-                        else:
-                            print("No drawing path provided. Please provide a path to the drawing image.")
-                    else:
-                        print("No 3D drawings found.")
                 else:
                     cv2.putText(color_image, "Too close!, please move away a few cm.", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
 
@@ -311,7 +287,7 @@ def main() -> None:
                 break
     finally:
         camera.stop()
-        cv2.destroyAllWindows()"""
+        cv2.destroyAllWindows()
 
 if __name__ == "__main__":
     main() 

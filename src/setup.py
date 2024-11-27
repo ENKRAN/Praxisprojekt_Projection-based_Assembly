@@ -5,7 +5,7 @@ from typing import Tuple, Optional, Dict
 import cv2
 
 def initialize_system(depth_intrinsics: bool = False) -> Tuple[Camera, AprilTagDetector, np.ndarray, Dict[str, float], Optional[Dict[str, float]]]:
-    camera = Camera(640, 480, 640, 480)
+    camera = Camera(640, 480, 640, 480, 60)
     color_intrinsics = camera.get_color_sensor_intrinsics()
 
     if depth_intrinsics:
