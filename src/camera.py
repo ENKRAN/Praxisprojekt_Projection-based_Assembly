@@ -1,6 +1,7 @@
 import pyrealsense2 as rs
 import numpy as np
 from typing import Tuple, Dict, Optional
+import cv2
 import open3d as o3d
 
 class Camera:
@@ -43,6 +44,7 @@ class Camera:
 
         :return: Tuple of color_frame, depth_frame (pyrealsense2 frames) and color_image, depth_image (numpy arrays)
         """
+        success = False
         frames = self.pipeline.wait_for_frames()
         align_to = rs.stream.color
         align = rs.align(align_to)
@@ -57,12 +59,14 @@ class Camera:
         if not color_frame or not depth_frame:
             print("Error: No frames received")
             return None, None, None, None
+        
+        success = True
 
         # Convert frames to numpy arrays
         color_image = np.asanyarray(color_frame.get_data())
         depth_image = np.asanyarray(depth_frame.get_data())
 
-        return color_image, depth_image, depth_frame, self.depth_scale, color_frame
+        return success, color_image, color_frame, depth_image, depth_frame, self.depth_scale
 
     def get_color_sensor_intrinsics(self) -> Dict:
         """
@@ -75,6 +79,8 @@ class Camera:
         intrinsics = video_stream_profile.get_intrinsics()
 
         return {
+            "width": intrinsics.width,
+            "height": intrinsics.height,
             "fx": intrinsics.fx,
             "fy": intrinsics.fy,
             "ppx": intrinsics.ppx,
@@ -103,9 +109,9 @@ class Camera:
         }
 
     @staticmethod
-    def get_3D_camera_coords(u, v, z, intrinsics) -> np.ndarray:
+    def get_3D_camera_coords_realsense(u, v, z, intrinsics) -> np.ndarray:
         """
-        Get the 3D coordinates of a pixel in the camera frame.
+        Get the 3D coordinates of a pixel in the camera frame with the RealSense library.
 
         :param u: x pixel coordinate
         :param v: y pixel coordinate
@@ -117,6 +123,41 @@ class Camera:
 
         t_depth_vec =  np.array([x, y, z]).reshape(3, 1)
 
+        return t_depth_vec
+    
+    @staticmethod
+    def get_3D_camera_coords_opencv(u, v, cam_K, cam_kc, depth_frame) -> np.ndarray:
+        """
+        Get the 3D coordinates of a pixel in the camera frame with OpenCV.
+
+        :param u: x pixel coordinate
+        :param v: y pixel coordinate
+        :param cam_K: Camera matrix
+        :param cam_kc: Distortion coefficients
+        :param depth_frame: Depth frame
+        :return: 3D coordinates as a numpy array
+        """
+        # Convert pixel coordinates to a numpy array for undistortion
+        point = np.array([[[u, v]]], dtype=np.float32)
+        
+        # Undistort the pixel coordinates
+        undistorted_points = cv2.undistortPoints(point, cam_K, cam_kc)
+        x_c = undistorted_points[0, 0, 0]
+        y_c = undistorted_points[0, 0, 1]
+        
+        # Get the depth value from the depth frame
+        Z_c = depth_frame.get_distance(int(u), int(v))
+        
+        if Z_c <= 0 or np.isnan(Z_c):
+            raise ValueError(f"Invalid depth value at ({u}, {v}): {Z_c}")
+        
+        # Calculate the 3D coordinates
+        X_c = x_c * Z_c
+        Y_c = y_c * Z_c
+        
+        # Create a numpy array with the 3D coordinates
+        t_depth_vec = np.array([[X_c], [Y_c], [Z_c]])
+        
         return t_depth_vec
     
     @staticmethod
@@ -140,20 +181,41 @@ class Camera:
         :param depth_frame: Depth frame to create the pointcloud from
         :return: Pointcloud as a numpy array
         """
-        # Create a pointcloud object and map it to the color frame
         pc = rs.pointcloud()
-        pc.map_to(color_frame)
         points = pc.calculate(depth_frame)
+        pc.map_to(color_frame)
 
-        # Get the vertices and texture coordinates
-        vtx = np.asanyarray(points.get_vertices()).view(np.float32).reshape(-1, 3)
-        tex = np.asanyarray(points.get_texture_coordinates()).view(np.float32).reshape(-1, 2)
+        return points
+    
+    def visualize_pointcloud(self, points, depth_image, color_intrinsics) -> np.ndarray:
+        v = points.get_vertices()
+        verts = np.asanyarray(v).view(np.float32).reshape(-1, 3)  # xyz
 
-        # Create a open3d pointcloud object
         pcd = o3d.geometry.PointCloud()
-        pcd.points = o3d.utility.Vector3dVector(vtx)
+        pcd.points = o3d.utility.Vector3dVector(verts)
 
-        return pcd
+        # Get stream profile and camera intrinsics
+
+        # Convert the depth frame to a numpy array
+        depth_image = depth_image * self.depth_scale
+
+        # Convert the numpy array to an open3d depth image
+        depth_image_o3d = o3d.geometry.Image(depth_image.astype(np.float32))
+
+        # Create an open3d camera intrinsics object from pyrealsense2 intrinsics
+        o3d_camera_intrinsic = o3d.camera.PinholeCameraIntrinsic(color_intrinsics['width'], color_intrinsics['height'], 
+                                                                color_intrinsics['fx'], color_intrinsics['fy'], 
+                                                                color_intrinsics['ppx'], color_intrinsics['ppy'])
+
+        # Create the point cloud from the open3d depth image
+        pcd2 = o3d.geometry.PointCloud.create_from_depth_image(depth_image_o3d, o3d_camera_intrinsic)
+
+        vis = o3d.visualization.Visualizer()
+        vis.create_window(window_name='pointcloud', width=1280, height=720)
+        vis.add_geometry(pcd)
+        vis.add_geometry(pcd2)
+        vis.run()
+        vis.destroy_window()
 
     def stop(self) -> None:
         """
