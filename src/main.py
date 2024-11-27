@@ -104,20 +104,6 @@ def main() -> None:
     # Initialize the camera and AprilTag detector
     camera, apriltag_detector, camera_matrix, color_intrinsics, _ = initialize_system()
 
-    """
-    FIXME: Change to sth else to calibrate the projector-camera setup for the projector parameters
-    try:
-        H_proj = np.load('data/homography/homography_proj_cam.npy')
-        print("Homography-matrix loaded.")
-    except FileNotFoundError:
-        user_input = input("Homographie-matrix not found. Do you want to calibrate the projector-camera setup? (j/n): ")
-        if user_input.lower() == 'j':
-            H_proj = calibrate_projector_camera(0.06, camera_matrix, color_intrinsics["dist_coeffs"])
-            time.sleep(2)
-        else:
-            print("Exiting the program.")
-            return"""
-
     # Setup the projector window
     global projector_window_name
     projector_window_name, projector_width, projector_height = setup_projector_window()
