@@ -14,6 +14,7 @@ def draw_axes(img, R_ct, tvec, camera_matrix, dist_coeffs, axis_length) -> Any:
     :param axis_length: Length of the axes in the visualization
     :return: Image with the 3D coordinate axes drawn
     """
+    
     rvec, _ = cv2.Rodrigues(R_ct)
 
     # Define 3D points for the axes: Origin and end points for x, y, z axes

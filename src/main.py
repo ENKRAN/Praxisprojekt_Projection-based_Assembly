@@ -225,9 +225,7 @@ def main() -> None:
             # Display the image with the AprilTag detection
             cv2.imshow('AprilTag Detection', color_image)            
 
-            # Create an image for the projector
-            projector_image = np.zeros((projector_height, projector_width, 3), dtype=np.uint8)
-
+            # Convert the color image to grayscale
             gray = cv2.cvtColor(color_image, cv2.COLOR_BGR2GRAY)
             results = apriltag_detector.detect(gray)
 
@@ -249,7 +247,6 @@ def main() -> None:
 
                     # Draw the axes and tag border with ID
                     color_image = draw_axes(color_image, R_ct, tvec_realsense, camera_matrix, color_intrinsics["dist_coeffs"], axis_length)
-
                     
                 else:
                     cv2.putText(color_image, "Too close!, please move away a few cm.", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
