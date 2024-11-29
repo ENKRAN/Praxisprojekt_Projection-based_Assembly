@@ -78,9 +78,6 @@ def cam_2D_to_cam_3D(image_with_drawings, depth_image, depth_scale, cam_K, cam_k
     # Store each 3D point in the format (X, Y, Z) in a vertical stack by transposing the matrix
     points_cam_3D = np.vstack((X_c, Y_c, Z_c)).T  # (N, 3)
 
-    print(f"3D Camera Points: {points_cam_3D}")
-    print(f"Number of 3D Camera Points: {len(points_cam_3D)}")
-
     return points_cam_3D, valid_colors
 
 def cam_3D_to_tag_3D(points_cam_3D, R_tag, tvec_tag):
@@ -108,67 +105,38 @@ def cam_3D_to_tag_3D(points_cam_3D, R_tag, tvec_tag):
 
     return points_tag_homogeneous, points_tag_cartesian, T_cam_to_tag
 
-def tag_3D_to_cam_3D(points_tag_3D, T_cam_to_tag):
+def tag_3D_to_proj_2D(points_tag_cartesian, R_cam_to_proj, tvec_cam_to_proj, R_tag_to_cam, tvec_tag_to_cam, proj_K, proj_kc):
     """
-    Transform the 3D AprilTag coordinates back to 3D camera coordinates.
+    Transform the 3D AprilTag coordinates to the 2D projector coordinates.
 
-    :param points_tag_3D: The 3D AprilTag coordinates
-    :param T_cam_to_tag: The transformation matrix from the camera to the AprilTag (4x4)
-    :return: The 3D camera coordinates
-    """
-    # Convert the 3D AprilTag coordinates back to 3D camera coordinates (homogeneous)
-    points_cam_homogeneous = (T_cam_to_tag @ points_tag_3D.T).T
-
-    # (Optional) If needed, convert the homogeneous coordinates back to cartesian coordinates
-    points_cam_cartesian = points_cam_homogeneous[:, :3]
-
-    return points_cam_homogeneous, points_cam_cartesian
-
-def cam_3D_to_proj_3D(points_cam_homogeneous, R_proj, tvec_proj):
-    """
-    Transform the 3D camera coordinates to the 3D projector coordinates.
-
-    :param points_cam_homogeneous: The 3D camera coordinates (homogeneous)
-    :param R_proj: The rotation matrix of the projector (3x3)
-    :param tvec_proj: The translation vector of the projector (3x1)
-    :return: The 3D projector coordinates
-    """
-    tvec_proj = tvec_proj.reshape(3, 1) / 1000 # Convert to meters
-
-    # Create the tranformation matrix from the projector to the camera
-    T_proj_to_cam = np.eye(4)
-    T_proj_to_cam[:3, :3] = R_proj
-    T_proj_to_cam[:3, 3] = tvec_proj.flatten()
-
-    # Invert the transformation matrix to get the transformation from the camera to the projector
-    T_cam_to_proj = np.linalg.inv(T_proj_to_cam)
-
-    # Convert the 3D camera coordinates to 3D projector coordinates (homogeneous)
-    points_proj_homogeneous = (T_cam_to_proj @ points_cam_homogeneous.T).T
-
-    # (Optional) If needed, convert the homogeneous coordinates back to cartesian coordinates
-    points_proj_cartesian = points_proj_homogeneous[:, :3]
-
-    return points_proj_homogeneous, points_proj_cartesian, T_cam_to_proj
-
-def proj_3D_to_proj_2D(points_proj_cartesian, proj_K, proj_kc):
-    """
-    Project the 3D projector coordinates to 2D projector image points.
-
-    :param points_proj_homogeneous: The 3D projector coordinates (homogeneous)
+    :param points_tag_cartesian: The 3D AprilTag coordinates
+    :param R_cam_to_proj: The rotation matrix from the camera to the projector (3x3)
+    :param tvec_cam_to_proj: The translation vector from the camera to the projector (3x1)
+    :param R_tag_to_cam: The rotation matrix from the AprilTag to the camera (3x3)
+    :param tvec_tag_to_cam: The translation vector from the AprilTag to the camera (3x1)
     :param proj_K: The projector matrix (3x3)
     :param proj_kc: The distortion coefficients of the projector (5x1)
-    :return: The 2D projector image points
+    :return: The 2D projector coordinates
     """
-    # Reshape the 3D projector coordinates to (N, 1, 3) for the projection
-    points_proj_homogeneous_reshaped = points_proj_cartesian.reshape(-1, 1, 3)
+    # Calculate the rotation and translation from the AprilTag to the projector with the camera as intermediary
+    R_tag_to_proj = R_cam_to_proj @ R_tag_to_cam
+    tvec_tag_to_proj = R_cam_to_proj @ tvec_tag_to_cam + (tvec_cam_to_proj / 1000)  # Convert to meters
 
-    # Project the 3D projector coordinates to 2D projector image points
-    proj_image_points, _ = cv2.projectPoints(points_proj_homogeneous_reshaped, np.zeros((3,)), np.zeros((3,)), proj_K, proj_kc)
+    # Convert the rotation matrix to a rotation vector and reshape the translation vector
+    rvec, _ = cv2.Rodrigues(R_tag_to_proj)
+    tvec_tag_to_proj = tvec_tag_to_proj.reshape(3, 1)
 
+    # Reshape the 3D AprilTag coordinates
+    points_tag_cartesian_reshaped = points_tag_cartesian.reshape(-1, 1, 3)
+
+    # Project the 3D AprilTag coordinates to the 2D projector coordinates
+    proj_image_points, _ = cv2.projectPoints(points_tag_cartesian_reshaped, rvec, tvec_tag_to_proj, proj_K, proj_kc)
+
+    # Reshape the projected points to a 2D array
     projected_points = proj_image_points.reshape(-1, 2) # (N, 2)
 
     return projected_points
+
 
 def filter_valid_proj_image_points(proj_image_points, valid_colors, projector_width, projector_height):
     valid_proj_mask = (proj_image_points[:, 0] >= 0) & (proj_image_points[:, 0] < projector_width) & \
@@ -252,22 +220,19 @@ def main() -> None:
                         points_cam_3D, valid_colors = cam_2D_to_cam_3D(image_with_drawings, depth_image, depth_scale, cam_K, cam_kc)
 
                         ### 2. Transform the 3D camera coordinates to the 3D AprilTag coordinates ###
-                        points_tag_homogeneous, _, T_cam_to_tag = cam_3D_to_tag_3D(points_cam_3D, R_ct, tvec_opencv)
+                        _, points_tag_cartesian, T_cam_to_tag = cam_3D_to_tag_3D(points_cam_3D, R_ct, tvec_opencv)
 
-                        ### 3. Transform the 3D AprilTag coordinates back to 3D camera coordinates ###
-                        points_cam_homogeneous, _ = tag_3D_to_cam_3D(points_tag_homogeneous, T_cam_to_tag)
-                        
-                        ### 4. Transform the 3D camera coordinates to the 3D projector coordinates ###
-                        _, points_proj_cartesian, _ = cam_3D_to_proj_3D(points_cam_homogeneous, R, T)
+                        ### 3. Transform the 3D AprilTag coordinates to the 2D projector coordinates ###
+                        proj_image_points = tag_3D_to_proj_2D(points_tag_cartesian, R, T, R_ct, tvec_opencv, proj_K, proj_kc)
 
-                        ### 5. Project the 3D projector coordinates to 2D projector image points ###
-                        proj_image_points = proj_3D_to_proj_2D(points_proj_cartesian, proj_K, proj_kc)
+                        # scale_factor = 1.0 / np.linalg.norm(tvec_opencv)  # Entfernung des AprilTags zur Kamera
+                        # proj_image_points *= scale_factor
 
-                        print(f"Proj Image Points: {proj_image_points}")
-                        print(f"Number of Proj Image Points: {len(proj_image_points)}")
+                        # print(f"Proj Image Points: {proj_image_points}")
+                        # print(f"Number of Proj Image Points: {len(proj_image_points)}")
 
 
-                        ### 6. Filter the valid projected image points ###
+                        ### 4. Filter the valid projected image points ###
                         u_p, v_p, valid_projected_colors = filter_valid_proj_image_points(proj_image_points, valid_colors, projector_width, projector_height)
 
                         # Draw the transformed image pixels on the projector image
