@@ -16,143 +16,6 @@ def update_windows() -> None:
              break
         cv2.waitKey(1)
         time.sleep(0.01)
-
-def extract_valid_image_points(image_with_drawings, depth_image, depth_scale):
-    """
-    Extracts the valid image points (2D), depth values (meters) and colors (RGB) from the image with drawings using the depth image.
-
-    :param image_with_drawings: The image with the drawings (RGB)
-    :param depth_image: The depth image (millimeters)
-    :param depth_scale: The depth scale of the depth sensor
-    :return: The valid image points, depth values and colors
-    """
-    # Extract all non-black pixels
-    non_black_mask = np.any(image_with_drawings != [0, 0, 0], axis=-1)                
-    
-    # Get the coordinates and colors of the non-black pixels
-    non_black_coords = np.column_stack(np.nonzero(non_black_mask))
-    non_black_colors = image_with_drawings[non_black_mask]
-
-    # Scale the depth_image to meters and get the depth values of the non-black pixels
-    depth_image = depth_image * depth_scale
-    depth_values = depth_image[non_black_coords[:, 0], non_black_coords[:, 1]]
-
-    # Filter out the invalid depth values
-    valid_depth_mask = (depth_values > 0) & (~np.isnan(depth_values))
-
-    # Save the valid coordinates, colors and depth values
-    valid_coords = non_black_coords[valid_depth_mask]
-    valid_colors = non_black_colors[valid_depth_mask]
-    valid_depths = depth_values[valid_depth_mask]
-
-    # Store the valid image points in the format (u, v)
-    image_points = valid_coords[:, [1, 0]].astype(np.float32).reshape(-1, 1, 2)  # (u, v)
-
-    return image_points, valid_depths, valid_colors
-
-def cam_2D_to_cam_3D(image_with_drawings, depth_image, depth_scale, cam_K, cam_kc):
-    """
-    Transform the 2D camera image points to 3D camera coordinates.
-
-    :param image_with_drawings: The image with the drawings (RGB)
-    :param depth_image: The depth image (millimeters)
-    :param depth_scale: The depth scale of the depth sensor
-    :param cam_K: The camera matrix (3x3)
-    :param cam_kc: The distortion coefficients (5x1)
-    :return: The 3D camera coordinates
-    """
-    # Extract the valid image point coords, depth values and colors
-    cam_image_points, valid_depths, valid_colors = extract_valid_image_points(image_with_drawings, depth_image, depth_scale)
-
-    # Undistort the image points
-    undistorted_points = cv2.undistortPoints(cam_image_points, cam_K, cam_kc)
-
-    # Calculate the 3D camera coordinates
-    x_c = undistorted_points[:, 0, 0]
-    y_c = undistorted_points[:, 0, 1]
-    Z_c = valid_depths  # Depth values in meters
-
-    X_c = x_c * Z_c
-    Y_c = y_c * Z_c
-
-    # Store each 3D point in the format (X, Y, Z) in a vertical stack by transposing the matrix
-    points_cam_3D = np.vstack((X_c, Y_c, Z_c)).T  # (N, 3)
-
-    return points_cam_3D, valid_colors
-
-def cam_3D_to_tag_3D(points_cam_3D, R_tag, tvec_tag):
-    """
-    Transform the 3D camera coordinates to the 3D AprilTag coordinates.
-
-    :param points_cam_3D: The 3D camera coordinates
-    :param R_ct: The rotation matrix of the AprilTag (3x3)
-    :param tvec: The translation vector of the AprilTag (3x1)
-    :return: The 3D AprilTag coordinates
-    """
-    # Convert the 3D camera coordinates from normal cartesian to homogeneous coordinates for the transformation
-    points_homogeneous = np.hstack((points_cam_3D, np.ones((points_cam_3D.shape[0], 1))))
-
-    T_tag_to_cam = np.eye(4)
-    T_tag_to_cam[:3, :3] = R_tag
-    T_tag_to_cam[:3, 3] = tvec_tag.flatten()
-
-    T_cam_to_tag = np.linalg.inv(T_tag_to_cam)
-
-    points_tag_homogeneous = (T_cam_to_tag @ points_homogeneous.T).T
-
-    # (Optional) If needed, convert the homogeneous coordinates back to cartesian coordinates
-    points_tag_cartesian = points_tag_homogeneous[:, :3] 
-
-    return points_tag_homogeneous, points_tag_cartesian, T_tag_to_cam
-
-def tag_3D_to_proj_2D(points_tag_cartesian, R_cam_to_proj, tvec_cam_to_proj, R_tag_to_cam, tvec_tag_to_cam, proj_K, proj_kc):
-    """
-    Transform the 3D AprilTag coordinates to the 2D projector coordinates.
-
-    :param points_tag_cartesian: The 3D AprilTag coordinates
-    :param R_cam_to_proj: The rotation matrix from the camera to the projector (3x3)
-    :param tvec_cam_to_proj: The translation vector from the camera to the projector (3x1)
-    :param R_tag_to_cam: The rotation matrix from the AprilTag to the camera (3x3)
-    :param tvec_tag_to_cam: The translation vector from the AprilTag to the camera (3x1)
-    :param proj_K: The projector matrix (3x3)
-    :param proj_kc: The distortion coefficients of the projector (5x1)
-    :return: The 2D projector coordinates
-    """
-
-    print(f"tvec_cam_to_proj: {tvec_cam_to_proj}")
-    print(f"tvec_tag_to_cam: {tvec_tag_to_cam}")
-
-    # Calculate the rotation and translation from the AprilTag to the projector with the camera as intermediary
-    R_tag_to_proj = R_cam_to_proj @ R_tag_to_cam
-    tvec_tag_to_proj = R_cam_to_proj @ tvec_tag_to_cam + (tvec_cam_to_proj / 1000)  # Convert to meters
-
-    # Convert the rotation matrix to a rotation vector and reshape the translation vector
-    rvec, _ = cv2.Rodrigues(R_tag_to_proj)
-    tvec_tag_to_proj = tvec_tag_to_proj.reshape(3, 1)
-
-    # Reshape the 3D AprilTag coordinates
-    points_tag_cartesian_reshaped = points_tag_cartesian.reshape(-1, 1, 3)
-
-    # Project the 3D AprilTag coordinates to the 2D projector coordinates
-    proj_image_points, _ = cv2.projectPoints(points_tag_cartesian_reshaped, rvec, tvec_tag_to_proj, proj_K, proj_kc)
-
-    # Reshape the projected points to a 2D array
-    projected_points = proj_image_points.reshape(-1, 2) # (N, 2)
-
-    return projected_points
-
-
-def filter_valid_proj_image_points(proj_image_points, valid_colors, projector_width, projector_height):
-    valid_proj_mask = (proj_image_points[:, 0] >= 0) & (proj_image_points[:, 0] < projector_width) & \
-          (proj_image_points[:, 1] >= 0) & (proj_image_points[:, 1] < projector_height)
-                
-    valid_projected_points = proj_image_points[valid_proj_mask]
-    valid_projected_colors = valid_colors[valid_proj_mask]
-
-    u_p = valid_projected_points[:, 0].astype(int)
-    v_p = valid_projected_points[:, 1].astype(int)
-
-    return u_p, v_p, valid_projected_colors
     
 
 def main() -> None:
@@ -165,6 +28,10 @@ def main() -> None:
     proj_image = np.zeros((projector_height, projector_width, 3), dtype=np.uint8)
     # draw a red rectangle on the edges of the projector image
     proj_image = cv2.rectangle(proj_image, (0, 0), (projector_width - 1, projector_height - 1), (0, 0, 255), 10)
+    proj_physical_width = 0.56
+    proj_physical_height = 0.32
+    s_x = projector_width / proj_physical_width
+    s_y = projector_height / proj_physical_height
 
     # Start the thread to update the windows
     window_thread = threading.Thread(target=update_windows)
@@ -182,7 +49,18 @@ def main() -> None:
 
     cam_K, cam_kc, proj_K, proj_kc, R, T = get_calibration_data(calibration_data_path)
 
-    print(f"Projector Intrinsics (proj_K):\n{proj_K}")
+    T = T.reshape((3, 1)) / 1000
+
+    M = np.zeros((3, 3))
+    M[0, 0] = s_x * R[0, 0]
+    M[0, 1] = s_x * R[0, 1]
+    M[0, 2] = T[0]
+    M[1, 0] = s_y * R[1, 0]
+    M[1, 1] = s_y * R[1, 1]
+    M[1, 2] = T[1]
+    M[2, 0] = R[2, 0]
+    M[2, 1] = R[2, 1]
+    M[2, 2] = 1
 
     try:
         while True:
@@ -215,23 +93,9 @@ def main() -> None:
                     # Draw the axes and tag border with ID
                     color_image = draw_axes(color_image, R_ct, tvec_opencv, cam_K, cam_kc, axis_length)
 
-                    if image_with_drawings_path is not None and proj_image_points is not None and valid_colors is not None:
+                    if image_with_drawings_path is not None:
+                        pass
 
-                        ### 3. Transform the 3D AprilTag coordinates to the 2D projector coordinates ###
-                        proj_image_points = tag_3D_to_proj_2D(points_tag_cartesian, R, T, R_ct, tvec_opencv, proj_K, proj_kc)
-
-                        # scale_factor = 1.0 / np.linalg.norm(tvec_opencv)  # Entfernung des AprilTags zur Kamera
-                        # proj_image_points *= scale_factor
-
-                        # print(f"Proj Image Points: {proj_image_points}")
-                        # print(f"Number of Proj Image Points: {len(proj_image_points)}")
-
-
-                        ### 4. Filter the valid projected image points ###
-                        u_p, v_p, valid_projected_colors = filter_valid_proj_image_points(proj_image_points, valid_colors, projector_width, projector_height)
-
-                        # Draw the transformed image pixels on the projector image
-                        proj_image[v_p, u_p] = valid_projected_colors
 
                 else:
                     cv2.putText(color_image, "Too close!, please move away a few cm.", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
@@ -259,33 +123,28 @@ def main() -> None:
             key = cv2.waitKey(1) & 0xFF
 
             if key == ord(' '):
-                if results:
-                    # Switch border color to green if a tag was detected
-                    proj_image = cv2.rectangle(proj_image, (0, 0), (projector_width - 1, projector_height - 1), (0, 255, 0), 10)
-                     
-                    # save the image
-                    image_name = os.path.join("data/calibration_images", f"drawing_test_img_{count + 1}.jpg")
-                    cv2.imwrite(image_name, color_image)
-                    count += 1
+                # if results:
+                # Switch border color to green if a tag was detected
+                proj_image = cv2.rectangle(proj_image, (0, 0), (projector_width - 1, projector_height - 1), (0, 255, 0), 10)
+                    
+                # save the image
+                image_name = os.path.join("data/calibration_images", f"drawing_test_img_{count + 1}.jpg")
+                cv2.imwrite(image_name, color_image)
+                count += 1
 
-                    open_image_in_paint(image_name)
+                open_image_in_paint(image_name)
 
-                    image_with_drawings_path = "data/saved_images/test_drawing.jpg"
+                image_with_drawings_path = "data/saved_images/test_drawing.jpg"
 
-                    # Create a new projector image
-                    proj_image = np.zeros((projector_height, projector_width, 3), dtype=np.uint8)
+                image_with_drawings = cv2.imread(image_with_drawings_path)
 
-                    # Load the image with the drawings
-                    image_with_drawings = cv2.imread(image_with_drawings_path)
+                # image_with_drawings_resized = cv2.resize(image_with_drawings, (projector_width, projector_height))
 
-                    ### 1. Transform the 2D camera image points to 3D camera coordinates ###
-                    points_cam_3D, valid_colors = cam_2D_to_cam_3D(image_with_drawings, depth_image, depth_scale, cam_K, cam_kc)
+                proj_image = cv2.warpPerspective(image_with_drawings, M, (projector_width, projector_height))
 
-                    ### 2. Transform the 3D camera coordinates to the 3D AprilTag coordinates ###
-                    _, points_tag_cartesian, T_cam_to_tag = cam_3D_to_tag_3D(points_cam_3D, R_ct, tvec_opencv)
 
-                else:
-                    print("No AprilTag detected, please try again.")
+                # else:
+                    # print("No AprilTag detected, please try again.")
 
             if key == ord('q'):
                 break
