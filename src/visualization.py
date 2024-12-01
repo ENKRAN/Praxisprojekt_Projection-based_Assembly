@@ -1,6 +1,9 @@
 import numpy as np
 import cv2
 from typing import Any
+import open3d as o3d
+import time
+from scipy.interpolate import griddata
 
 def draw_axes(img, R_ct, tvec, camera_matrix, dist_coeffs, axis_length) -> Any:
     """
@@ -143,6 +146,36 @@ def draw_bounding_box_and_drawing(img, drawing_img, drawing, R_ct, tvec, camera_
         img = cv2.add(img_bg, img_fg)
     else:
         print("Warning: Not enough points to draw the drawing.")
+
+    return img
+
+def draw_points_on_proj(img, points_3D_tag, valid_colors, R_cam_to_proj, tvec_cam_to_proj, R_tag_to_cam, tvec_tag_to_cam, proj_K, proj_kc, projector_width, projector_height) -> Any:
+
+    R_tag_to_proj = R_cam_to_proj @ R_tag_to_cam
+    tvec_tag_to_proj = R_cam_to_proj @ tvec_tag_to_cam + (tvec_cam_to_proj / 1000)  # Convert to meters
+
+    rvec_tag_to_proj, _ = cv2.Rodrigues(R_tag_to_proj)
+    tvec_tag_to_proj = tvec_tag_to_proj.reshape(-1, 1)
+
+    proj_imgpts, _ = cv2.projectPoints(points_3D_tag, rvec_tag_to_proj, tvec_tag_to_proj, proj_K, proj_kc)
+
+    img = np.zeros((projector_height, projector_width, 3), dtype=np.uint8)
+
+    assert proj_imgpts.shape[0] == valid_colors.shape[0], "Anzahl der Punkte und Farben stimmt nicht überein."
+
+    proj_imgpts = np.int32(proj_imgpts).reshape(-1, 2)
+
+    in_bounds_mask = (
+        (proj_imgpts[:, 0] >= 0) & (proj_imgpts[:, 0] < projector_width) &
+        (proj_imgpts[:, 1] >= 0) & (proj_imgpts[:, 1] < projector_height)
+    )
+
+    valid_pixel_coords = proj_imgpts[in_bounds_mask]
+    valid_colors_in_bounds = valid_colors[in_bounds_mask]
+
+    img[valid_pixel_coords[:, 1], valid_pixel_coords[:, 0]] = valid_colors_in_bounds
+
+    img = cv2.rectangle(img, (0, 0), (projector_width - 1, projector_height - 1), (255, 0, 0), 10)
 
     return img
 
