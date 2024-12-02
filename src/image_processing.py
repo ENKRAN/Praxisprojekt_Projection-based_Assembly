@@ -66,53 +66,11 @@ def extract_valid_image_points(image_with_drawings, depth_image, depth_scale):
 
     return image_points, valid_depths, valid_colors
 
-def extract_valid_image_points_2(image_with_drawings, depth_image, depth_scale):
-    # Extrahieren der Nicht-Schwarz-Pixel
-    non_black_mask = np.any(image_with_drawings != [0, 0, 0], axis=-1)
-    non_black_coords = np.column_stack(np.nonzero(non_black_mask))
-    non_black_colors = image_with_drawings[non_black_mask]
+def cam_2D_to_cam_3D(image_points_2D, depth_values, cam_K, cam_kc):
 
-    # Tiefenwerte der Nicht-Schwarz-Pixel extrahieren
-    depth_values = depth_image[non_black_coords[:, 0], non_black_coords[:, 1]] * depth_scale
-
-    # Erstellen einer Tiefenkarte der gezeichneten Punkte
-    depth_map = np.zeros_like(depth_image, dtype=np.float32)
-    depth_map[non_black_coords[:, 0], non_black_coords[:, 1]] = depth_values
-
-    # Maskieren der fehlenden oder ungültigen Tiefenwerte
-    depth_mask = (depth_map > 0) & (~np.isnan(depth_map))
-
-    return non_black_coords, non_black_colors, depth_map, depth_mask
-
-def interpolate_depth_map(depth_map, depth_mask):
-    # Extrahieren der bekannten Tiefenwerte
-    known_coords = np.argwhere(depth_mask)
-    known_depths = depth_map[depth_mask]
-
-    # Erstellen eines Gitters für die Interpolation
-    grid_x, grid_y = np.mgrid[0:depth_map.shape[0], 0:depth_map.shape[1]]
-
-    # Interpolation durchführen
-    interpolated_depth_map = griddata(
-        known_coords,
-        known_depths,
-        (grid_x, grid_y),
-        method='linear',
-        fill_value=0
-    )
-
-    return interpolated_depth_map
-
-def cam_2D_to_cam_3D(non_black_coords, interpolated_depth_map, cam_K, cam_kc):
-
-    # Extrahieren der Tiefenwerte von der interpolierten Tiefenkarte
-    depth_values = interpolated_depth_map[non_black_coords[:, 0], non_black_coords[:, 1]]
-
-    # Bildpunkte erstellen
-    image_points = non_black_coords[:, [1, 0]].astype(np.float32).reshape(-1, 1, 2)
 
     # Undistort Points
-    undistorted_points = cv2.undistortPoints(image_points, cam_K, cam_kc)
+    undistorted_points = cv2.undistortPoints(image_points_2D, cam_K, cam_kc)
 
     # Rückprojektion in 3D
     x = undistorted_points[:, 0, 0]
@@ -130,14 +88,9 @@ def cam_2D_to_cam_3D(non_black_coords, interpolated_depth_map, cam_K, cam_kc):
 def cam_2D_to_tag_3D(image_path: str, depth_image, depth_scale, cam_K, cam_kc, april_tag_pose):
     image_with_drawings = cv2.imread(image_path)
 
-    # Schritt 1: Extrahieren der Bildpunkte und Erstellung der Tiefenkarte
-    image_points, valid_colors, depth_map, depth_mask = extract_valid_image_points_2(image_with_drawings, depth_image, depth_scale)
+    image_points_2D, valid_depths, valid_colors = extract_valid_image_points(image_with_drawings, depth_image, depth_scale)
 
-    # Schritt 2: Interpolation der Tiefenkarte
-    interpolated_depth_map = interpolate_depth_map(depth_map, depth_mask)
-
-    # Schritt 3: Rückprojektion in 3D-Kamerakoordinaten
-    points_3d_camera = cam_2D_to_cam_3D(image_points, interpolated_depth_map, cam_K, cam_kc)
+    points_3d_camera = cam_2D_to_cam_3D(image_points_2D, valid_depths, cam_K, cam_kc)
 
     R = april_tag_pose[0]
     t = april_tag_pose[1]
