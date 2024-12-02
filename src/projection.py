@@ -1,14 +1,15 @@
 import cv2
 import sys
-import numpy as np
 from screeninfo import get_monitors
-from typing import Tuple, List
-import pyrealsense2 as rs
-from .image_processing import save_component_img
-import os
-import glob
+import numpy as np
+from typing import Any, Tuple
 
-def setup_projector_window():
+def setup_projector_window() -> Tuple[str, int, int]:
+    """
+    Setup the window for the projector screen.
+
+    :return: The window name, width, and height of the projector screen
+    """
     # Get the second screen (projector)
     monitors = get_monitors()
     if len(monitors) < 2:
@@ -29,3 +30,53 @@ def setup_projector_window():
     cv2.moveWindow(projector_window_name, screen_x, screen_y)  # Positioning on second screen
 
     return projector_window_name, projector_width, projector_height
+
+def project_image(img, points_3D_tag, valid_colors, R_cam_to_proj, tvec_cam_to_proj, R_tag_to_cam, tvec_tag_to_cam, proj_K, proj_kc, projector_width, projector_height) -> Any:
+    """
+    Projects the image onto the projector screen.
+
+    :param img: The image to project
+    :param points_3D_tag: The 3D points relative to the AprilTag
+    :param valid_colors: The corresponding colors of the 3D points
+    :param R_cam_to_proj: Rotation matrix from the camera to the projector
+    :param tvec_cam_to_proj: Translation vector from the camera to the projector
+    :param R_tag_to_cam: Rotation matrix from the AprilTag to the camera
+    :param tvec_tag_to_cam: Translation vector from the AprilTag to the camera
+    :param proj_K: Camera matrix of the projector
+    :param proj_kc: Distortion coefficients of the projector
+    :param projector_width: Width of the projector screen
+    :param projector_height: Height of the projector screen
+    :return: The image projected onto the projector screen
+    """
+    # Calculate the rotation and translation from the AprilTag to the projector
+    R_tag_to_proj = R_cam_to_proj @ R_tag_to_cam
+    tvec_tag_to_proj = R_cam_to_proj @ tvec_tag_to_cam + (tvec_cam_to_proj / 1000)  # Convert to meters
+
+    # Reshape the rotation matrix and translation vector for projection
+    rvec_tag_to_proj, _ = cv2.Rodrigues(R_tag_to_proj)
+    tvec_tag_to_proj = tvec_tag_to_proj.reshape(-1, 1)
+    
+    # Project the 3D points onto the projector screen
+    proj_imgpts, _ = cv2.projectPoints(points_3D_tag, rvec_tag_to_proj, tvec_tag_to_proj, proj_K, proj_kc)
+
+    # Create an empty image for the projector
+    img = np.zeros((projector_height, projector_width, 3), dtype=np.uint8)
+
+    # Convert the points into integer pixel coordinates
+    proj_imgpts = np.int32(proj_imgpts).reshape(-1, 2)
+
+    # Filter out the points that are out of bounds
+    in_bounds_mask = (
+        (proj_imgpts[:, 0] >= 0) & (proj_imgpts[:, 0] < projector_width) &
+        (proj_imgpts[:, 1] >= 0) & (proj_imgpts[:, 1] < projector_height)
+    )
+
+    # Draw the colors on the projector screen
+    valid_pixel_coords = proj_imgpts[in_bounds_mask]
+    valid_colors_in_bounds = valid_colors[in_bounds_mask]
+    img[valid_pixel_coords[:, 1], valid_pixel_coords[:, 0]] = valid_colors_in_bounds
+
+    # Draw a border around the projector screen
+    img = cv2.rectangle(img, (0, 0), (projector_width - 1, projector_height - 1), (0, 255, 0), 10)
+
+    return img

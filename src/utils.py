@@ -1,53 +1,9 @@
-import numpy as np
-from typing import Tuple
-from .camera import Camera
 import subprocess
 import os
 import time
 import pyautogui
 import cv2
-
-def pixelcoords_to_apriltagcoords(u, v, depth_frame, intrinsics, april_tag_pose) -> np.ndarray:
-    """
-    Convert pixel coordinates to AprilTag coordinates
-
-    :param u: Pixel coordinate in x-direction
-    :param v: Pixel coordinate in y-direction
-    :param depth_frame: Depth frame from the camera
-    :param intrinsics: Camera intrinsics
-    :param april_tag_pose: Pose of the AprilTag
-    :return: AprilTag coordinates
-    """
-    print(f"Pixel coordinates: ({u}px, {v}px)")
-
-    # Step 1: Get the camera depth sensor value
-    Z_c = depth_frame.get_distance(int(u), int(v))  # Depth value in meters
-
-    if Z_c == 0:
-        print("No depth value found")
-        return None
-    
-    # print(f"Distance to Point: {Z_c}m")
-
-    # Step 2: Convert the pixel coordinates to camera coordinates
-    cam_vec = Camera.get_3D_camera_coords(int(u), int(v), Z_c, intrinsics["intrinsics_raw"])
-
-    # print (f"Point in camera coordinates: ({cam_vec[0]}, {cam_vec[1]}, {cam_vec[2]})")
-
-    # Step 3: Transform the camera coordinates to AprilTag coordinates
-    rmat = np.array(april_tag_pose[0])
-    tvec = np.array(april_tag_pose[1])
-
-    # print(f"Rotation matrix: {rmat}")
-    # print(f"Translation vector: {tvec}")
-
-    # Inverse of the rotation matrix
-    rinv = rmat.T
-
-    # Calculate the AprilTag coordinates
-    ATvec = np.dot(rinv, cam_vec - tvec)
-    
-    return ATvec
+import numpy as np
 
 def open_image_in_paint(image_path: str) -> None:
     """
@@ -85,4 +41,24 @@ def show_img(image_path: str) -> None:
     cv2.imshow("Image", cv2.imread(image_path))
     cv2.waitKey(0)
 
+def show_depth_image(depth_image, debug_mode="colormap") -> None:
+    """
+    Display the depth image using OpenCV
+
+    :param depth_image: The depth image
+    :param debug_mode: The debug mode to use
+    """
+    if debug_mode == "colormap":
+        depth_colormap = cv2.applyColorMap(cv2.convertScaleAbs(depth_image, alpha=0.03), cv2.COLORMAP_JET)
+        cv2.imshow('Depth Image', depth_colormap)
+    elif debug_mode == "smoothed":
+        smoothed_depth = cv2.GaussianBlur(depth_image, (5, 5), 0)
+        depth_colormap_smoothed = cv2.applyColorMap(cv2.convertScaleAbs(smoothed_depth, alpha=0.03), cv2.COLORMAP_JET)
+        cv2.imshow('Depth Image smoothed', depth_colormap_smoothed)
+    elif debug_mode == "filtered":
+        valid_depth = np.where(smoothed_depth > 0, smoothed_depth, 0)
+        depth_colormap_valid = cv2.applyColorMap(cv2.convertScaleAbs(valid_depth, alpha=0.03), cv2.COLORMAP_JET)
+        cv2.imshow('Depth Image valid', depth_colormap_valid)
+
+    cv2.waitKey(0)
 

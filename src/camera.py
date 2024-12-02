@@ -2,7 +2,6 @@ import pyrealsense2 as rs
 import numpy as np
 from typing import Tuple, Dict, Optional
 import cv2
-import open3d as o3d
 
 class Camera:
     """
@@ -38,7 +37,7 @@ class Camera:
         else:
             self.depth_scale = None
 
-    def get_frames(self) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[rs.frame], Optional[rs.frame]]:        
+    def get_frames(self) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[rs.frame], Optional[rs.frame], Optional[float]]:        
         """
         Get color and depth frames from the camera, along with their numpy array representations.
 
@@ -156,9 +155,9 @@ class Camera:
         Y_c = y_c * Z_c
         
         # Create a numpy array with the 3D coordinates
-        t_depth_vec = np.array([[X_c], [Y_c], [Z_c]])
+        point_3D = np.array([[X_c], [Y_c], [Z_c]])
         
-        return t_depth_vec
+        return point_3D
     
     @staticmethod
     def get_2D_camera_coords(intrinsics, tvec) -> Tuple[int, int]:
@@ -173,49 +172,6 @@ class Camera:
         u, v = rs.rs2_project_point_to_pixel(intrinsics, [x, y, z])
 
         return int(u), int(v)
-
-    def create_pointcloud(self, color_frame, depth_frame) -> np.ndarray:
-        """
-        Create a pointcloud from the depth frame
-
-        :param depth_frame: Depth frame to create the pointcloud from
-        :return: Pointcloud as a numpy array
-        """
-        pc = rs.pointcloud()
-        points = pc.calculate(depth_frame)
-        pc.map_to(color_frame)
-
-        return points
-    
-    def visualize_pointcloud(self, points, depth_image, color_intrinsics) -> np.ndarray:
-        v = points.get_vertices()
-        verts = np.asanyarray(v).view(np.float32).reshape(-1, 3)  # xyz
-
-        pcd = o3d.geometry.PointCloud()
-        pcd.points = o3d.utility.Vector3dVector(verts)
-
-        # Get stream profile and camera intrinsics
-
-        # Convert the depth frame to a numpy array
-        depth_image = depth_image * self.depth_scale
-
-        # Convert the numpy array to an open3d depth image
-        depth_image_o3d = o3d.geometry.Image(depth_image.astype(np.float32))
-
-        # Create an open3d camera intrinsics object from pyrealsense2 intrinsics
-        o3d_camera_intrinsic = o3d.camera.PinholeCameraIntrinsic(color_intrinsics['width'], color_intrinsics['height'], 
-                                                                color_intrinsics['fx'], color_intrinsics['fy'], 
-                                                                color_intrinsics['ppx'], color_intrinsics['ppy'])
-
-        # Create the point cloud from the open3d depth image
-        pcd2 = o3d.geometry.PointCloud.create_from_depth_image(depth_image_o3d, o3d_camera_intrinsic)
-
-        vis = o3d.visualization.Visualizer()
-        vis.create_window(window_name='pointcloud', width=1280, height=720)
-        vis.add_geometry(pcd)
-        vis.add_geometry(pcd2)
-        vis.run()
-        vis.destroy_window()
 
     def stop(self) -> None:
         """
