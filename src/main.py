@@ -103,10 +103,10 @@ def main() -> None:
                     # proj_image = cv2.rectangle(proj_image, (0, 0), (projector_width - 1, projector_height - 1), (0, 255, 0), 10)
                      
                     # save the image
-                    image_name = save_component_img(color_image)
+                    image_path, _ = save_component_img(color_image)
 
                     # open the image in MS Paint
-                    open_image_in_paint(image_name)
+                    open_image_in_paint(image_path)
 
                     # path to the image with drawings
                     image_with_drawings_path = "data/saved_images/drawing.jpg"
