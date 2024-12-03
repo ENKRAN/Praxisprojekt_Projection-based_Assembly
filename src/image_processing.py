@@ -4,11 +4,11 @@ import os
 from typing import List, Dict, Tuple
 import numpy as np
 
-def save_component_img(frame, tag_id=None, save_dir="data/saved_images") -> Tuple[str, str]:
+def save_component_img(img, tag_id=None, save_dir="data/saved_images/raw_images") -> Tuple[str, str]:
     """
     Save the component image to disk.
 
-    :param frame: The image to save
+    :param img: The image to save
     :param tag_id: The tag ID
     :param save_dir: The directory to save the image to
     :return: The path to the saved image
@@ -24,7 +24,7 @@ def save_component_img(frame, tag_id=None, save_dir="data/saved_images") -> Tupl
     filepath = os.path.join(save_dir, filename)
 
     # Save the image to disk
-    cv2.imwrite(filepath, frame)
+    cv2.imwrite(filepath, img)
     print(f"Image saved at: {filepath}")
 
     return filepath, filename
