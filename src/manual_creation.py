@@ -1,66 +1,76 @@
 import os
 import json
 from datetime import datetime
+from pathlib import Path
+from typing import Tuple
+
 import cv2
+import numpy as np
+
+# Local imports
 from .visualization import draw_axes, draw_tag_border_and_id
 from .projection import project_image
 from .utils import open_image_in_paint
-from .image_processing import save_component_img, cam_2D_to_tag_3D
-from typing import Tuple
-import numpy as np
+from .image_processing import cam_2D_to_tag_3D
 
-class ManualCreater:
-    def __init__(self, base_manuals_dir="data/manuals", raw_images_dir="raw_images", instructions_dir="instructions"):
+KEY_CAPTURE = ord(' ')
+KEY_SAVE_STEP = ord('s')
+KEY_SAVE_MANUAL = ord('m')
+
+class ManualCreator:
+    def __init__(self, base_manuals_dir="data/manuals", raw_images_dir="raw_images", instructions_dir="instructions") -> None:
+        """
+        Initializes the ManualCreator object.
+
+        :param base_manuals_dir: The base directory where the manuals will be saved.
+        :param raw_images_dir: The directory where the raw images will be saved.
+        :param instructions_dir: The directory where the instructions will be saved.
+        """
         self.manual_count = 0
         self.tag_id = None
         self.step_number = 1
         self.steps = []
-        self.base_manuals_dir = base_manuals_dir
-        self.current_manual_dir = os.path.join(base_manuals_dir, f"manual_{self.manual_count}")
-        self.raw_images_dir = os.path.join(self.current_manual_dir, raw_images_dir)
-        self.instructions_dir = os.path.join(self.current_manual_dir, instructions_dir)
+        self.base_manuals_dir = Path(base_manuals_dir)
+        self.current_manual_dir = self.base_manuals_dir / f"manual_{self.manual_count}"
+        self.raw_images_dir = self.current_manual_dir / raw_images_dir
+        self.instructions_dir = self.current_manual_dir / instructions_dir
 
         # Create the directories if they don't exist
         try:
-            os.makedirs(self.base_manuals_dir, exist_ok=True)
-            os.makedirs(self.current_manual_dir, exist_ok=True)
-            os.makedirs(self.raw_images_dir, exist_ok=True)
-            os.makedirs(self.instructions_dir, exist_ok=True)
+            self.current_manual_dir.mkdir(parents=True, exist_ok=True)
+            self.raw_images_dir.mkdir(parents=True, exist_ok=True)
+            self.instructions_dir.mkdir(parents=True, exist_ok=True)
         except OSError as e:
             print(f"Error creating directories: {e}")
             raise
 
     def capture_photo(self, img) -> Tuple[str, str]:
         """
-        Capture a photo and save it to disk.
+        Captures a photo and saves it in the raw images directory.
 
-        :param img: The image to save
-        :param step_number: The step number
+        :param img: The image to save.
         :return: The path to the saved image and the filename
-        """    
+        """
         filename = f"raw_image_{self.tag_id}_step_{self.step_number:03}.png"
-
-        # Full path to the file
-        photo_path = os.path.join(self.raw_images_dir, filename)
-
-        # Save the image to disk
-        cv2.imwrite(photo_path, img)
+        photo_path = self.raw_images_dir / filename
+        cv2.imwrite(str(photo_path), img)
         print(f"Image saved at: {photo_path}")
 
-        return photo_path, filename
-    
-    def reset_everything(self):
+        return str(photo_path), filename
+
+    def reset_manual_creator(self) -> None:
+        """
+        Resets the manual creator by creating a new directory for the new manual.
+        """
         self.manual_count += 1
+        self.current_manual_dir = self.base_manuals_dir / f"manual_{self.manual_count}"
+        self.raw_images_dir = self.current_manual_dir / self.raw_images_dir.name
+        self.instructions_dir = self.current_manual_dir / self.instructions_dir.name
 
-        self.current_manual_dir = os.path.join(self.base_manuals_dir, f"manual_{self.manual_count}")
-        self.raw_images_dir = os.path.join(self.current_manual_dir, os.path.basename(self.raw_images_dir))
-        self.instructions_dir = os.path.join(self.current_manual_dir, os.path.basename(self.instructions_dir))
-
-        # Create the directories if they don't exist
         try:
-            os.makedirs(self.current_manual_dir, exist_ok=True)
-            os.makedirs(self.raw_images_dir, exist_ok=True)
-            os.makedirs(self.instructions_dir, exist_ok=True)
+            self.current_manual_dir.mkdir(parents=True, exist_ok=True)
+            self.raw_images_dir.mkdir(parents=True, exist_ok=True)
+            self.instructions_dir.mkdir(parents=True, exist_ok=True)
         except OSError as e:
             print(f"Error creating directories: {e}")
             raise
@@ -68,35 +78,65 @@ class ManualCreater:
         self.tag_id = None
         self.steps.clear()
         self.step_number = 1
-        
+
         print("Everything has been reset.")
         print(f"Current manual directory: {self.current_manual_dir}")
 
-    def create_step(self, drawing_path):
-        # Schritt speichern
+    def create_step(self, drawing_path) -> None:
+        """
+        Creates a step with the drawing path.
+
+        :param drawing_path: The path to the drawing image.
+        """
+        drawing_path = str(Path(drawing_path).as_posix())
         self.steps.append({
             "step": self.step_number,
             "drawing_path": drawing_path,
         })
         print(f"Step {self.step_number} saved.")
 
-    def save_manual(self):
+    def save_manual(self) -> None:
+        """
+        Saves the manual as a JSON file
+        """
         if self.tag_id is None:
             print("No tag ID found, manual not saved.")
             return
-        
+
         manual_data = {
             "tag_id": self.tag_id,
             "steps": self.steps,
             "created_at": datetime.now().isoformat()
         }
-        json_path = os.path.join(self.current_manual_dir, f"manual_{self.manual_count}.json")
+        json_path = self.current_manual_dir / f"manual_{self.manual_count}.json"
 
-        with open(json_path, "w") as file:
-            json.dump(manual_data, file, indent=4)
-        print(f"Manual saved at {json_path} for AprilTag ID {self.tag_id}.")
+        try:
+            with open(json_path, "w") as file:
+                json.dump(manual_data, file, indent=4)
+            print(f"Manual saved at {json_path} for AprilTag ID {self.tag_id}.")
+        except Exception as e:
+            print(f"Error saving manual: {e}")
 
-    def create_manual(self, camera, apriltag_detector, min_distance, cam_K, cam_kc, axis_length, R, T, proj_K, proj_kc, projector_width, projector_height, projector_window_name, proj_image):
+    def create_manual(self, camera, apriltag_detector, min_distance, cam_K, cam_kc, axis_length, R, T, \
+                       proj_K, proj_kc, projector_width, projector_height, projector_window_name, proj_image) -> None:
+        """
+        Creates a manual by capturing images, drawing on them, and saving the steps.
+
+        :param camera: The camera object.
+        :param apriltag_detector: The AprilTag detector object.
+        :param min_distance: The minimum distance to the tag in meters.
+        :param cam_K: The intrinsic camera matrix.
+        :param cam_kc: The camera distortion coefficients.
+        :param axis_length: The length of the axes in the visualization.
+        :param R: The rotation matrix from the projector to the camera.
+        :param T: The translation vector from the projector to the camera.
+        :param proj_K: The intrinsic projector matrix.
+        :param proj_kc: The projector distortion coefficients.
+        :param projector_width: The width of the projector image.
+        :param projector_height: The height of the projector image.
+        :param projector_window_name: The name of the projector window.
+        :param proj_image: The projector image.
+        """
         print(f"Beginning manual creation...")
         step_saved = False
         extracted_3D_pixels = False
@@ -159,7 +199,7 @@ class ManualCreater:
 
                 key = cv2.waitKey(1) & 0xFF
 
-                if key == ord(' '):
+                if key == KEY_CAPTURE:
                     if results:
                         self.tag_id = results[0].tag_id
 
@@ -174,19 +214,19 @@ class ManualCreater:
                         open_image_in_paint(image_path)
 
                         # 3. Get the path to the image with the drawings
-                        instructions = [os.path.join(self.instructions_dir, datei) for datei in os.listdir(self.instructions_dir) if datei.lower().endswith(".jpg")]
+                        instructions = [self.instructions_dir / datei for datei in os.listdir(self.instructions_dir) if datei.lower().endswith(".jpg")]
                         if not instructions:
                             print("No images with drawings found.")
                         else:
                             # Get the newest instruction
-                            newest_instruction = max(instructions, key=os.path.getmtime)
-                            
+                            newest_instruction = max(instructions, key=lambda p: p.stat().st_mtime)     
+
                             # Prepare the new path
                             new_name = f"instruction_{self.tag_id}_step_{self.step_number:03}.jpg"
-                            image_with_drawings_path = os.path.join(self.instructions_dir, new_name)
+                            image_with_drawings_path = self.instructions_dir / new_name
                             
-                            # Datei umbenennen
-                            os.rename(newest_instruction, image_with_drawings_path)
+                            # Rename the image
+                            newest_instruction.rename(image_with_drawings_path)
                             print(f"The image with the drawings has been renamed to: {image_with_drawings_path}")
 
                         # Calculate the 3D points relative to the AprilTag and the corresponding colors
@@ -200,7 +240,7 @@ class ManualCreater:
                             continue
                     else:
                         print("No AprilTag detected, please try again.")
-                if key == ord('s'):
+                if key == KEY_SAVE_STEP:
 
                     confirm = input(f"Are you sure you want to save the instruction step {self.step_number:03} for the AprilTag ID {self.tag_id}? (y/n): ").lower()
 
@@ -218,13 +258,13 @@ class ManualCreater:
                         proj_image = np.zeros((projector_height, projector_width, 3), dtype=np.uint8)
                         proj_image = cv2.rectangle(proj_image, (0, 0), (projector_width - 1, projector_height - 1), (0, 0, 255), 10)
 
-                if key == ord('m'):
+                if key == KEY_SAVE_MANUAL:
                     self.save_manual()
 
                     more_manuals = input("Want to create another manual? (y/n): ")
 
                     if more_manuals == "y":
-                        self.reset_everything()
+                        self.reset_manual_creator()
                     else:
                         print("Creation of manuals stopped.")
                         break

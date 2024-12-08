@@ -1,33 +1,6 @@
 import cv2
-import time
-import os
 from typing import List, Dict, Tuple
 import numpy as np
-
-def save_component_img(img, tag_id=None, save_dir="data/saved_images/raw_images") -> Tuple[str, str]:
-    """
-    Save the component image to disk.
-
-    :param img: The image to save
-    :param tag_id: The tag ID
-    :param save_dir: The directory to save the image to
-    :return: The path to the saved image
-    """    
-    # Create the directory if it does not exist
-    os.makedirs(save_dir, exist_ok=True)
-
-    # Generate a filename and timestamp
-    timestamp = time.strftime("%Y%m%d-%H%M%S")
-    filename = f"component_{tag_id}_{timestamp}.jpg"
-
-    # Full path to the file
-    filepath = os.path.join(save_dir, filename)
-
-    # Save the image to disk
-    cv2.imwrite(filepath, img)
-    print(f"Image saved at: {filepath}")
-
-    return filepath, filename
 
 def extract_valid_image_points(image_with_drawings, depth_image, depth_scale) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """

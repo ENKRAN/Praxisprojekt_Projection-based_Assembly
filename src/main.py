@@ -1,16 +1,13 @@
 import numpy as np
 import cv2
 import threading
-from .image_processing import save_component_img, cam_2D_to_tag_3D
 from .setup import initialize_system, get_calibration_data, update_windows
-from .projection import setup_projector_window, project_image
-from .utils import open_image_in_paint, show_depth_image
-from .visualization import draw_axes, draw_tag_border_and_id
-from .manual_creation import ManualCreater
+from .projection import setup_projector_window
+from .manual_creation import ManualCreator
 
 def main() -> None:
     # Initialize the camera and AprilTag detector
-    camera, apriltag_detector, camera_matrix, color_intrinsics, _ = initialize_system()
+    camera, apriltag_detector, _, _, _ = initialize_system()
 
     # Setup the projector window
     global projector_window_name
@@ -34,8 +31,23 @@ def main() -> None:
     calibration_data_path = 'C:\\Users\\cenko\\Desktop\\Studium\\FH Aachen\\7. Semester\\Bachelor\\Projektor_Kamera_Kalibrierung\\calibration.yml'
     cam_K, cam_kc, proj_K, proj_kc, R, T = get_calibration_data(calibration_data_path)
 
-    manual_creator = ManualCreater()
-    manual_creator.create_manual(camera, apriltag_detector, min_distance, cam_K, cam_kc, axis_length, R, T, proj_K, proj_kc, projector_width, projector_height, projector_window_name, proj_image)
+    manual_creator = ManualCreator()
+    manual_creator.create_manual(
+        camera, 
+        apriltag_detector, 
+        min_distance, 
+        cam_K, 
+        cam_kc, 
+        axis_length, 
+        R, 
+        T, 
+        proj_K, 
+        proj_kc, 
+        projector_width, 
+        projector_height, 
+        projector_window_name, 
+        proj_image
+    )
 
 if __name__ == "__main__":
     main() 
