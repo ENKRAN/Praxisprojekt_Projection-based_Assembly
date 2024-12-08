@@ -16,6 +16,7 @@ from .image_processing import cam_2D_to_tag_3D
 KEY_CAPTURE = ord(' ')
 KEY_SAVE_STEP = ord('s')
 KEY_SAVE_MANUAL = ord('m')
+KEY_UNDO_STEP = ord('u')
 
 class ManualCreator:
     def __init__(self, base_manuals_dir="data/manuals", raw_images_dir="raw_images", instructions_dir="instructions") -> None:
@@ -94,6 +95,14 @@ class ManualCreator:
             "drawing_path": drawing_path,
         })
         print(f"Step {self.step_number} saved.")
+
+    def undo_last_step(self):
+        if self.steps:
+            removed_step = self.steps.pop()
+            self.step_number -= 1
+            print(f"Removed step {removed_step['step']}.")
+        else:
+            print("No steps to undo.")
 
     def save_manual(self) -> None:
         """
@@ -257,6 +266,15 @@ class ManualCreator:
                         step_saved = False
                         proj_image = np.zeros((projector_height, projector_width, 3), dtype=np.uint8)
                         proj_image = cv2.rectangle(proj_image, (0, 0), (projector_width - 1, projector_height - 1), (0, 0, 255), 10)
+
+                if key == KEY_UNDO_STEP:
+
+                    confirm = input(f"Are you sure you want to undo the last step? (y/n): ").lower()
+
+                    if confirm == "y":
+                        self.undo_last_step()
+                    else:
+                        print("Undo cancelled.")
 
                 if key == KEY_SAVE_MANUAL:
                     self.save_manual()
