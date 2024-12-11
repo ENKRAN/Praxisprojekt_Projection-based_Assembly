@@ -1,7 +1,7 @@
 import numpy as np
 import cv2
 import threading
-from .setup import initialize_system, get_calibration_data, update_windows
+from .setup import initialize_system, get_calibration_data, update_windows, setup_GUI_window
 from .projection import setup_projector_window
 from .manual_creation import ManualCreator
 
@@ -9,9 +9,12 @@ def main() -> None:
     # Initialize the camera and AprilTag detector
     camera, apriltag_detector, _, _, _ = initialize_system()
 
+    global gui_window_name
+    gui_window_name, gui_width, gui_height, second_screen_x, second_screen_y = setup_GUI_window()
+
     # Setup the projector window
     global projector_window_name
-    projector_window_name, projector_width, projector_height = setup_projector_window()
+    projector_window_name, projector_width, projector_height = setup_projector_window(second_screen_x, second_screen_y)
 
     # draw a red rectangle on the edges of the projector image
     proj_image = np.zeros((projector_height, projector_width, 3), dtype=np.uint8)

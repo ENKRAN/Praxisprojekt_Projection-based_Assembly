@@ -98,4 +98,4 @@ def setup_GUI_window() -> Tuple[str, int, int]:
     cv2.setWindowProperty(gui_window_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
     cv2.moveWindow(gui_window_name, screen_x, screen_y)  # Positioning on second screen
 
-    return gui_window_name, gui_width, gui_height
+    return gui_window_name, gui_width, gui_height, screen_x, screen_y
