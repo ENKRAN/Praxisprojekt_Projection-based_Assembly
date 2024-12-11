@@ -97,6 +97,8 @@ def cam_2D_to_tag_3D(image_path: str, depth_image, depth_scale, cam_K, april_tag
     # Invert the rotation and translation
     R_inv = R.T
     t_inv = -R_inv @ t
+
+    t_inv = t_inv.reshape(3)
     
     # Create the inverse transformation matrix
     T_inv = np.eye(4)

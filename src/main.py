@@ -10,11 +10,11 @@ def main() -> None:
     camera, apriltag_detector, _, _, _ = initialize_system()
 
     global gui_window_name
-    gui_window_name, gui_width, gui_height, second_screen_x, second_screen_y = setup_GUI_window()
+    gui_window_name, gui_width, gui_height = setup_GUI_window()
 
     # Setup the projector window
     global projector_window_name
-    projector_window_name, projector_width, projector_height = setup_projector_window(second_screen_x, second_screen_y)
+    projector_window_name, projector_width, projector_height = setup_projector_window()
 
     # draw a red rectangle on the edges of the projector image
     proj_image = np.zeros((projector_height, projector_width, 3), dtype=np.uint8)

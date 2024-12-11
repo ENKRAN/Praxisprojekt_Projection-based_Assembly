@@ -1,10 +1,5 @@
 {
     "tag_id": 0,
-    "steps": [
-        {
-            "step": 1,
-            "drawing_path": "data/manuals\\manual_0\\instructions\\instruction_0_step_001.jpg"
-        }
-    ],
-    "created_at": "2024-12-04T16:42:20.497166"
+    "steps": [],
+    "created_at": "2024-12-11T16:17:16.869847"
 }

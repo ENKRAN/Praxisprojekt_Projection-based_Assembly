@@ -4,7 +4,7 @@ from screeninfo import get_monitors
 import numpy as np
 from typing import Any, Tuple
 
-def setup_projector_window(second_screen_x, second_screen_y) -> Tuple[str, int, int]:
+def setup_projector_window() -> Tuple[str, int, int]:
     """
     Setup the window for the projector screen.
 
@@ -28,10 +28,7 @@ def setup_projector_window(second_screen_x, second_screen_y) -> Tuple[str, int, 
     cv2.namedWindow(projector_window_name, cv2.WINDOW_NORMAL)
     cv2.setWindowProperty(projector_window_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
 
-    third_screen_x = second_screen_x + screen_x
-    third_screen_y = second_screen_y + screen_y
-
-    cv2.moveWindow(projector_window_name, third_screen_x, third_screen_y)  # Positioning on third screen
+    cv2.moveWindow(projector_window_name, screen_x, screen_y)  # Positioning on third screen
 
     return projector_window_name, projector_width, projector_height
 

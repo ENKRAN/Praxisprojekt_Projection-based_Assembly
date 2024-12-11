@@ -226,7 +226,7 @@ class ManualCreator:
                         open_image_in_paint(image_path)
 
                         # 3. Get the path to the image with the drawings
-                        instructions = [self.instructions_dir / datei for datei in os.listdir(self.instructions_dir) if datei.lower().endswith(".jpg")]
+                        instructions = [self.instructions_dir / datei for datei in os.listdir(self.instructions_dir) if datei.lower().endswith(".png")]
                         if not instructions:
                             print("No images with drawings found.")
                         else:
@@ -234,7 +234,7 @@ class ManualCreator:
                             newest_instruction = max(instructions, key=lambda p: p.stat().st_mtime)     
 
                             # Prepare the new path
-                            new_name = f"instruction_{self.tag_id}_step_{self.step_number:03}.jpg"
+                            new_name = f"instruction_{self.tag_id}_step_{self.step_number:03}.png"
                             image_with_drawings_path = self.instructions_dir / new_name
                             
                             # Rename the image
