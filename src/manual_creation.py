@@ -59,7 +59,7 @@ class ManualCreator:
 
         return str(photo_path), filename
 
-    def reset_manual_creator(self) -> None:
+    def reset_manual_creator(self, projector_width, projector_height) -> None:
         """
         Resets the manual creator by creating a new directory for the new manual.
         """
@@ -79,6 +79,9 @@ class ManualCreator:
         self.tag_id = None
         self.steps.clear()
         self.step_number = 1
+
+        proj_image = np.zeros((projector_height, projector_width, 3), dtype=np.uint8)
+        proj_image = cv2.rectangle(proj_image, (0, 0), (projector_width - 1, projector_height - 1), (0, 0, 255), 10)
 
         print("Everything has been reset.")
         print(f"Current manual directory: {self.current_manual_dir}")
@@ -239,7 +242,7 @@ class ManualCreator:
                             print(f"The image with the drawings has been renamed to: {image_with_drawings_path}")
 
                         # Calculate the 3D points relative to the AprilTag and the corresponding colors
-                        points_3D_tag, valid_colors = cam_2D_to_tag_3D(image_with_drawings_path, depth_image, depth_scale, cam_K, cam_kc, (R_ct, tvec_opencv))
+                        points_3D_tag, _, valid_colors = cam_2D_to_tag_3D(image_with_drawings_path, depth_image, depth_scale, cam_K, (R_ct, tvec_opencv))
 
                         if points_3D_tag is not None and valid_colors is not None:
                             extracted_3D_pixels = True
@@ -282,7 +285,7 @@ class ManualCreator:
                     more_manuals = input("Want to create another manual? (y/n): ")
 
                     if more_manuals == "y":
-                        self.reset_manual_creator()
+                        self.reset_manual_creator(projector_width, projector_height)
                     else:
                         print("Creation of manuals stopped.")
                         break

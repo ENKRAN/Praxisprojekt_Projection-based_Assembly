@@ -28,7 +28,7 @@ def main() -> None:
     axis_length = apriltag_detector.tag_size
     min_distance = 0.15
     
-    calibration_data_path = 'C:\\Users\\cenko\\Desktop\\Studium\\FH Aachen\\7. Semester\\Bachelor\\Projektor_Kamera_Kalibrierung\\calibration.yml'
+    calibration_data_path = 'data/projector_camera_calibration/calibration.yml'
     cam_K, cam_kc, proj_K, proj_kc, R, T = get_calibration_data(calibration_data_path)
 
     manual_creator = ManualCreator()

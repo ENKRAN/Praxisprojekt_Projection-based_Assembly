@@ -4,6 +4,8 @@ import numpy as np
 from typing import Tuple, Optional, Dict
 import cv2
 import time
+from screeninfo import get_monitors
+import sys
 
 def initialize_system(color_width=640, color_height=480, depth_width=640, depth_heigth=480, fps=60, depth_intrinsics: bool = False) -> Tuple[Camera, AprilTagDetector, np.ndarray, Dict[str, float], Optional[Dict[str, float]]]:
     """
@@ -70,3 +72,30 @@ def update_windows(projector_window_name) -> None:
              break
         cv2.waitKey(1)
         time.sleep(0.01)
+
+def setup_GUI_window() -> Tuple[str, int, int]:
+    """
+    Setup the window for the GUI screen.
+
+    :return: The window name, width, and height of the GUI screen
+    """
+    # Get the second screen (iiyama monitor)
+    monitors = get_monitors()
+    if len(monitors) < 2:
+        print("Error: No second screen found. Please connect a first screen and try again.")
+        sys.exit()
+
+    # Get the second screen properties
+    second_screen = monitors[1]
+    screen_x = second_screen.x
+    screen_y = second_screen.y
+    gui_width = 1920
+    gui_height = 1080
+
+    gui_window_name = 'GUI Window'
+
+    cv2.namedWindow(gui_window_name, cv2.WINDOW_NORMAL)
+    cv2.setWindowProperty(gui_window_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+    cv2.moveWindow(gui_window_name, screen_x, screen_y)  # Positioning on second screen
+
+    return gui_window_name, gui_width, gui_height

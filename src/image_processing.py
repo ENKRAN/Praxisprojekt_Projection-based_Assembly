@@ -4,67 +4,72 @@ import numpy as np
 
 def extract_valid_image_points(image_with_drawings, depth_image, depth_scale) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
-    Extracts the valid image points (2D), depth values (meters) and colors (RGB) from the image with drawings using the depth image.
+    Extracts the valid image points (2D), depth values (meters) and colors (BGR) from the image with drawings using the depth image.
 
-    :param image_with_drawings: The image with the drawings (RGB)
-    :param depth_image: The depth image (millimeters)
-    :param depth_scale: The depth scale of the depth sensor
-    :return: The valid image points, depth values and colors
+    :param image_with_drawings: The image with drawings
+    :param depth_image: The depth image
+    :param depth_scale: The depth scale
+    :return: The u coordinates, v coordinates, depth values and colors
     """
+    print(f"Depth image shape: {depth_image.shape}")
+    print(f"Image with drawings shape: {image_with_drawings.shape}")
+
+    # Check if the depth image and the image with drawings have the same resolution
+    if depth_image.shape[:2] != image_with_drawings.shape[:2]:
+        raise ValueError("The depth image and the image with drawings must have the same resolution")
+    
+    # Check if the image with drawings has an alpha channel and remove it (i don't think we need an alpha channel for now)
+    if image_with_drawings.shape[2] == 4:
+        image_with_drawings = cv2.cvtColor(image_with_drawings, cv2.COLOR_BGRA2BGR)
+
     # Extract all non-black pixels
-    non_black_mask = np.any(image_with_drawings != [0, 0, 0], axis=-1)                
+    non_black_mask = np.any(image_with_drawings != 0, axis=-1)    
+
+    # Extract the coordinates of the valid image points
+    coords_yx = np.argwhere(non_black_mask)
+    u_coords = coords_yx[:, 1]
+    v_coords = coords_yx[:, 0]
     
-    # Get the coordinates and colors of the non-black pixels
-    non_black_coords = np.column_stack(np.nonzero(non_black_mask))
-    non_black_colors = image_with_drawings[non_black_mask]
+    # Extract the depth values of the valid image points and scale them to meters
+    depth_values_raw = depth_image[v_coords, u_coords]
+    depth_values = depth_values_raw.astype(float) * depth_scale
 
-    # Scale the depth_image to meters and get the depth values of the non-black pixels
-    depth_image = depth_image * depth_scale
-    depth_values = depth_image[non_black_coords[:, 0], non_black_coords[:, 1]]
-    
+    # Extract the colors of the valid image points
+    colors_bgr = image_with_drawings[v_coords, u_coords, :]
 
-    # Filter out the invalid depth values
-    valid_depth_mask = (depth_values > 0) & (~np.isnan(depth_values))
+    return u_coords, v_coords, depth_values, colors_bgr
 
-    # Save the valid coordinates, colors and depth values
-    valid_coords = non_black_coords[valid_depth_mask]
-    valid_colors = non_black_colors[valid_depth_mask]
-    valid_depths = depth_values[valid_depth_mask]
-
-    # Store the valid image points in the format (u, v)
-    image_points = valid_coords[:, [1, 0]].astype(np.float32).reshape(-1, 1, 2)  # (u, v)
-
-    return image_points, valid_depths, valid_colors
-
-def cam_2D_to_cam_3D(image_points_2D, depth_values, cam_K, cam_kc) -> np.ndarray:
+def cam_2D_to_cam_3D(u_coords, v_coords, depth_values, cam_K) -> np.ndarray:
     """
     Converts multiple 2D image points to 3D camera coordinates.
 
-    :param image_points_2D: The 2D image points
-    :param depth_values: The depth values
+    :param u_coords: The u coordinates of the image points
+    :param v_coords: The v coordinates of the image points
+    :param depth_values: The depth values of the image points
     :param cam_K: The camera matrix
-    :param cam_kc: The distortion coefficients
     :return: The 3D camera coordinates
     """
-    # Undistort Points
-    undistorted_points = cv2.undistortPoints(image_points_2D, cam_K, cam_kc)
+    # Extract the camera intrinsics
+    fx = cam_K[0, 0]
+    fy = cam_K[1, 1]
+    cx = cam_K[0, 2]
+    cy = cam_K[1, 2]
 
-    # Calculate 3D coordinates
-    x = undistorted_points[:, 0, 0]
-    y = undistorted_points[:, 0, 1]
-    Z_c = depth_values  # Depth values in meters
+    # Convert the 2D image points to 3D camera coordinates
+    X = (u_coords - cx) * depth_values / fx
+    Y = (v_coords - cy) * depth_values / fy
+    Z = depth_values
 
-    # Calculate X, Y, Z
-    X_c = x * Z_c
-    Y_c = y * Z_c
+    # Combine the 3D camera coordinates
+    points_3d = np.column_stack((X, Y, Z))  # Nx3
 
-    # Stack the 3D points
-    points_3d_camera = np.vstack((X_c, Y_c, Z_c)).T  # (N, 3)
+    # Convert the 3D camera coordinates to homogeneous coordinates for further processing
+    points_3d_hom = np.hstack([points_3d, np.ones((points_3d.shape[0], 1))])  # Nx4
 
-    return points_3d_camera
+    return points_3d, points_3d_hom 
 
 
-def cam_2D_to_tag_3D(image_path: str, depth_image, depth_scale, cam_K, cam_kc, april_tag_pose) -> Tuple[np.ndarray, np.ndarray]:
+def cam_2D_to_tag_3D(image_path: str, depth_image, depth_scale, cam_K, april_tag_pose) -> Tuple[np.ndarray, np.ndarray]:
     """
     Convert 2D image points to 3D tag coordinates.
 
@@ -72,23 +77,36 @@ def cam_2D_to_tag_3D(image_path: str, depth_image, depth_scale, cam_K, cam_kc, a
     :param depth_image: The depth image
     :param depth_scale: The depth scale
     :param cam_K: The camera matrix
-    :param cam_kc: The distortion coefficients
-    :param april_tag_pose: The pose of the AprilTag
-    :return: The 3D tag coordinates and valid colors
+    :param april_tag_pose: The AprilTag pose
+    :return: The 3D tag coordinates, the homogeneous 3D tag coordinates and the colors
     """
     # Load the image with drawings
-    image_with_drawings = cv2.imread(image_path)
+    image_with_drawings = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
+    if image_with_drawings is None:
+        raise FileNotFoundError(f"Image with drawing not found: {image_path}")
 
     # Extract valid image points, depth values and colors
-    image_points_2D, valid_depths, valid_colors = extract_valid_image_points(image_with_drawings, depth_image, depth_scale)
+    u_coords, v_coords, depth_values, colors_bgr = extract_valid_image_points(image_with_drawings, depth_image, depth_scale)
 
     # Convert 2D image points to 3D camera coordinates
-    points_3d_camera = cam_2D_to_cam_3D(image_points_2D, valid_depths, cam_K, cam_kc)
+    _, points_3d_cam_hom = cam_2D_to_cam_3D(u_coords, v_coords, depth_values, cam_K)
 
-    # Transform 3D camera coordinates to 3D tag coordinates
-    R = april_tag_pose[0]
-    t = april_tag_pose[1]
+    # Extract the rotation and translation from the AprilTag pose
+    R, t = april_tag_pose
 
-    points_3d_tag = np.dot(R.T, points_3d_camera.T - t).T
+    # Invert the rotation and translation
+    R_inv = R.T
+    t_inv = -R_inv @ t
+    
+    # Create the inverse transformation matrix
+    T_inv = np.eye(4)
+    T_inv[:3, :3] = R_inv
+    T_inv[:3, 3] = t_inv
 
-    return points_3d_tag, valid_colors
+    # Convert the homogeneous 3D camera coordinates to homogeneous 3D tag coordinates
+    points_3d_tag_hom = (T_inv @ points_3d_cam_hom.T).T
+
+    # Normalize the 3D tag coordinates to get the cartesian 3D tag coordinates
+    points_3d_tag = points_3d_tag_hom[:, :3] / points_3d_tag_hom[:, [3]]
+
+    return points_3d_tag, points_3d_tag_hom, colors_bgr
