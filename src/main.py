@@ -1,16 +1,15 @@
 import numpy as np
 import cv2
 import threading
-from .setup import initialize_system, get_calibration_data, update_windows, setup_GUI_window
+from .setup import initialize_system, get_calibration_data, update_windows
 from .projection import setup_projector_window
 from .manual_creation import ManualCreator
+from PyQt5.QtWidgets import QApplication
+import sys
 
 def main() -> None:
     # Initialize the camera and AprilTag detector
     camera, apriltag_detector, _, _, _ = initialize_system()
-
-    global gui_window_name
-    gui_window_name, gui_width, gui_height = setup_GUI_window()
 
     # Setup the projector window
     global projector_window_name
@@ -26,31 +25,30 @@ def main() -> None:
         args=(projector_window_name,)
     )
     window_thread.start()
-
-    # Length of the axes in the visualization and the minimum distance to the tag in meters
-    axis_length = apriltag_detector.tag_size
-    min_distance = 0.15
     
     calibration_data_path = 'data/projector_camera_calibration/calibration.yml'
     cam_K, cam_kc, proj_K, proj_kc, R, T = get_calibration_data(calibration_data_path)
 
-    manual_creator = ManualCreator()
-    manual_creator.create_manual(
+
+    app = QApplication(sys.argv)
+    manual_creator = ManualCreator(
         camera, 
-        apriltag_detector, 
-        min_distance, 
-        cam_K, 
-        cam_kc, 
-        axis_length, 
-        R, 
-        T, 
-        proj_K, 
-        proj_kc, 
-        projector_width, 
-        projector_height, 
-        projector_window_name, 
-        proj_image
+        apriltag_detector,
+        cam_K,
+        cam_kc,
+        projector_window_name,
+        projector_width,
+        projector_height,
+        proj_image,
+        R,
+        T,
+        proj_K,
+        proj_kc
     )
+    
+    manual_creator.open_window()
+
+    sys.exit(app.exec_())
 
 if __name__ == "__main__":
     main() 

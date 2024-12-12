@@ -13,7 +13,7 @@ def setup_projector_window() -> Tuple[str, int, int]:
     # Get the third screen (projector)
     monitors = get_monitors()
     if len(monitors) < 3:
-        print("Error: No second screen found. Please connect a second screen and try again.")
+        print("Error: No third screen found. Please connect a third screen and try again.")
         sys.exit()
 
     # Get the third screen properties
