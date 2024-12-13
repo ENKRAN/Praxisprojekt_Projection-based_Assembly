@@ -4,8 +4,6 @@ import numpy as np
 from typing import Tuple, Optional, Dict
 import cv2
 import time
-from screeninfo import get_monitors
-import sys
 
 def initialize_system(color_width=640, color_height=480, depth_width=640, depth_heigth=480, fps=60, depth_intrinsics: bool = False) -> Tuple[Camera, AprilTagDetector, np.ndarray, Dict[str, float], Optional[Dict[str, float]]]:
     """
@@ -67,8 +65,7 @@ def update_windows(projector_window_name) -> None:
     :param projector_window_name: The name of the projector window
     """
     while True:
-        if cv2.getWindowProperty('AprilTag Projection Mapping', cv2.WND_PROP_VISIBLE) < 1 and \
-           cv2.getWindowProperty(projector_window_name, cv2.WND_PROP_VISIBLE) < 1:
+        if cv2.getWindowProperty(projector_window_name, cv2.WND_PROP_VISIBLE) < 1:
              break
         cv2.waitKey(1)
         time.sleep(0.01)

@@ -220,6 +220,7 @@ class ManualCreator(QMainWindow):
 
         self.color_image = color_image
         self.depth_image = depth_image
+        self.depth_scale = depth_scale
 
         ### AprilTag Detection Logic ###
 

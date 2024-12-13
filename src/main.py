@@ -8,12 +8,16 @@ from PyQt5.QtWidgets import QApplication
 import sys
 
 def main() -> None:
+    app = QApplication(sys.argv)
+
     # Initialize the camera and AprilTag detector
     camera, apriltag_detector, _, _, _ = initialize_system()
 
     # Setup the projector window
     global projector_window_name
     projector_window_name, projector_width, projector_height = setup_projector_window()
+
+    print(f"Projector width: {projector_width}, Projector height: {projector_height}")
 
     # draw a red rectangle on the edges of the projector image
     proj_image = np.zeros((projector_height, projector_width, 3), dtype=np.uint8)
@@ -24,13 +28,13 @@ def main() -> None:
         target=update_windows,
         args=(projector_window_name,)
     )
+    window_thread.daemon = True  # Damit der Thread beim Beenden des Programms ebenfalls beendet wird
     window_thread.start()
     
     calibration_data_path = 'data/projector_camera_calibration/calibration.yml'
     cam_K, cam_kc, proj_K, proj_kc, R, T = get_calibration_data(calibration_data_path)
 
 
-    app = QApplication(sys.argv)
     manual_creator = ManualCreator(
         camera, 
         apriltag_detector,
