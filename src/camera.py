@@ -77,11 +77,11 @@ class Camera:
                 print(f"Retrying to get frames... Attempt {retry_count + 1} of {max_retries}")
                 retry_count += 1
 
-                # Versuche, die Kamera neu zu starten
+                # Try to reconnect the camera if the pipeline is not working
                 if not self.reconnect_camera():
-                    break  # Breche ab, wenn die Reconnection fehlschlägt
+                    break  # Break out of the loop if reconnection fails
 
-        # Wenn alle Versuche fehlschlagen
+        # Return None if frames are not received after multiple attempts
         print("Failed to get frames after multiple attempts.")
         return False, None, None, None, None, None
 
@@ -99,10 +99,10 @@ class Camera:
             except Exception as stop_error:
                 print(f"Pipeline stop failed (might not be started): {stop_error}")
 
-            # Warte kurz, um sicherzustellen, dass die Pipeline komplett gestoppt wurde
+            # Wait for 2 seconds
             time.sleep(2)
 
-            # Starte die Pipeline neu
+            # Restart the pipeline
             self.pipeline.start(self.config)
             print("Camera reconnected successfully.")
             return True

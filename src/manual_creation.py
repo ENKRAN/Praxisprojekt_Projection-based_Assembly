@@ -11,7 +11,7 @@ import cv2
 import numpy as np
 
 from PyQt5.QtWidgets import (
-    QApplication, QMainWindow, QPushButton, QLabel, QVBoxLayout, QHBoxLayout, QWidget, QFrame, QMessageBox, QStackedWidget, QListWidget
+    QMainWindow, QPushButton, QLabel, QVBoxLayout, QHBoxLayout, QWidget, QFrame, QMessageBox, QStackedWidget, QListWidget, QLineEdit
 )
 from PyQt5.QtGui import QPixmap, QImage, QFont
 from PyQt5.QtCore import Qt, QTimer
@@ -118,7 +118,7 @@ class ManualCreator(QMainWindow):
         load_manual_button = QPushButton("Load Manual")
         load_manual_button.setFont(QFont("Arial", 18))
         load_manual_button.setFixedSize(250, 100)
-        load_manual_button.clicked.connect(self.show_manuals_in_list)
+        load_manual_button.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(2))
 
         quit_button = QPushButton("Quit")
         quit_button.setFont(QFont("Arial", 18))
@@ -135,7 +135,6 @@ class ManualCreator(QMainWindow):
         layout.addLayout(button_layout)
         start_page.setLayout(layout)
 
-        # Seite zum Stacked Widget hinzufügen
         self.stacked_widget.addWidget(start_page)
 
     def init_manual_creation_page(self):
@@ -234,6 +233,24 @@ class ManualCreator(QMainWindow):
         # Main container for the window
         manual_using_page_layout = QVBoxLayout()
 
+        top_bar_layout = QHBoxLayout()
+
+        self.tag_id_input_label = QLabel("Enter the AprilTag ID:")
+        self.tag_id_input_label.setFont(QFont("Arial", 24))
+
+        self.tag_id_input_field = QLineEdit()
+        self.tag_id_input_field.setFont(QFont("Arial", 24))
+        self.tag_id_input_field.setFixedWidth(200)
+
+        self.search_button = QPushButton("Search")
+        self.search_button.setFont(QFont("Arial", 18))
+        self.search_button.setFixedSize(250, 100)
+        self.search_button.clicked.connect(self.show_manuals_in_list)
+        
+        top_bar_layout.addWidget(self.tag_id_input_label)
+        top_bar_layout.addWidget(self.tag_id_input_field)
+        top_bar_layout.addWidget(self.search_button)
+
         self.manuals_list = QListWidget()
         self.manuals_list.setFont(QFont("Arial", 24))
 
@@ -248,6 +265,7 @@ class ManualCreator(QMainWindow):
         button_layout.addWidget(self.quit_button)
 
         # Add the quit button to the layout
+        manual_using_page_layout.addLayout(top_bar_layout)
         manual_using_page_layout.addWidget(self.manuals_list)
         manual_using_page_layout.addLayout(button_layout)
         # manual_using_page_layout.setAlignment(Qt.AlignCenter)
@@ -456,9 +474,13 @@ class ManualCreator(QMainWindow):
         )
 
         if save_confirm == QMessageBox.Yes:
-            self.step_saved = True
-
+            if self.image_with_drawings_path is None:
+                self.show_message("No Image with drawing found. Can't save step!", title="Error", message_type="error")
+                return
+            
             self.create_step(self.image_with_drawings_path)
+
+            self.step_saved = True
             self.step_number += 1
             
             self.reset_projection_border_color("red")
@@ -530,6 +552,7 @@ class ManualCreator(QMainWindow):
         drawing_path = str(Path(drawing_path).as_posix())
         self.steps.append({
             "step": self.step_number,
+            "raw_image_path": self.last_raw_image_path,
             "drawing_path": drawing_path,
         })
         self.show_message(f"Step {self.step_number} saved successfully!", title="Information", message_type="info")
@@ -562,18 +585,22 @@ class ManualCreator(QMainWindow):
         if self.tag_id is None:
             self.show_message("No tag ID found, manual not saved.", title="Warning", message_type="warning")
             return
+        
+        manual_name = f"manual_{self.manual_count}"
 
         manual_data = {
+            "manual": manual_name,
             "tag_id": self.tag_id,
             "steps": self.steps,
             "created_at": datetime.now().isoformat()
         }
-        json_path = self.current_manual_dir / f"manual_{self.manual_count}.json"
+        json_path = self.current_manual_dir / f"{manual_name}.json"
 
         try:
             with open(json_path, "w") as file:
                 json.dump(manual_data, file, indent=4)
 
+            self.manuals_list.addItem(manual_name)
             self.show_message(f"Manual saved at {json_path} for AprilTag ID {self.tag_id}.", title="Information", message_type="info")
         except Exception as e:
             self.show_message(f"Error saving manual: {e}", title="Error", message_type="error")
@@ -608,7 +635,12 @@ class ManualCreator(QMainWindow):
         msg_box.show()
 
     def show_manuals_in_list(self):
-        self.stacked_widget.setCurrentIndex(2)
+        """for manual in range(self.manuals_list.count()):
+            item = self.manuals_list.item(manual)
+
+            # TODO: Just show the items that match the tag_id"""
+        pass
+
 
 
         

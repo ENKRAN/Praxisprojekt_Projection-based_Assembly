@@ -80,6 +80,8 @@ def project_image(img, points_3D_tag, valid_colors, R_cam_to_proj, tvec_cam_to_p
     valid_colors_in_bounds = valid_colors[in_bounds_mask]
     img[valid_pixel_coords[:, 1], valid_pixel_coords[:, 0]] = valid_colors_in_bounds
 
+    cv2.imshow("Projector debug", img)
+
     # Draw a border around the projector screen
     img = cv2.rectangle(img, (0, 0), (projector_width - 1, projector_height - 1), (0, 255, 0), 10)
 
