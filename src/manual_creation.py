@@ -11,7 +11,7 @@ import cv2
 import numpy as np
 
 from PyQt5.QtWidgets import (
-    QApplication, QMainWindow, QPushButton, QLabel, QVBoxLayout, QHBoxLayout, QWidget, QFrame, QMessageBox
+    QApplication, QMainWindow, QPushButton, QLabel, QVBoxLayout, QHBoxLayout, QWidget, QFrame, QMessageBox, QStackedWidget, QListWidget
 )
 from PyQt5.QtGui import QPixmap, QImage, QFont
 from PyQt5.QtCore import Qt, QTimer
@@ -35,7 +35,19 @@ class ManualCreator(QMainWindow):
         """
         # Initialize the parent class and the UI
         super().__init__()
-        self.init_ui()
+        # Create a container for the stacked widget
+        self.stacked_widget = QStackedWidget()
+        self.setCentralWidget(self.stacked_widget)
+
+        # Create the start page
+        self.init_start_page()
+        self.init_manual_creation_page()
+        self.init_manual_using_page()
+
+        # Set the first page to the start page
+        self.stacked_widget.setCurrentIndex(0)
+
+
         self.camera = camera
         self.cam_K = cam_K
         self.cam_kc = cam_kc
@@ -86,36 +98,78 @@ class ManualCreator(QMainWindow):
             print(f"Error creating directories: {e}")
             raise
 
-    def init_ui(self):
+    def init_start_page(self):
+        # Startseite mit einem Button zum Wechseln zur zweiten Seite
+        start_page = QWidget()
+        layout = QVBoxLayout()
+
+        label = QLabel("Welcome to the Startpage")
+        label.setFont(QFont("Arial", 24))
+        label.setAlignment(Qt.AlignCenter)
+
+        button_layout = QVBoxLayout()
+        button_layout.setSpacing(20)
+
+        create_manual_button = QPushButton("Create Manual")
+        create_manual_button.setFont(QFont("Arial", 18))
+        create_manual_button.setFixedSize(250, 100)
+        create_manual_button.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(1))
+
+        load_manual_button = QPushButton("Load Manual")
+        load_manual_button.setFont(QFont("Arial", 18))
+        load_manual_button.setFixedSize(250, 100)
+        load_manual_button.clicked.connect(self.show_manuals_in_list)
+
+        quit_button = QPushButton("Quit")
+        quit_button.setFont(QFont("Arial", 18))
+        quit_button.setFixedSize(250, 100)
+        quit_button.clicked.connect(self.close)
+
+        button_layout.addWidget(create_manual_button)
+        button_layout.addWidget(load_manual_button)
+        button_layout.addWidget(quit_button)
+
+        button_layout.setAlignment(Qt.AlignCenter)
+
+        layout.addWidget(label)
+        layout.addLayout(button_layout)
+        start_page.setLayout(layout)
+
+        # Seite zum Stacked Widget hinzufügen
+        self.stacked_widget.addWidget(start_page)
+
+    def init_manual_creation_page(self):
+        manual_creation_page = QWidget()
+
         self.setWindowTitle("Manual Creator")
-        self.setGeometry(100, 100, 1920, 1080)  # Fenstergröße auf 1920x1080 setzen
+        self.setGeometry(100, 100, 1920, 1080)  # Set the window size to 1920x1080
 
-        # Hauptlayout
-        main_layout = QVBoxLayout()
-        main_layout.setSpacing(20)  # Abstände zwischen Elementen
+        # Main container for the window
+        manual_creation_page_layout = QVBoxLayout()
+        manual_creation_page_layout.setSpacing(20)  # Space between elements
 
-        # Statusbereich
+        # Status label
         self.status_label = QLabel("Status: Ready")
         self.status_label.setFrameStyle(QFrame.Panel | QFrame.Sunken)
         self.status_label.setAlignment(Qt.AlignLeft)
         self.status_label.setFixedHeight(50)
-        self.status_label.setFont(QFont("Arial", 16))  # Größere Schrift für bessere Lesbarkeit
+        self.status_label.setFont(QFont("Arial", 16))  # Bigger font for status label
 
-        # Bildanzeigebereich (640x480)
+        # Live Camera Feed (640x480)
         self.live_image_label = QLabel("Live Camera Feed")
         self.live_image_label.setFixedSize(640, 480)
         self.live_image_label.setFrameStyle(QFrame.Panel | QFrame.Sunken)
         self.live_image_label.setAlignment(Qt.AlignCenter)
 
-        # Layout für den Bildanzeigebereich
+        # Layout for the live image
         image_layout = QHBoxLayout()
         image_layout.addWidget(self.live_image_label)
 
-        # Button-Bereich (horizontal)
+        # Button-Layout (horizontal)
         button_layout = QHBoxLayout()
-        button_layout.setSpacing(30)  # Mehr Abstand zwischen Buttons
+        button_layout.setSpacing(30)  # Enough space between buttons
 
-        button_font = QFont("Arial", 18)  # Größere Schrift für Buttons
+        button_font = QFont("Arial", 18)  # Bigger font for buttons
 
         self.start_live_button = QPushButton("Start Live Feed")
         self.start_live_button.setFont(button_font)
@@ -150,9 +204,9 @@ class ManualCreator(QMainWindow):
         self.quit_button = QPushButton("Quit")
         self.quit_button.setFont(button_font)
         self.quit_button.setFixedSize(250, 100)
-        self.quit_button.clicked.connect(self.close)
+        self.quit_button.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(0))
 
-        # Buttons zum Layout hinzufügen
+        # Add the buttons to the button layout
         button_layout.addWidget(self.start_live_button)
         button_layout.addWidget(self.stop_live_button)
         button_layout.addWidget(self.capture_button)
@@ -161,15 +215,45 @@ class ManualCreator(QMainWindow):
         button_layout.addWidget(self.save_manual_button)
         button_layout.addWidget(self.quit_button)
 
-        # Elemente zum Hauptlayout hinzufügen
-        main_layout.addWidget(self.status_label)
-        main_layout.addLayout(image_layout)
-        main_layout.addLayout(button_layout)
+        # Add the status label, image layout, and button layout to the main layout
+        manual_creation_page_layout.addWidget(self.status_label)
+        manual_creation_page_layout.addLayout(image_layout)
+        manual_creation_page_layout.addLayout(button_layout)
 
-        # Zentrales Widget setzen
-        container = QWidget()
-        container.setLayout(main_layout)
-        self.setCentralWidget(container)
+        # Set the main layout as the central widget
+        manual_creation_page.setLayout(manual_creation_page_layout)
+
+        self.stacked_widget.addWidget(manual_creation_page)
+
+    def init_manual_using_page(self):
+        manual_using_page = QWidget()
+
+        self.setWindowTitle("Manual Loader")
+        self.setGeometry(100, 100, 1920, 1080)  # Set the window size to 1920x1080
+
+        # Main container for the window
+        manual_using_page_layout = QVBoxLayout()
+
+        self.manuals_list = QListWidget()
+        self.manuals_list.setFont(QFont("Arial", 24))
+
+        button_layout = QHBoxLayout()
+        button_layout.setSpacing(30)  # Enough space between buttons
+
+        self.quit_button = QPushButton("Quit")
+        self.quit_button.setFont(QFont("Arial", 18))
+        self.quit_button.setFixedSize(250, 100)
+        self.quit_button.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(0))
+
+        button_layout.addWidget(self.quit_button)
+
+        # Add the quit button to the layout
+        manual_using_page_layout.addWidget(self.manuals_list)
+        manual_using_page_layout.addLayout(button_layout)
+        # manual_using_page_layout.setAlignment(Qt.AlignCenter)
+        manual_using_page.setLayout(manual_using_page_layout)
+
+        self.stacked_widget.addWidget(manual_using_page)
 
     def open_window(self):
         # Get the second screen (projector)
@@ -489,6 +573,7 @@ class ManualCreator(QMainWindow):
         try:
             with open(json_path, "w") as file:
                 json.dump(manual_data, file, indent=4)
+
             self.show_message(f"Manual saved at {json_path} for AprilTag ID {self.tag_id}.", title="Information", message_type="info")
         except Exception as e:
             self.show_message(f"Error saving manual: {e}", title="Error", message_type="error")
@@ -521,3 +606,14 @@ class ManualCreator(QMainWindow):
         # Timer, um das Fenster automatisch zu schließen
         QTimer.singleShot(duration, msg_box.accept)
         msg_box.show()
+
+    def show_manuals_in_list(self):
+        self.stacked_widget.setCurrentIndex(2)
+
+
+        
+
+
+
+
+    

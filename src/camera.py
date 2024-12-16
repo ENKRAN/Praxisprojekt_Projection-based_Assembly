@@ -51,7 +51,7 @@ class Camera:
 
         while retry_count < max_retries:
             try:
-                frames = self.pipeline.wait_for_frames(timeout_ms=5000)  # Timeout in 5 seconds
+                frames = self.pipeline.wait_for_frames(timeout_ms=10000)  # Timeout in 10 seconds
 
                 # Align frames to the color stream
                 align_to = rs.stream.color
@@ -78,24 +78,39 @@ class Camera:
                 retry_count += 1
 
                 # Versuche, die Kamera neu zu starten
-                self.reconnect_camera()
+                if not self.reconnect_camera():
+                    break  # Breche ab, wenn die Reconnection fehlschlägt
 
         # Wenn alle Versuche fehlschlagen
         print("Failed to get frames after multiple attempts.")
         return False, None, None, None, None, None
 
-    def reconnect_camera(self):
+
+    def reconnect_camera(self) -> bool:
         """
         Attempts to reconnect the camera by stopping and restarting the pipeline.
+        :return: True if reconnection is successful, False otherwise
         """
         print("Reconnecting to the camera...")
         try:
-            self.pipeline.stop()
-            time.sleep(2)  # Kurze Pause, um sicherzustellen, dass die Pipeline komplett gestoppt wurde
+            # Stop the pipeline if it's running
+            try:
+                self.pipeline.stop()
+            except Exception as stop_error:
+                print(f"Pipeline stop failed (might not be started): {stop_error}")
+
+            # Warte kurz, um sicherzustellen, dass die Pipeline komplett gestoppt wurde
+            time.sleep(2)
+
+            # Starte die Pipeline neu
             self.pipeline.start(self.config)
             print("Camera reconnected successfully.")
+            return True
+
         except Exception as e:
             print(f"Error during camera reconnection: {e}")
+            return False
+
 
 
     def get_color_sensor_intrinsics(self) -> Dict:
