@@ -17,8 +17,6 @@ def main() -> None:
     global projector_window_name
     projector_window_name, projector_width, projector_height = setup_projector_window()
 
-    print(f"Projector width: {projector_width}, Projector height: {projector_height}")
-
     # draw a red rectangle on the edges of the projector image
     proj_image = np.zeros((projector_height, projector_width, 3), dtype=np.uint8)
     proj_image = cv2.rectangle(proj_image, (0, 0), (projector_width - 1, projector_height - 1), (0, 0, 255), 10)

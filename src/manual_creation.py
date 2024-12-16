@@ -47,6 +47,7 @@ class ManualCreator(QMainWindow):
         self.projector_height = projector_height
         self.timer = QTimer()
         self.last_time = time.time()
+        self.second_screen = None
 
         self.results = None
         self.color_image = None
@@ -61,6 +62,8 @@ class ManualCreator(QMainWindow):
         self.T_proj = T_proj
         self.proj_K = proj_K
         self.proj_kc = proj_kc
+
+        self.last_raw_image_path = None
 
         # Initialize the manual creator
         self.manual_count = 0
@@ -177,6 +180,7 @@ class ManualCreator(QMainWindow):
 
         # Move the window to the second screen and show it full screen
         second_screen = monitors[1]
+        self.second_screen = second_screen
         self.move(second_screen.x, second_screen.y)
         self.showFullScreen()
 
@@ -217,6 +221,7 @@ class ManualCreator(QMainWindow):
         success, color_image, _, depth_image, depth_frame, depth_scale = self.camera.get_frames()
         if not success:
             self.status_label.setText("Status: Error - Cannot read frame")
+            return
 
         self.color_image = color_image
         self.depth_image = depth_image
@@ -289,7 +294,10 @@ class ManualCreator(QMainWindow):
 
         ### End show the color image in the GUI ###
 
-        cv2.imshow(self.projector_window_name, self.proj_image)
+        if self.proj_image is not None and self.proj_image.shape[1] > 0 and self.proj_image.shape[0] > 0:
+            cv2.imshow(self.projector_window_name, self.proj_image)
+        else:
+            print("Warning: proj_image has invalid dimensions, skipping display.")
 
     def save_photo(self, img) -> Tuple[str, str]:
         """
@@ -301,7 +309,7 @@ class ManualCreator(QMainWindow):
         filename = f"raw_image_{self.tag_id}_step_{self.step_number:03}.png"
         photo_path = self.raw_images_dir / filename
         cv2.imwrite(str(photo_path), img)
-        self.status_label.setText(f"Image saved at: {photo_path}")
+        self.show_message(f"Image saved at: {photo_path}", title="Information", message_type="info")
 
         return str(photo_path), filename
 
@@ -309,20 +317,21 @@ class ManualCreator(QMainWindow):
         if self.results:
             self.tag_id = self.results[0].tag_id
 
-            self.status_label.setText(f"Creating step {self.step_number} for AprilTag ID {self.tag_id}.")
+            self.show_message(f"Creating step {self.step_number} for AprilTag ID: {self.tag_id}", title="Information", message_type="info")
 
             self.step_saved = False
                 
             # 1. Capture the photo
-            image_path, _ = self.save_photo(self.color_image)
+            self.last_raw_image_path, _ = self.save_photo(self.color_image)
 
             # 2. Open the image in Paint
-            open_image_in_paint(image_path)
+            open_image_in_paint(self.last_raw_image_path, self.second_screen)
 
             # 3. Get the path to the image with the drawings
             instructions = [self.instructions_dir / datei for datei in os.listdir(self.instructions_dir) if datei.lower().endswith(".png")]
             if not instructions:
-                self.status_label.setText("No images with drawings found.")
+                self.show_message("No images with drawings found. Please draw on the image and save it.", title="Warning", message_type="warning")
+                return
             else:
                 # Get the newest instruction
                 newest_instruction = max(instructions, key=lambda p: p.stat().st_mtime)     
@@ -333,19 +342,19 @@ class ManualCreator(QMainWindow):
                 
                 # Rename the image
                 newest_instruction.rename(self.image_with_drawings_path)
-                self.status_label.setText(f"The image with the drawings has been renamed to: {self.image_with_drawings_path}")
+                self.show_message(f"The image with the drawings has been renamed to: {self.image_with_drawings_path}", title="Information", message_type="info")
 
             # Calculate the 3D points relative to the AprilTag and the corresponding colors
             self.points_3D_tag, _, self.valid_colors = cam_2D_to_tag_3D(self.image_with_drawings_path, self.depth_image, self.depth_scale, self.cam_K, self.apriltag_pose)
 
             if self.points_3D_tag is not None and self.valid_colors is not None:
                 self.extracted_3D_pixels = True
-                self.status_label.setText(f"3D Points relative to the AprilTag: {len(self.points_3D_tag)}")
+                self.show_message(f"3D points extracted successfully. Number of Points: {len(self.points_3D_tag)}", title="Information", message_type="info")
             else:
-                self.status_label.setText("Error in 3D point extraction. Please check the image and parameters.")
+                self.show_message("Error in 3D point extraction. Please check the image and parameters.", title="Error", message_type="error")
                 return
         else:
-            self.status_label.setText("No AprilTag detected, please try again.")
+            self.show_message("No AprilTag detected, please try again.", title="Warning", message_type="warning")
 
     def reset_projection_border_color(self, color):
         self.proj_image = np.zeros((self.projector_height, self.projector_width, 3), dtype=np.uint8)
@@ -368,12 +377,12 @@ class ManualCreator(QMainWindow):
             self.create_step(self.image_with_drawings_path)
             self.step_number += 1
             
-            self.proj_image = self.reset_projection_border_color("red")
+            self.reset_projection_border_color("red")
         else:
             print("Step not saved.")
             self.step_saved = False
 
-            self.proj_image = self.reset_projection_border_color("red")
+            self.reset_projection_border_color("red")
 
     def undo_step_button_pressed(self):
         undo_confirm = QMessageBox.question(
@@ -398,7 +407,7 @@ class ManualCreator(QMainWindow):
         )
 
         if manual_confirm == QMessageBox.Yes:
-            self.reset_manual_creator(self.projector_width, self.projector_height)
+            self.reset_manual_creator()
         else:
             self.status_label.setText("Creation of manuals stopped.")
             # TODO: Get back to main screen       
@@ -424,7 +433,7 @@ class ManualCreator(QMainWindow):
         self.steps.clear()
         self.step_number = 1
 
-        self.proj_image = self.reset_projection_border_color("red")
+        self.reset_projection_border_color("red")
 
         self.status_label.setText("Everything has been reset.")
 
@@ -439,22 +448,35 @@ class ManualCreator(QMainWindow):
             "step": self.step_number,
             "drawing_path": drawing_path,
         })
-        self.status_label.setText(f"Step {self.step_number} saved.")
+        self.show_message(f"Step {self.step_number} saved successfully!", title="Information", message_type="info")
 
     def undo_last_step(self):
         if self.steps:
             removed_step = self.steps.pop()
             self.step_number -= 1
-            self.status_label.setText(f"Removed step {removed_step['step']}.")
+
+            drawing_path = Path(removed_step["drawing_path"])
+            if drawing_path.exists():
+                drawing_path.unlink()  # Delete the file
+                print(f"Deleted file: {drawing_path}")
+
+            if self.last_raw_image_path and Path(self.last_raw_image_path).exists():
+                Path(self.last_raw_image_path).unlink()
+                print(f"Deleted raw image file: {self.last_raw_image_path}")
+
+            # Reset the projection image
+            self.reset_projection_border_color("red")
+
+            self.show_message(f"Step {removed_step['step']} has been removed.", title="Information", message_type="info")
         else:
-            self.status_label.setText("No steps to undo.")
+            self.show_message("No steps to undo.", title="Warning", message_type="warning")
 
     def save_manual(self) -> None:
         """
         Saves the manual as a JSON file
         """
         if self.tag_id is None:
-            self.status_label.setText("No tag ID found, manual not saved.")
+            self.show_message("No tag ID found, manual not saved.", title="Warning", message_type="warning")
             return
 
         manual_data = {
@@ -467,6 +489,35 @@ class ManualCreator(QMainWindow):
         try:
             with open(json_path, "w") as file:
                 json.dump(manual_data, file, indent=4)
-            self.status_label.setText(f"Manual saved at {json_path} for AprilTag ID {self.tag_id}.")
+            self.show_message(f"Manual saved at {json_path} for AprilTag ID {self.tag_id}.", title="Information", message_type="info")
         except Exception as e:
-            self.status_label.setText(f"Error saving manual: {e}")
+            self.show_message(f"Error saving manual: {e}", title="Error", message_type="error")
+
+    def show_message(self, message, title="Message", message_type="info", duration=3000):
+        """
+        Shows a message box with the given message.
+
+        :param message: The message to show
+        :param title: The title of the message box
+        :param message_type: The type of the message box (info, warning, error)
+        :param duration: The duration in milliseconds to show the message
+        """
+        msg_box = QMessageBox(self)
+        
+        # Setze den Nachrichtentyp und das entsprechende Icon
+        if message_type == "info":
+            msg_box.setIcon(QMessageBox.Information)
+        elif message_type == "warning":
+            msg_box.setIcon(QMessageBox.Warning)
+        elif message_type == "error":
+            msg_box.setIcon(QMessageBox.Critical)
+        else:
+            msg_box.setIcon(QMessageBox.NoIcon)
+
+        msg_box.setText(message)
+        msg_box.setWindowTitle(title)
+        msg_box.setStandardButtons(QMessageBox.NoButton)  # Keine Buttons anzeigen, da es automatisch geschlossen wird
+
+        # Timer, um das Fenster automatisch zu schließen
+        QTimer.singleShot(duration, msg_box.accept)
+        msg_box.show()

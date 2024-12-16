@@ -23,6 +23,9 @@ def setup_projector_window() -> Tuple[str, int, int]:
     projector_width = 800
     projector_height = 600
 
+    print(f"MY Projector screen: {projector_width}x{projector_height}")
+    print(f"THEIR Projector screen: {third_screen.width}x{third_screen.height}")
+
     projector_window_name = 'Projector Window'
 
     cv2.namedWindow(projector_window_name, cv2.WINDOW_NORMAL)

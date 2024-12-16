@@ -4,8 +4,9 @@ import time
 import pyautogui
 import cv2
 import numpy as np
+import pygetwindow as gw
 
-def open_image_in_paint(image_path: str) -> None:
+def open_image_in_paint(image_path: str, screen) -> None:
     """
     Open an image in MS Paint and create two new layers.
 
@@ -20,6 +21,28 @@ def open_image_in_paint(image_path: str) -> None:
         process = subprocess.Popen(['mspaint', image_path]) # Open the image in MS Paint
 
         time.sleep(2) # Wait for MS Paint to open
+
+        paint_window = None
+        for window in gw.getWindowsWithTitle('Paint'):
+            if 'Paint' in window.title:
+                paint_window = window
+                break
+
+        if paint_window:
+            paint_window.moveTo(screen.x, screen.y)
+            time.sleep(1)
+
+            # Bring the window to focus
+            paint_window.activate()
+            time.sleep(1)
+
+            # Maximize the window using Alt + Space, then 'x'
+            if not paint_window.isMaximized:
+                pyautogui.hotkey('alt', 'space')
+                time.sleep(0.5)
+                pyautogui.press('x')
+        else:
+            print("Could not find the MS Paint window.")
 
         # Create two new layers
         pyautogui.hotkey('ctrl', 'shift', 'n')

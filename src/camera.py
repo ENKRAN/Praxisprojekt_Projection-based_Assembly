@@ -2,6 +2,7 @@ import pyrealsense2 as rs
 import numpy as np
 from typing import Tuple, Dict, Optional
 import cv2
+import time
 
 class Camera:
     """
@@ -37,35 +38,65 @@ class Camera:
         else:
             self.depth_scale = None
 
-    def get_frames(self) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[rs.frame], Optional[rs.frame], Optional[float]]:        
+    def get_frames(self, max_retries=5) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[rs.frame], Optional[rs.frame], Optional[float]]:
         """
         Get color and depth frames from the camera, along with their numpy array representations.
+        Attempts to reconnect if frames are not received.
 
-        :return: Tuple of color_frame, depth_frame (pyrealsense2 frames) and color_image, depth_image (numpy arrays)
+        :param max_retries: Number of retry attempts before giving up
+        :return: Tuple of success flag, color_image, color_frame, depth_image, depth_frame, and depth_scale
         """
         success = False
-        frames = self.pipeline.wait_for_frames()
-        align_to = rs.stream.color
-        align = rs.align(align_to)
-        aligned_frames = align.process(frames)
+        retry_count = 0
 
-        # Get color frame (if enabled)
-        color_frame = aligned_frames.get_color_frame()
+        while retry_count < max_retries:
+            try:
+                frames = self.pipeline.wait_for_frames(timeout_ms=5000)  # Timeout in 5 seconds
 
-        # Get depth frame (if enabled)
-        depth_frame = aligned_frames.get_depth_frame()
+                # Align frames to the color stream
+                align_to = rs.stream.color
+                align = rs.align(align_to)
+                aligned_frames = align.process(frames)
 
-        if not color_frame or not depth_frame:
-            print("Error: No frames received")
-            return None, None, None, None
-        
-        success = True
+                # Get color and depth frames
+                color_frame = aligned_frames.get_color_frame()
+                depth_frame = aligned_frames.get_depth_frame()
 
-        # Convert frames to numpy arrays
-        color_image = np.asanyarray(color_frame.get_data())
-        depth_image = np.asanyarray(depth_frame.get_data())
+                if not color_frame or not depth_frame:
+                    raise RuntimeError("No frames received")
 
-        return success, color_image, color_frame, depth_image, depth_frame, self.depth_scale
+                # Convert frames to numpy arrays
+                color_image = np.asanyarray(color_frame.get_data())
+                depth_image = np.asanyarray(depth_frame.get_data())
+
+                success = True
+                return success, color_image, color_frame, depth_image, depth_frame, self.depth_scale
+
+            except Exception as e:
+                print(f"Error: {e}")
+                print(f"Retrying to get frames... Attempt {retry_count + 1} of {max_retries}")
+                retry_count += 1
+
+                # Versuche, die Kamera neu zu starten
+                self.reconnect_camera()
+
+        # Wenn alle Versuche fehlschlagen
+        print("Failed to get frames after multiple attempts.")
+        return False, None, None, None, None, None
+
+    def reconnect_camera(self):
+        """
+        Attempts to reconnect the camera by stopping and restarting the pipeline.
+        """
+        print("Reconnecting to the camera...")
+        try:
+            self.pipeline.stop()
+            time.sleep(2)  # Kurze Pause, um sicherzustellen, dass die Pipeline komplett gestoppt wurde
+            self.pipeline.start(self.config)
+            print("Camera reconnected successfully.")
+        except Exception as e:
+            print(f"Error during camera reconnection: {e}")
+
 
     def get_color_sensor_intrinsics(self) -> Dict:
         """
