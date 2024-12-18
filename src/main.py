@@ -10,8 +10,6 @@ import sys
 def main() -> None:
     app = QApplication(sys.argv)
 
-    # Initialize the camera and AprilTag detector
-    camera, apriltag_detector, _, _, _ = initialize_system()
 
     # Setup the projector window
     global projector_window_name
@@ -32,6 +30,8 @@ def main() -> None:
     calibration_data_path = 'data/projector_camera_calibration/calibration.yml'
     cam_K, cam_kc, proj_K, proj_kc, R, T = get_calibration_data(calibration_data_path)
 
+    # Initialize the camera and AprilTag detector
+    camera, apriltag_detector, _, _ = initialize_system(cam_K, color_width=1280, color_height=720, depth_width=1280, depth_heigth=720, fps=30, depth_intrinsics=False)
 
     manual_creator = ManualCreator(
         camera, 

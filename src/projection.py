@@ -20,8 +20,8 @@ def setup_projector_window() -> Tuple[str, int, int]:
     third_screen = monitors[2]
     screen_x = third_screen.x
     screen_y = third_screen.y
-    projector_width = 800
-    projector_height = 600
+    projector_width = 1280
+    projector_height = 720
 
     print(f"MY Projector screen: {projector_width}x{projector_height}")
     print(f"THEIR Projector screen: {third_screen.width}x{third_screen.height}")
@@ -54,14 +54,14 @@ def project_image(img, points_3D_tag, valid_colors, R_cam_to_proj, tvec_cam_to_p
     """
     # Calculate the rotation and translation from the AprilTag to the projector
     R_tag_to_proj = R_cam_to_proj @ R_tag_to_cam
-    tvec_tag_to_proj = R_cam_to_proj @ tvec_tag_to_cam + (tvec_cam_to_proj / 1000)  # Convert to meters
+    tvec_tag_to_proj = (R_cam_to_proj @ tvec_tag_to_cam + (tvec_cam_to_proj / 1000)).astype(np.float32)  # Convert to meters
 
     # Reshape the rotation matrix and translation vector for projection
-    rvec_tag_to_proj, _ = cv2.Rodrigues(R_tag_to_proj)
+    rvec_tag_to_proj, _ = cv2.Rodrigues(R_tag_to_proj.astype(np.float32))
     tvec_tag_to_proj = tvec_tag_to_proj.reshape(-1, 1)
     
     # Project the 3D points onto the projector screen
-    proj_imgpts, _ = cv2.projectPoints(points_3D_tag, rvec_tag_to_proj, tvec_tag_to_proj, proj_K, proj_kc)
+    proj_imgpts, _ = cv2.projectPoints(points_3D_tag, rvec_tag_to_proj, tvec_tag_to_proj, proj_K.astype(np.float32), proj_kc.astype(np.float32))
 
     # Create an empty image for the projector
     img = np.zeros((projector_height, projector_width, 3), dtype=np.uint8)

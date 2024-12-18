@@ -64,7 +64,6 @@ class ManualCreator(QMainWindow):
         self.results = None
         self.color_image = None
         self.depth_image = None
-        self.depth_scale = None
         self.apriltag_pose = None
         self.image_with_drawings_path = None
         self.proj_image = proj_image
@@ -156,7 +155,7 @@ class ManualCreator(QMainWindow):
 
         # Live Camera Feed (640x480)
         self.live_image_label = QLabel("Live Camera Feed")
-        self.live_image_label.setFixedSize(640, 480)
+        self.live_image_label.setFixedSize(1280, 720)
         self.live_image_label.setFrameStyle(QFrame.Panel | QFrame.Sunken)
         self.live_image_label.setAlignment(Qt.AlignCenter)
 
@@ -288,14 +287,14 @@ class ManualCreator(QMainWindow):
 
     def start_live_feed_button_pressed(self):    
         if not self.camera:
-            self.camera = Camera(color_width=640, color_height=480, depth_width=640, depth_height=480, fps=60)
+            self.camera = Camera()
         try:
             self.timer.timeout.disconnect(self.update_frame)
         except TypeError:
             pass  # Connection does not exist, nothing to disconnect
 
         self.timer.timeout.connect(self.update_frame)
-        self.timer.start(16)  # Refresh every 16ms (~60fps)
+        self.timer.start(33)  # Refresh every 30ms (~30fps)
 
         self.status_label.setText("Status: Live Feed Running")
 
@@ -320,14 +319,15 @@ class ManualCreator(QMainWindow):
         self.last_time = current_time
 
         # Get the frames from the camera
-        success, color_image, _, depth_image, depth_frame, depth_scale = self.camera.get_frames()
+        success, color_image, _, depth_image, depth_frame = self.camera.get_frames()
         if not success:
             self.status_label.setText("Status: Error - Cannot read frame")
             return
 
         self.color_image = color_image
         self.depth_image = depth_image
-        self.depth_scale = depth_scale
+
+        # print("Color Image Shape: ", color_image.shape)
 
         ### AprilTag Detection Logic ###
 
@@ -447,7 +447,7 @@ class ManualCreator(QMainWindow):
                 self.show_message(f"The image with the drawings has been renamed to: {self.image_with_drawings_path}", title="Information", message_type="info")
 
             # Calculate the 3D points relative to the AprilTag and the corresponding colors
-            self.points_3D_tag, _, self.valid_colors = cam_2D_to_tag_3D(self.image_with_drawings_path, self.depth_image, self.depth_scale, self.cam_K, self.apriltag_pose)
+            self.points_3D_tag, _, self.valid_colors = cam_2D_to_tag_3D(self.image_with_drawings_path, self.depth_image, self.camera.depth_scale, self.cam_K, self.apriltag_pose)
 
             if self.points_3D_tag is not None and self.valid_colors is not None:
                 self.extracted_3D_pixels = True

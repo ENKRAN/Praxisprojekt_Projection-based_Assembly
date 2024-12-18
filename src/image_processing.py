@@ -32,12 +32,12 @@ def extract_valid_image_points(image_with_drawings, depth_image, depth_scale) ->
     
     # Extract the depth values of the valid image points and scale them to meters
     depth_values_raw = depth_image[v_coords, u_coords]
-    depth_values = depth_values_raw.astype(float) * depth_scale
+    depth_values = depth_values_raw.astype(np.float32) * depth_scale
 
     # Extract the colors of the valid image points
     colors_bgr = image_with_drawings[v_coords, u_coords, :]
 
-    return u_coords, v_coords, depth_values, colors_bgr
+    return u_coords.astype(np.float32), v_coords.astype(np.float32), depth_values, colors_bgr
 
 def cam_2D_to_cam_3D(u_coords, v_coords, depth_values, cam_K) -> np.ndarray:
     """
@@ -64,7 +64,7 @@ def cam_2D_to_cam_3D(u_coords, v_coords, depth_values, cam_K) -> np.ndarray:
     points_3d = np.column_stack((X, Y, Z))  # Nx3
 
     # Convert the 3D camera coordinates to homogeneous coordinates for further processing
-    points_3d_hom = np.hstack([points_3d, np.ones((points_3d.shape[0], 1))])  # Nx4
+    points_3d_hom = np.hstack([points_3d, np.ones((points_3d.shape[0], 1), dtype=np.float32)])  # Nx4
 
     return points_3d, points_3d_hom 
 

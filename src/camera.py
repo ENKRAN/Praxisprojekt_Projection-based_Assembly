@@ -8,7 +8,7 @@ class Camera:
     """
     Class to interface with a RealSense camera
     """
-    def __init__(self, color_width=1920, color_height=1080, depth_width=1280, depth_height=720, fps=30, enable_depth=True, enable_color=True) -> None:
+    def __init__(self, color_width=1280, color_height=720, depth_width=1280, depth_height=720, fps=30, enable_depth=True, enable_color=True) -> None:
         """
         Initialize the camera pipeline with the desired settings.
 
@@ -20,6 +20,7 @@ class Camera:
         """
         self.pipeline = rs.pipeline()
         self.config = rs.config()
+        self.started = False
 
         # Enable color stream if desired
         if enable_color:
@@ -29,16 +30,25 @@ class Camera:
         if enable_depth:
             self.config.enable_stream(rs.stream.depth, depth_width, depth_height, rs.format.z16, fps)
 
-        self.profile = self.pipeline.start(self.config)
+        self.start()
 
         # Optional: Get depth scale
-        if enable_depth:
+        if enable_depth and self.started:
             depth_sensor = self.profile.get_device().first_depth_sensor()
             self.depth_scale = depth_sensor.get_depth_scale()
         else:
             self.depth_scale = None
 
-    def get_frames(self, max_retries=5) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[rs.frame], Optional[rs.frame], Optional[float]]:
+    def start(self) -> None:
+        try:
+            self.profile = self.pipeline.start(self.config)
+            self.started = True
+            print("Camera started successfully.")
+        except Exception as e:
+            print(f"Error starting camera: {e}")
+            self.started = False
+
+    def get_frames(self, max_retries=10) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[rs.frame], Optional[rs.frame], Optional[float]]:
         """
         Get color and depth frames from the camera, along with their numpy array representations.
         Attempts to reconnect if frames are not received.
@@ -51,7 +61,12 @@ class Camera:
 
         while retry_count < max_retries:
             try:
-                frames = self.pipeline.wait_for_frames(timeout_ms=10000)  # Timeout in 10 seconds
+                if not self.started:
+                    print("Camera not started. Starting camera...")
+                    self.start()
+                    time.wait(2)
+
+                frames = self.pipeline.wait_for_frames(timeout_ms=5000)  # Timeout in 5 seconds
 
                 # Align frames to the color stream
                 align_to = rs.stream.color
@@ -70,46 +85,16 @@ class Camera:
                 depth_image = np.asanyarray(depth_frame.get_data())
 
                 success = True
-                return success, color_image, color_frame, depth_image, depth_frame, self.depth_scale
+                return success, color_image, color_frame, depth_image, depth_frame
 
             except Exception as e:
                 print(f"Error: {e}")
                 print(f"Retrying to get frames... Attempt {retry_count + 1} of {max_retries}")
                 retry_count += 1
 
-                # Try to reconnect the camera if the pipeline is not working
-                if not self.reconnect_camera():
-                    break  # Break out of the loop if reconnection fails
-
         # Return None if frames are not received after multiple attempts
         print("Failed to get frames after multiple attempts.")
         return False, None, None, None, None, None
-
-
-    def reconnect_camera(self) -> bool:
-        """
-        Attempts to reconnect the camera by stopping and restarting the pipeline.
-        :return: True if reconnection is successful, False otherwise
-        """
-        print("Reconnecting to the camera...")
-        try:
-            # Stop the pipeline if it's running
-            try:
-                self.pipeline.stop()
-            except Exception as stop_error:
-                print(f"Pipeline stop failed (might not be started): {stop_error}")
-
-            # Wait for 2 seconds
-            time.sleep(2)
-
-            # Restart the pipeline
-            self.pipeline.start(self.config)
-            print("Camera reconnected successfully.")
-            return True
-
-        except Exception as e:
-            print(f"Error during camera reconnection: {e}")
-            return False
 
 
 
@@ -220,7 +205,10 @@ class Camera:
         return int(u), int(v)
 
     def stop(self) -> None:
-        """
-        Stop the camera pipeline
-        """
-        self.pipeline.stop()
+        if self.started:
+            try:
+                self.pipeline.stop()
+                self.started = False
+                print("Camera stopped.")
+            except Exception as e:
+                print(f"Error stopping camera: {e}")

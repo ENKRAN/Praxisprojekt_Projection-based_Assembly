@@ -5,7 +5,7 @@ from typing import Tuple, Optional, Dict
 import cv2
 import time
 
-def initialize_system(color_width=640, color_height=480, depth_width=640, depth_heigth=480, fps=60, depth_intrinsics: bool = False) -> Tuple[Camera, AprilTagDetector, np.ndarray, Dict[str, float], Optional[Dict[str, float]]]:
+def initialize_system(cam_K, color_width=1280, color_height=720, depth_width=1280, depth_heigth=720, fps=30, depth_intrinsics: bool = False) -> Tuple[Camera, AprilTagDetector, np.ndarray, Optional[Dict[str, np.ndarray]]]:
     """
     Initializes the camera and AprilTag detector.
 
@@ -14,19 +14,21 @@ def initialize_system(color_width=640, color_height=480, depth_width=640, depth_
     """
     # Initialize the camera and AprilTag detector
     camera = Camera(color_width, color_height, depth_width, depth_heigth, fps)
-    color_intrinsics = camera.get_color_sensor_intrinsics()
+    fx = cam_K[0, 0]
+    fy = cam_K[1, 1]
+    cx = cam_K[0, 2]
+    cy = cam_K[1, 2]
 
     if depth_intrinsics:
         depth_intrinsics = camera.get_depth_sensor_intrinsics()
 
-    apriltag_detector = AprilTagDetector(fx=color_intrinsics["fx"], fy=color_intrinsics["fy"],
-                                         cx=color_intrinsics["ppx"], cy=color_intrinsics["ppy"])
+    apriltag_detector = AprilTagDetector(fx=fx, fy=fy, cx=cx, cy=cy)
     
     camera_matrix = np.array([[apriltag_detector.fx, 0, apriltag_detector.cx],
                               [0, apriltag_detector.fy, apriltag_detector.cy],
                               [0, 0, 1]])
     
-    return camera, apriltag_detector, camera_matrix, color_intrinsics, depth_intrinsics
+    return camera, apriltag_detector, camera_matrix, depth_intrinsics
 
 def get_calibration_data(calibration_data_path) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
