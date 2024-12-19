@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Tuple
 import time
 import sys
+import shutil
 from screeninfo import get_monitors
 
 import cv2
@@ -42,7 +43,7 @@ class ManualCreator(QMainWindow):
         # Create the start page
         self.init_start_page()
         self.init_manual_creation_page()
-        self.init_manual_using_page()
+        self.init_manual_loading_page()
 
         # Set the first page to the start page
         self.stacked_widget.setCurrentIndex(0)
@@ -77,6 +78,7 @@ class ManualCreator(QMainWindow):
         self.last_raw_image_path = None
 
         # Initialize the manual creator
+        self.manual_saved = False
         self.manual_count = 0
         self.tag_id = None
         self.step_number = 1
@@ -87,15 +89,6 @@ class ManualCreator(QMainWindow):
         self.current_manual_dir = self.base_manuals_dir / f"manual_{self.manual_count}"
         self.raw_images_dir = self.current_manual_dir / raw_images_dir
         self.instructions_dir = self.current_manual_dir / instructions_dir
-
-        # Create the directories if they don't exist
-        try:
-            self.current_manual_dir.mkdir(parents=True, exist_ok=True)
-            self.raw_images_dir.mkdir(parents=True, exist_ok=True)
-            self.instructions_dir.mkdir(parents=True, exist_ok=True)
-        except OSError as e:
-            print(f"Error creating directories: {e}")
-            raise
 
     def init_start_page(self):
         # Startseite mit einem Button zum Wechseln zur zweiten Seite
@@ -112,7 +105,7 @@ class ManualCreator(QMainWindow):
         create_manual_button = QPushButton("Create Manual")
         create_manual_button.setFont(QFont("Arial", 18))
         create_manual_button.setFixedSize(250, 100)
-        create_manual_button.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(1))
+        create_manual_button.clicked.connect(self.create_manual_button_clicked)
 
         load_manual_button = QPushButton("Load Manual")
         load_manual_button.setFont(QFont("Arial", 18))
@@ -202,7 +195,7 @@ class ManualCreator(QMainWindow):
         self.quit_button = QPushButton("Quit")
         self.quit_button.setFont(button_font)
         self.quit_button.setFixedSize(250, 100)
-        self.quit_button.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(0))
+        self.quit_button.clicked.connect(self.quit_button_manual_creation_page_clicked)
 
         # Add the buttons to the button layout
         button_layout.addWidget(self.start_live_button)
@@ -223,14 +216,14 @@ class ManualCreator(QMainWindow):
 
         self.stacked_widget.addWidget(manual_creation_page)
 
-    def init_manual_using_page(self):
-        manual_using_page = QWidget()
+    def init_manual_loading_page(self):
+        manual_loading_page = QWidget()
 
         self.setWindowTitle("Manual Loader")
         self.setGeometry(100, 100, 1920, 1080)  # Set the window size to 1920x1080
 
         # Main container for the window
-        manual_using_page_layout = QVBoxLayout()
+        manual_loading_page_layout = QVBoxLayout()
 
         top_bar_layout = QHBoxLayout()
 
@@ -264,13 +257,13 @@ class ManualCreator(QMainWindow):
         button_layout.addWidget(self.quit_button)
 
         # Add the quit button to the layout
-        manual_using_page_layout.addLayout(top_bar_layout)
-        manual_using_page_layout.addWidget(self.manuals_list)
-        manual_using_page_layout.addLayout(button_layout)
+        manual_loading_page_layout.addLayout(top_bar_layout)
+        manual_loading_page_layout.addWidget(self.manuals_list)
+        manual_loading_page_layout.addLayout(button_layout)
         # manual_using_page_layout.setAlignment(Qt.AlignCenter)
-        manual_using_page.setLayout(manual_using_page_layout)
+        manual_loading_page.setLayout(manual_loading_page_layout)
 
-        self.stacked_widget.addWidget(manual_using_page)
+        self.stacked_widget.addWidget(manual_loading_page)
 
     def open_window(self):
         # Get the second screen (projector)
@@ -441,6 +434,11 @@ class ManualCreator(QMainWindow):
                 # Prepare the new path
                 new_name = f"instruction_{self.tag_id}_step_{self.step_number:03}.png"
                 self.image_with_drawings_path = self.instructions_dir / new_name
+
+                # FIXME: Find a better way to handle this
+                if self.image_with_drawings_path.exists():
+                    self.image_with_drawings_path.unlink()
+                    Path(self.last_raw_image_path).unlink()
                 
                 # Rename the image
                 newest_instruction.rename(self.image_with_drawings_path)
@@ -466,6 +464,10 @@ class ManualCreator(QMainWindow):
             self.proj_image = cv2.rectangle(self.proj_image, (0, 0), (self.projector_width - 1, self.projector_height - 1), (0, 255, 0), 10)
     
     def save_step_button_pressed(self):
+        if self.tag_id is None:
+            self.show_message("No AprilTag ID found. Can't save step!", title="Error", message_type="error")
+            return
+
         save_confirm = QMessageBox.question(
             self, 
             "Save Step", 
@@ -504,7 +506,11 @@ class ManualCreator(QMainWindow):
             self.status_label.setText("Undo cancelled.")
 
     def save_manual_button_pressed(self):
-        self.save_manual()
+        saved = self.save_manual()
+
+        if not saved:
+            return
+        
         manual_confirm = QMessageBox.question(
             self, 
             "Save Manual", 
@@ -516,12 +522,13 @@ class ManualCreator(QMainWindow):
             self.reset_manual_creator()
         else:
             self.status_label.setText("Creation of manuals stopped.")
-            # TODO: Get back to main screen       
+            self.stacked_widget.setCurrentIndex(0)       
 
     def reset_manual_creator(self) -> None:
         """
         Resets the manual creator by creating a new directory for the new manual.
         """
+        self.manual_saved = False
         self.manual_count += 1
         self.current_manual_dir = self.base_manuals_dir / f"manual_{self.manual_count}"
         self.raw_images_dir = self.current_manual_dir / self.raw_images_dir.name
@@ -538,10 +545,11 @@ class ManualCreator(QMainWindow):
         self.tag_id = None
         self.steps.clear()
         self.step_number = 1
+        self.image_with_drawings_path = None
 
         self.reset_projection_border_color("red")
 
-        self.status_label.setText("Everything has been reset.")
+        self.show_message(f"New manual initialized at {self.current_manual_dir}", title="Information", message_type="info")
 
     def create_step(self, drawing_path) -> None:
         """
@@ -552,7 +560,7 @@ class ManualCreator(QMainWindow):
         drawing_path = str(Path(drawing_path).as_posix())
         self.steps.append({
             "step": self.step_number,
-            "raw_image_path": self.last_raw_image_path,
+            "raw_image_path": str(Path(self.last_raw_image_path).as_posix()),
             "drawing_path": drawing_path,
         })
         self.show_message(f"Step {self.step_number} saved successfully!", title="Information", message_type="info")
@@ -578,13 +586,17 @@ class ManualCreator(QMainWindow):
         else:
             self.show_message("No steps to undo.", title="Warning", message_type="warning")
 
-    def save_manual(self) -> None:
+    def save_manual(self) -> bool:
         """
         Saves the manual as a JSON file
         """
         if self.tag_id is None:
             self.show_message("No tag ID found, manual not saved.", title="Warning", message_type="warning")
-            return
+            return False
+        
+        if len(self.steps) == 0:
+            self.show_message("No steps found, manual not saved.", title="Warning", message_type="warning")
+            return False
         
         manual_name = f"manual_{self.manual_count}"
 
@@ -600,10 +612,13 @@ class ManualCreator(QMainWindow):
             with open(json_path, "w") as file:
                 json.dump(manual_data, file, indent=4)
 
-            self.manuals_list.addItem(manual_name)
             self.show_message(f"Manual saved at {json_path} for AprilTag ID {self.tag_id}.", title="Information", message_type="info")
+            self.manual_saved = True
+            return True
         except Exception as e:
             self.show_message(f"Error saving manual: {e}", title="Error", message_type="error")
+            self.manual_saved = False
+            return False
 
     def show_message(self, message, title="Message", message_type="info", duration=3000):
         """
@@ -635,17 +650,72 @@ class ManualCreator(QMainWindow):
         msg_box.show()
 
     def show_manuals_in_list(self):
-        """for manual in range(self.manuals_list.count()):
-            item = self.manuals_list.item(manual)
+        # Get the AprilTag ID from the input field
+        search_tag_id = self.tag_id_input_field.text().strip()
 
-            # TODO: Just show the items that match the tag_id"""
-        pass
+        # Check if the input is valid
+        if not search_tag_id:
+            self.show_message("Please enter a valid AprilTag ID.", title="Warning", message_type="warning")
+            return
 
+        # Clear the list
+        self.manuals_list.clear()
 
+        manual_found = False
 
+        # Search for the manual with the given tag ID
+        for manual_dir in self.base_manuals_dir.iterdir():
+            if manual_dir.is_dir():
+                json_path = manual_dir / f"{manual_dir.name}.json"
+
+                if json_path.exists():
+                    try:
+                        # Read the JSON file
+                        with open(json_path, "r") as file:
+                            manual_data = json.load(file)
+
+                        # Check if the tag ID matches
+                        if str(manual_data.get("tag_id")) == search_tag_id:
+                            self.manuals_list.addItem(manual_dir.name)
+                            manual_found = True
+
+                    except Exception as e:
+                        self.show_message(f"Error reading manual: {e}", title="Error", message_type="error")
         
+        # if no manuals are found, show a message
+        if not manual_found:
+            self.show_message("No manuals found for the entered Tag ID.", title="Information", message_type="info")
+
+        # If no manuals are created yet, show a message
+        if not any(self.base_manuals_dir.iterdir()):
+            self.show_message("No manuals available. Please create a manual first.", title="Information", message_type="info")
+
+    def create_manual_button_clicked(self):
+        self.stacked_widget.setCurrentIndex(1)
+        self.reset_manual_creator()
+
+    def quit_button_manual_creation_page_clicked(self):
+        if not self.manual_saved:
+            quit_confirm = QMessageBox.question(
+                self, 
+                "Quit", 
+                "Are you sure you want to quit without saving the manual?", 
+                QMessageBox.Yes | QMessageBox.No
+            )
+
+            if quit_confirm == QMessageBox.Yes:
+                # Delete the manual directory if it exists
+                if self.current_manual_dir.exists():
+                    try:
+                        shutil.rmtree(self.current_manual_dir)
+                        self.manual_count -= 1
+                        print(f"Deleted manual directory: {self.current_manual_dir}")
+                    except Exception as e:
+                        self.show_message(f"Error deleting manual directory: {e}", title="Error", message_type="error")
+                
+                self.stacked_widget.setCurrentIndex(0)
+        else:
+            self.stacked_widget.setCurrentIndex(0)
+                
 
 
-
-
-    
