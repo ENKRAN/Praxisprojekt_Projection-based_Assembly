@@ -97,7 +97,6 @@ class ManualCreator(QMainWindow):
         # Set the first page to the start page
         self.stacked_widget.setCurrentIndex(0)
 
-
         self.camera = camera
         self.camera_running = False
         self.cam_K = cam_K
@@ -148,8 +147,8 @@ class ManualCreator(QMainWindow):
         start_page = QWidget()
         layout = QVBoxLayout()
 
-        label = QLabel("Welcome to the Startpage")
-        label.setFont(QFont("Arial", 24))
+        label = QLabel("Projection-Based Augmented Reality Assembly Working Station")
+        label.setFont(QFont("Arial", 28))
         label.setAlignment(Qt.AlignCenter)
 
         button_layout = QVBoxLayout()
@@ -325,20 +324,12 @@ class ManualCreator(QMainWindow):
         manual_execution_page_layout = QVBoxLayout()
         manual_execution_page_layout.setSpacing(20)
 
-        # Start-Button
-        self.start_button = QPushButton("Start Manual")
-        self.start_button.setFont(QFont("Arial", 20))
-        self.start_button.setFixedSize(200, 60)
-        self.start_button.clicked.connect(self.start_manual_execution)
-        manual_execution_page_layout.addWidget(self.start_button, alignment=Qt.AlignCenter)
-
         # Status label
         self.execution_status_label = QLabel("Status: Ready")
         self.execution_status_label.setFrameStyle(QFrame.Panel | QFrame.Sunken)
         self.execution_status_label.setAlignment(Qt.AlignLeft)
         self.execution_status_label.setFixedHeight(50)
         self.execution_status_label.setFont(QFont("Arial", 16))  # Bigger font for status label
-        self.execution_status_label.hide()
         manual_execution_page_layout.addWidget(self.execution_status_label)
 
         start_stop_button_layout = QHBoxLayout()
@@ -350,14 +341,12 @@ class ManualCreator(QMainWindow):
         self.execution_start_live_button.setFont(button_font)
         self.execution_start_live_button.setFixedSize(250, 100)
         self.execution_start_live_button.clicked.connect(self.start_live_feed_button_pressed)
-        self.execution_start_live_button.hide()
         start_stop_button_layout.addWidget(self.execution_start_live_button)
 
         self.execution_stop_live_button = QPushButton("Stop Live Feed")
         self.execution_stop_live_button.setFont(button_font)
         self.execution_stop_live_button.setFixedSize(250, 100)
         self.execution_stop_live_button.clicked.connect(self.stop_live_feed_button_pressed)
-        self.execution_stop_live_button.hide()
         start_stop_button_layout.addWidget(self.execution_stop_live_button)
 
         manual_execution_page_layout.addLayout(start_stop_button_layout)
@@ -369,7 +358,6 @@ class ManualCreator(QMainWindow):
         self.execution_live_image_label.setFixedSize(1280, 720)
         self.execution_live_image_label.setFrameStyle(QFrame.Panel | QFrame.Sunken)
         self.execution_live_image_label.setAlignment(Qt.AlignCenter)
-        self.execution_live_image_label.hide()
         image_layout.addWidget(self.execution_live_image_label)
         manual_execution_page_layout.addLayout(image_layout)
 
@@ -377,14 +365,12 @@ class ManualCreator(QMainWindow):
         self.start_execution_button.setFont(QFont("Arial", 20))
         self.start_execution_button.setFixedSize(200, 60)
         self.start_execution_button.clicked.connect(self.start_execution_button_pressed)
-        self.start_execution_button.hide()
         manual_execution_page_layout.addWidget(self.start_execution_button, alignment=Qt.AlignCenter)
 
         # Text label for the step description
         self.step_instruction_label = QLabel()
         self.step_instruction_label.setFont(QFont("Arial", 20))
         self.step_instruction_label.setAlignment(Qt.AlignCenter)
-        self.step_instruction_label.hide()
         manual_execution_page_layout.addWidget(self.step_instruction_label)
 
         # Activity Diagram View
@@ -392,7 +378,6 @@ class ManualCreator(QMainWindow):
         self.activity_diagram_scene = QGraphicsScene()
         self.activity_diagram_view.setScene(self.activity_diagram_scene)
         self.activity_diagram_view.setFixedHeight(150)
-        self.activity_diagram_view.hide()
         manual_execution_page_layout.addWidget(self.activity_diagram_view)
 
         # Progress Bar
@@ -409,7 +394,6 @@ class ManualCreator(QMainWindow):
                 width: 10px;
             }
         """)
-        self.progress_bar.hide()
         manual_execution_page_layout.addWidget(self.progress_bar)
 
         # Buttons for manual execution
@@ -420,25 +404,28 @@ class ManualCreator(QMainWindow):
         self.previous_step_button.setFont(QFont("Arial", 14))
         self.previous_step_button.setFixedSize(150, 50)
         self.previous_step_button.clicked.connect(self.previous_step)
-        self.previous_step_button.hide()
 
         self.next_step_button = QPushButton("Next Step")
         self.next_step_button.setFont(QFont("Arial", 14))
         self.next_step_button.setFixedSize(150, 50)
         self.next_step_button.clicked.connect(self.next_step)
-        self.next_step_button.hide()
 
         self.finish_button = QPushButton("Finish")
         self.finish_button.setFont(QFont("Arial", 14))
         self.finish_button.setFixedSize(150, 50)
         self.finish_button.clicked.connect(self.finish_manual)
-        self.finish_button.hide()
+
+        self.quit_manual_execution_button = QPushButton("Quit")
+        self.quit_manual_execution_button.setFont(QFont("Arial", 14))
+        self.quit_manual_execution_button.setFixedSize(150, 50)
+        self.quit_manual_execution_button.clicked.connect(self.quit_button_manual_execution_page_clicked)
 
         button_layout.addStretch()
         button_layout.addWidget(self.previous_step_button)
         button_layout.addWidget(self.next_step_button)
         button_layout.addWidget(self.finish_button)
         button_layout.addStretch()
+        button_layout.addWidget(self.quit_manual_execution_button)
 
         manual_execution_page_layout.addLayout(button_layout)
 
@@ -451,22 +438,6 @@ class ManualCreator(QMainWindow):
             self.display_current_step()
         else:
             self.show_message("Please start the live feed first.", title="Error", message_type="error")
-
-    def start_manual_execution(self):
-        # Hide the start button and show the other elements
-        self.start_button.hide()
-        self.execution_status_label.show()
-        self.execution_start_live_button.show()
-        self.execution_stop_live_button.show()
-        self.execution_live_image_label.show()
-        self.start_execution_button.show()
-        self.step_instruction_label.show()
-        self.activity_diagram_view.show()
-        self.progress_bar.show()
-        self.previous_step_button.show()
-        self.next_step_button.show()
-
-        self.step_saved = False
 
     def open_window(self):
         # Get the second screen (projector)
@@ -495,6 +466,7 @@ class ManualCreator(QMainWindow):
         if self.stacked_widget.currentIndex() == 1:
             self.status_label.setText("Status: Live Feed Running")
         elif self.stacked_widget.currentIndex() == 3:
+            self.step_saved = False
             self.execution_status_label.setText("Status: Live Feed Running")
 
         self.camera_running = True
@@ -750,6 +722,7 @@ class ManualCreator(QMainWindow):
             self.reset_manual_creator()
         else:
             self.status_label.setText("Creation of manuals stopped.")
+            self.stop_live_feed_button_pressed()
             self.stacked_widget.setCurrentIndex(0)       
 
     def reset_manual_creator(self) -> None:
@@ -791,7 +764,15 @@ class ManualCreator(QMainWindow):
             "description": self.step_description,
             "raw_image_path": str(Path(self.last_raw_image_path).as_posix()),
             "drawing_path": drawing_path,
+            "3D_points_tag_shape": self.points_3D_tag.shape,
+            "3D_points_tag_dtype": str(self.points_3D_tag.dtype),
+            "3D_points_tag_data": self.points_3D_tag.tolist(),
+            "colors_bgr_shape": self.valid_colors.shape,
+            "colors_bgr_dtype": str(self.valid_colors.dtype),
+            "colors_bgr_data": self.valid_colors.tolist()
         })
+        # print(f"Shape of 3D Points before: {self.points_3D_tag.shape}")
+        # print(f"Shape of Colors before: {self.valid_colors.shape}")
         self.show_message(f"Step {self.step_number} saved successfully!", title="Information", message_type="info")
 
     def undo_last_step(self):
@@ -962,6 +943,7 @@ class ManualCreator(QMainWindow):
                 self.execution_steps = manual_data.get("steps")
                 self.tag_id = manual_data.get("tag_id")
                 self.current_execution_step_index = 0
+                self.extracted_3D_pixels = False
 
                 self.show_message(f"Manual loaded: {manual_name} for AprilTag ID: {self.tag_id}", title="Information", message_type="info")
 
@@ -1030,21 +1012,39 @@ class ManualCreator(QMainWindow):
         self.next_step_button.hide()
         self.previous_step_button.hide()
         self.finish_button.hide()
+
+    def quit_button_manual_execution_page_clicked(self):
+        self.points_3D_tag = None
+        self.valid_colors = None
+        
+        self.stop_live_feed_button_pressed()
+        self.reset_projection_border_color("red")
         self.stacked_widget.setCurrentIndex(0)
 
-    def load_instruction(self):
+    def load_instruction(self):        
         instruction_path = self.execution_steps[self.current_execution_step_index]["drawing_path"]
 
         if instruction_path is None:
             self.show_message("No instruction found for this step.", title="Error", message_type="error")
             return
         
-        # Calculate the 3D points relative to the AprilTag and the corresponding colors
-        self.points_3D_tag, _, self.valid_colors = cam_2D_to_tag_3D(instruction_path, self.depth_image, self.camera.depth_scale, self.cam_K, self.apriltag_pose)
+        points_3D_tag_shape = self.execution_steps[self.current_execution_step_index]["3D_points_tag_shape"]
+        points_3D_tag_dtype = self.execution_steps[self.current_execution_step_index]["3D_points_tag_dtype"]
+        points_3D_tag_data = self.execution_steps[self.current_execution_step_index]["3D_points_tag_data"]
 
+        colors_bgr_shape = self.execution_steps[self.current_execution_step_index]["colors_bgr_shape"]
+        colors_bgr_dtype = self.execution_steps[self.current_execution_step_index]["colors_bgr_dtype"]
+        colors_bgr_data = self.execution_steps[self.current_execution_step_index]["colors_bgr_data"]
+
+        # print(f"Shape of 3D Points after: {points_3D_tag_shape}")
+        # print(f"Shape of Colors after: {colors_bgr_shape}")
+
+        self.points_3D_tag = np.array(points_3D_tag_data, dtype=points_3D_tag_dtype)
+        self.valid_colors = np.array(colors_bgr_data, dtype=colors_bgr_dtype)
+        
         if self.points_3D_tag is not None and self.valid_colors is not None:
             self.extracted_3D_pixels = True
-            self.show_message(f"3D points extracted successfully. Number of Points: {len(self.points_3D_tag)}", title="Information", message_type="info")
+            self.show_message(f"3D points loaded successfully. Number of Points: {len(self.points_3D_tag)}", title="Information", message_type="info")
         else:
-            self.show_message("Error in 3D point extraction. Please check the image and parameters.", title="Error", message_type="error")
+            self.show_message("Error in 3D point loading. Please check the image and parameters.", title="Error", message_type="error")
             return
