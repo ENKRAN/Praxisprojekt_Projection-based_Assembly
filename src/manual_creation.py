@@ -1017,8 +1017,9 @@ class ManualCreator(QMainWindow):
         self.points_3D_tag = None
         self.valid_colors = None
         
-        self.stop_live_feed_button_pressed()
         self.reset_projection_border_color("red")
+        self.stop_live_feed_button_pressed()
+        
         self.stacked_widget.setCurrentIndex(0)
 
     def load_instruction(self):        
