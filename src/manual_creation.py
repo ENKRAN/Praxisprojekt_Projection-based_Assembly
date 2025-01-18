@@ -362,8 +362,8 @@ class ManualCreator(QMainWindow):
         manual_execution_page_layout.addLayout(image_layout)
 
         self.start_execution_button = QPushButton("Start Execution")
-        self.start_execution_button.setFont(QFont("Arial", 20))
-        self.start_execution_button.setFixedSize(200, 60)
+        self.start_execution_button.setFont(button_font)
+        self.start_execution_button.setFixedSize(250, 100)
         self.start_execution_button.clicked.connect(self.start_execution_button_pressed)
         manual_execution_page_layout.addWidget(self.start_execution_button, alignment=Qt.AlignCenter)
 
@@ -401,23 +401,23 @@ class ManualCreator(QMainWindow):
         button_layout.setSpacing(20)
 
         self.previous_step_button = QPushButton("Previous Step")
-        self.previous_step_button.setFont(QFont("Arial", 14))
-        self.previous_step_button.setFixedSize(150, 50)
+        self.previous_step_button.setFont(button_font)
+        self.previous_step_button.setFixedSize(250, 100)
         self.previous_step_button.clicked.connect(self.previous_step)
 
         self.next_step_button = QPushButton("Next Step")
-        self.next_step_button.setFont(QFont("Arial", 14))
-        self.next_step_button.setFixedSize(150, 50)
+        self.next_step_button.setFont(button_font)
+        self.next_step_button.setFixedSize(250, 100)
         self.next_step_button.clicked.connect(self.next_step)
 
         self.finish_button = QPushButton("Finish")
-        self.finish_button.setFont(QFont("Arial", 14))
-        self.finish_button.setFixedSize(150, 50)
+        self.finish_button.setFont(button_font)
+        self.finish_button.setFixedSize(250, 100)
         self.finish_button.clicked.connect(self.finish_manual)
 
         self.quit_manual_execution_button = QPushButton("Quit")
-        self.quit_manual_execution_button.setFont(QFont("Arial", 14))
-        self.quit_manual_execution_button.setFixedSize(150, 50)
+        self.quit_manual_execution_button.setFont(button_font)
+        self.quit_manual_execution_button.setFixedSize(250, 100)
         self.quit_manual_execution_button.clicked.connect(self.quit_button_manual_execution_page_clicked)
 
         button_layout.addStretch()
