@@ -108,7 +108,7 @@ def cam_2D_to_tag_3D(image_path: str, depth_image, depth_scale, cam_K, april_tag
     # Convert the homogeneous 3D camera coordinates to homogeneous 3D tag coordinates
     points_3d_tag_hom = (T_inv @ points_3d_cam_hom.T).T
 
-    # Normalize the 3D tag coordinates to get the cartesian 3D tag coordinates
+    # Driectly extract the cartesian 3D tag coordinates because the scaling factor W is 1
     points_3d_tag = points_3d_tag_hom[:, :3] / points_3d_tag_hom[:, [3]]
 
     return points_3d_tag, points_3d_tag_hom, colors_bgr
