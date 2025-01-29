@@ -198,15 +198,63 @@ class ManualCreator(QMainWindow):
         self.status_label.setFixedHeight(50)
         self.status_label.setFont(QFont("Arial", 16))  # Bigger font for status label
 
-        # Live Camera Feed (640x480)
+        # Layout for the live image
+        image_layout = QHBoxLayout()
+        image_layout.setSpacing(10)
+        
+        instruction_text_left = (
+            "<b>How to create a Manual:</b><br><br>"
+            "<b>1.</b> Start the camera live feed by clicking the 'Start Live Feed' button.<br>"
+            "<b>2.</b> Place the object with the AprilTag in the projected red outline (working area).<br>"
+            "<b>3.</b> Ensure that the AprilTag is detected (its coordinate system should be visible). "
+            "Make sure the camera has a clear view of the working area, the object, and the AprilTag.<br>"
+            "<b>4.</b> Capture a photo by clicking the 'Capture Photo' button.<br>"
+            "<b>5.</b> Wait until Paint has automatically created two layers.<br>"
+            "<b>6.</b> Select the first layer (above the original background layer), "
+            "fill it completely black, and deactivate it.<br>"
+            "<b>7.</b> Select the second layer and draw the instruction in the working area.<br>"
+            "<b>8.</b> Activate the first layer again so that only the instructions are visible on a black background.<br>"
+        )
+
+        instruction_text_right = (
+            "<br><br><b>9.</b> Save the image as a PNG in the 'instructions' folder. "
+            "Ensure you are in the correct manual folder.<br>"
+            "<b>10.</b> Close Paint.<br>"
+            "<b>11.</b> The instructions should now be projected into the real world "
+            "and will dynamically adjust to the AprilTag’s position.<br>"
+            "<b>12.</b> If satisfied, click 'Save Step' to store this instruction and enter an description.<br>"
+            "<b>13.</b> If you want to redo the last step, click 'Undo Step'. "
+            "Then repeat steps 2-13 to create a new instruction.<br>"
+            "<b>14.</b> Repeat steps 2-14 until you have enough instruction steps.<br>"
+            "<b>15.</b> Click 'Save Manual' to save the complete manual.<br>"
+            "<b>16.</b> When prompted, choose 'Yes' to create another manual, or 'No' to return to the main page."
+        )
+
+        self.instruction_label_left = QLabel(instruction_text_left)
+        self.instruction_label_left.setFixedSize(300, 720)
+        # self.instruction_label_left.setFrameStyle(QFrame.Panel | QFrame.Sunken)
+        self.instruction_label_left.setAlignment(Qt.AlignLeft)
+        self.instruction_label_left.setFont(QFont("Arial", 12))
+        self.instruction_label_left.setWordWrap(True)
+        self.instruction_label_left.setTextFormat(Qt.RichText)  # Important for HTML
+
+        self.instruction_label_right = QLabel(instruction_text_right)
+        self.instruction_label_right.setFixedSize(300, 720)
+        # self.instruction_label_right.setFrameStyle(QFrame.Panel | QFrame.Sunken)
+        self.instruction_label_right.setAlignment(Qt.AlignLeft)
+        self.instruction_label_right.setFont(QFont("Arial", 12))
+        self.instruction_label_right.setWordWrap(True)
+        self.instruction_label_right.setTextFormat(Qt.RichText)  # Important for HTML
+
+        # Live Camera Feed (1280x720)
         self.live_image_label = QLabel("Live Camera Feed")
         self.live_image_label.setFixedSize(1280, 720)
         self.live_image_label.setFrameStyle(QFrame.Panel | QFrame.Sunken)
         self.live_image_label.setAlignment(Qt.AlignCenter)
 
-        # Layout for the live image
-        image_layout = QHBoxLayout()
+        image_layout.addWidget(self.instruction_label_left)
         image_layout.addWidget(self.live_image_label)
+        image_layout.addWidget(self.instruction_label_right)
 
         # Button-Layout (horizontal)
         button_layout = QHBoxLayout()
@@ -352,13 +400,44 @@ class ManualCreator(QMainWindow):
         manual_execution_page_layout.addLayout(start_stop_button_layout)
 
         image_layout = QHBoxLayout()
+        image_layout.setSpacing(10)
         
-        # Live Camera Feed (640x480)
+        instruction_text_left = (
+            "<b>How to use a Manual:</b><br><br>"
+            "<b>1.</b> Start the camera live feed by clicking the 'Start Live Feed' button.<br>"
+            "<b>2.</b> Place the object with the AprilTag in the projected red outline (working area).<br>"
+            "<b>3.</b> Ensure that the AprilTag is detected (its coordinate system should be visible). "
+            "Make sure the camera has a clear view of the working area, the object, and the AprilTag.<br>"
+            "<b>4.</b> Start the manual by clicking the 'Start Execution' button.<br>"
+            "<b>5.</b> Follow the step-by-step instructions projected onto the working area.<br>"
+        )
+
+        self.instruction_label_left = QLabel(instruction_text_left)
+        self.instruction_label_left.setFixedSize(300, 720)
+        # self.instruction_label_left.setFrameStyle(QFrame.Panel | QFrame.Sunken)
+        self.instruction_label_left.setAlignment(Qt.AlignLeft)
+        self.instruction_label_left.setFont(QFont("Arial", 12))
+        self.instruction_label_left.setWordWrap(True)
+        self.instruction_label_left.setTextFormat(Qt.RichText)  # Important for HTML
+
+        self.instruction_label_right = QLabel()
+        self.instruction_label_right.setFixedSize(300, 720)
+        # self.instruction_label_right.setFrameStyle(QFrame.Panel | QFrame.Sunken)
+        self.instruction_label_right.setAlignment(Qt.AlignLeft)
+        self.instruction_label_right.setFont(QFont("Arial", 12))
+        self.instruction_label_right.setWordWrap(True)
+        self.instruction_label_right.setTextFormat(Qt.RichText)  # Important for HTML
+
+        # Live Camera Feed (1280x720)
         self.execution_live_image_label = QLabel("Live Camera Feed")
         self.execution_live_image_label.setFixedSize(1280, 720)
         self.execution_live_image_label.setFrameStyle(QFrame.Panel | QFrame.Sunken)
         self.execution_live_image_label.setAlignment(Qt.AlignCenter)
+
+        image_layout.addWidget(self.instruction_label_left)
         image_layout.addWidget(self.execution_live_image_label)
+        image_layout.addWidget(self.instruction_label_right)
+
         manual_execution_page_layout.addLayout(image_layout)
 
         self.start_execution_button = QPushButton("Start Execution")
@@ -483,6 +562,8 @@ class ManualCreator(QMainWindow):
             self.camera = None
             self.live_image_label.clear()
             self.live_image_label.setText("Live Camera Feed")
+            self.execution_live_image_label.clear()
+            self.execution_live_image_label.setText("Live Camera Feed")
             self.status_label.setText("Status: Live Feed Stopped")
             self.camera_running = False
 
