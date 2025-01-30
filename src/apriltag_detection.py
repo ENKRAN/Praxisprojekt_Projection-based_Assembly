@@ -5,7 +5,7 @@ class AprilTagDetector:
     """
     Class to detect apriltags in a grayscale frame
     """
-    def __init__(self, tag_family="tagStandard41h12", fx=None, fy=None, cx=None, cy=None, tag_size=0.075) -> None:
+    def __init__(self, tag_family="tagStandard41h12", fx=None, fy=None, cx=None, cy=None, tag_size=0.04) -> None:
         """
         Initialize the AprilTag detector
 
