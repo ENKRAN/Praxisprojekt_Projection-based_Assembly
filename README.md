@@ -108,7 +108,7 @@ For a **detailed user guide**, see `user_guide.md`.
    │   ├── manuals                 # Stored instructions  
    │   ├── projector_camera_calibration # Calibration data  
    ├── docs  
-   │   ├── images
+   │   ├── images                   # Images for the user guide
    │   ├── user_guide.md            # Setup and usage guide  
    ├── src  
    │   ├── apriltag_detection.py    # Detects AprilTags and estimates pose  
