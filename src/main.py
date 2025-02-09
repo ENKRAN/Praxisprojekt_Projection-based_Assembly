@@ -1,72 +1,63 @@
 import numpy as np
 import cv2
-from camera import Camera
-from apriltag_detection import AprilTagDetector
-from visualization import draw_axes, draw_tag_border_and_id
-from image_processing import save_component_img
-from user_interaction import edit_saved_image
+import threading
+import sys
+
+from PyQt5.QtWidgets import QApplication
+
+# Local imports
+from .setup import initialize_system, get_calibration_data, update_windows
+from .projection import setup_projector_window
+from .manual_creation import ManualCreator
 
 def main() -> None:
-    # Initialize the camera
-    camera = Camera(enable_depth=False)
+    # Start the Qt application
+    app = QApplication(sys.argv)
 
-    # Get the color sensor and its intrinsics
-    fx, fy, ppx, ppy, dist_coeffs = camera.get_color_sensor_intrinsics()
+    # Setup the projector window
+    global projector_window_name
+    projector_window_name, projector_width, projector_height = setup_projector_window()
 
-    apriltag_detector = AprilTagDetector(fx=fx, fy=fy, cx=ppx, cy=ppy)
+    # Draw a red rectangle on the edges of the projector image
+    proj_image = np.zeros((projector_height, projector_width, 3), dtype=np.uint8)
+    proj_image = cv2.rectangle(proj_image, (0, 0), (projector_width - 1, projector_height - 1), (0, 0, 255), 10)
 
-    # Set the camera matrix with the intrinsics
-    camera_matrix = np.array([[apriltag_detector.fx, 0, apriltag_detector.cx],
-                            [0, apriltag_detector.fy, apriltag_detector.cy],
-                            [0, 0, 1]])
+    # Start the thread to update the windows
+    window_thread = threading.Thread(
+        target=update_windows,
+        args=(projector_window_name,)
+    )
+    window_thread.daemon = True  # So that the thread is killed when the main thread is killed
+    window_thread.start()
     
-    # Length of the axes in the visualization
-    axis_length = apriltag_detector.tag_size * 2.0  # Axis length is twice the tag size
+    # Get the calibration data
+    calibration_data_path = 'data/projector_camera_calibration/calibration.yml'
+    cam_K, cam_kc, proj_K, proj_kc, R, T = get_calibration_data(calibration_data_path)
 
-    try:
-        while True:
-            color_frame, _ = camera.get_frames()
-            if color_frame is None:
-                continue
+    # Initialize the camera and AprilTag detector
+    camera, apriltag_detector, _, _ = initialize_system(cam_K, color_width=1280, color_height=720, depth_width=1280, depth_heigth=720, fps=30, depth_intrinsics=False)
 
-            # Convert the frame to grayscale for AprilTag detection
-            gray = cv2.cvtColor(color_frame, cv2.COLOR_BGR2GRAY)
-
-            # Detect AprilTags in the image
-            results = apriltag_detector.detect(gray)
-
-            for result in results:
-                # Translation vector (Position relative to the camera)
-                tvec = result.pose_t
-
-                # Rotation vector (Orientation relative to the camera)
-                rvec = result.pose_R
-
-                # TODO: Maybe implement z-axis stabilization
-                
-                # Draw the axes and tag border with ID
-                color_frame = draw_axes(color_frame, rvec, tvec, camera_matrix, dist_coeffs, axis_length)
-                color_frame = draw_tag_border_and_id(color_frame, result)
-
-            # Display the image with the AprilTag detection
-            cv2.imshow('AprilTag Detection with Axes and IDs', color_frame)
-
-            # Wait for a key press
-            key = cv2.waitKey(1) & 0xFF
-
-            # Save the image if the space key is pressed
-            if key == ord(' '):
-                if results:
-                    # Save the image of the component if a tag was detected and open it for editing
-                    saved_image_path = save_component_img(color_frame, results[0].tag_id)
-                    edit_saved_image(saved_image_path)
-
-            # Close the window if the 'q' key is pressed
-            if key == ord('q'):
-                break
-    finally:
-        camera.stop()
-        cv2.destroyAllWindows()
+    # Create the manual creator
+    manual_creator = ManualCreator(
+        camera, 
+        apriltag_detector,
+        cam_K,
+        cam_kc,
+        projector_window_name,
+        projector_width,
+        projector_height,
+        proj_image,
+        R,
+        T,
+        proj_K,
+        proj_kc
+    )
+    
+    # Open the manual creator window
+    manual_creator.open_window()
+    
+    # Start the Qt application
+    sys.exit(app.exec_())
 
 if __name__ == "__main__":
-    main() 
+    main()

@@ -1,26 +1,113 @@
 import cv2
-import time
-import os
+from typing import Tuple
+import numpy as np
 
-def save_component_img(frame, tag_id, save_dir="../data/saved_images") -> str:
+def extract_valid_image_points(image_with_drawings, depth_image, depth_scale) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
-    Save an image of a component to disk
+    Extract valid image points, depth values and colors from an image with drawings and a depth image.
 
-    :param frame: Color frame containing the component
-    :param tag_id: ID of the component
+    :param image_with_drawings: The image with drawings
+    :param depth_image: The depth image
+    :param depth_scale: The depth scale
+    :return: The u coordinates, the v coordinates, the depth values and the colors
     """
-    # Create the directory if it does not exist
-    os.makedirs(save_dir, exist_ok=True)
+    # print(f"Depth image shape: {depth_image.shape}")
+    # print(f"Image with drawings shape: {image_with_drawings.shape}")
 
-    # Generate a filename and timestamp
-    timestamp = time.strftime("%Y%m%d-%H%M%S")
-    filename = f"component_{tag_id}_{timestamp}.png"
+    # Check if the depth image and the image with drawings have the same resolution
+    if depth_image.shape[:2] != image_with_drawings.shape[:2]:
+        raise ValueError("The depth image and the image with drawings must have the same resolution")
+    
+    # Check if the image with drawings has an alpha channel and remove it (i don't think we need an alpha channel for now)
+    if image_with_drawings.shape[2] == 4:
+        image_with_drawings = cv2.cvtColor(image_with_drawings, cv2.COLOR_BGRA2BGR)
 
-    # Full path to the file
-    filepath = os.path.join(save_dir, filename)
+    # Extract all non-black pixels
+    non_black_mask = np.any(image_with_drawings != 0, axis=-1)    
 
-    # Save the image to disk
-    cv2.imwrite(filepath, frame)
-    print(f"Image saved: {filepath}")
+    # Extract the coordinates of the valid image points
+    coords_yx = np.argwhere(non_black_mask)
+    u_coords = coords_yx[:, 1]
+    v_coords = coords_yx[:, 0]
+    
+    # Extract the depth values of the valid image points and scale them to meters
+    depth_values_raw = depth_image[v_coords, u_coords]
+    depth_values = depth_values_raw.astype(np.float32) * depth_scale
 
-    return filepath
+    # Extract the colors of the valid image points
+    colors_bgr = image_with_drawings[v_coords, u_coords, :]
+
+    return u_coords.astype(np.float32), v_coords.astype(np.float32), depth_values, colors_bgr
+
+def cam_2D_to_cam_3D(u_coords, v_coords, depth_values, cam_K) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Convert 2D image points to 3D camera coordinates.
+
+    :param u_coords: The u coordinates
+    :param v_coords: The v coordinates
+    :param depth_values: The depth values
+    :param cam_K: The camera matrix
+    :return: The 3D camera coordinates and the homogeneous 3D camera coordinates
+    """
+    # Extract the camera intrinsics
+    fx = cam_K[0, 0]
+    fy = cam_K[1, 1]
+    cx = cam_K[0, 2]
+    cy = cam_K[1, 2]
+
+    # Convert the 2D image points to 3D camera coordinates
+    X = (u_coords - cx) * depth_values / fx
+    Y = (v_coords - cy) * depth_values / fy
+    Z = depth_values
+
+    # Combine the 3D camera coordinates
+    points_3d = np.column_stack((X, Y, Z))  # Nx3
+
+    # Convert the 3D camera coordinates to homogeneous coordinates for further processing
+    points_3d_hom = np.hstack([points_3d, np.ones((points_3d.shape[0], 1), dtype=np.float32)])  # Nx4
+
+    return points_3d, points_3d_hom 
+
+def cam_2D_to_tag_3D(image_path: str, depth_image, depth_scale, cam_K, april_tag_pose) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Convert 2D image points to 3D tag coordinates.
+
+    :param image_path: The path to the image with drawings
+    :param depth_image: The depth image
+    :param depth_scale: The depth scale
+    :param cam_K: The camera matrix
+    :param april_tag_pose: The AprilTag pose
+    :return: The 3D tag coordinates, the homogeneous 3D tag coordinates and the colors
+    """
+    # Load the image with drawings
+    image_with_drawings = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
+    if image_with_drawings is None:
+        raise FileNotFoundError(f"Image with drawing not found: {image_path}")
+
+    # Extract valid image points, depth values and colors
+    u_coords, v_coords, depth_values, colors_bgr = extract_valid_image_points(image_with_drawings, depth_image, depth_scale)
+
+    # Convert 2D image points to 3D camera coordinates
+    _, points_3d_cam_hom = cam_2D_to_cam_3D(u_coords, v_coords, depth_values, cam_K)
+
+    # Extract the rotation and translation from the AprilTag pose
+    R, t = april_tag_pose
+
+    # Invert the rotation and translation
+    R_inv = R.T
+    t_inv = -R_inv @ t
+
+    t_inv = t_inv.reshape(3)
+    
+    # Create the inverse transformation matrix
+    T_inv = np.eye(4)
+    T_inv[:3, :3] = R_inv
+    T_inv[:3, 3] = t_inv
+
+    # Convert the homogeneous 3D camera coordinates to homogeneous 3D tag coordinates
+    points_3d_tag_hom = (T_inv @ points_3d_cam_hom.T).T
+
+    # Driectly extract the cartesian 3D tag coordinates because the scaling factor W is 1
+    points_3d_tag = points_3d_tag_hom[:, :3] / points_3d_tag_hom[:, [3]]
+
+    return points_3d_tag, points_3d_tag_hom, colors_bgr
