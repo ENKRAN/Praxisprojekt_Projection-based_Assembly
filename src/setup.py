@@ -7,10 +7,16 @@ import time
 
 def initialize_system(cam_K, color_width=1280, color_height=720, depth_width=1280, depth_heigth=720, fps=30, depth_intrinsics: bool = False) -> Tuple[Camera, AprilTagDetector, np.ndarray, Optional[Dict[str, np.ndarray]]]:
     """
-    Initializes the camera and AprilTag detector.
+    Initialize the camera and AprilTag detector.
 
+    :param cam_K: The intrinsic matrix of the camera
+    :param color_width: The width of the color image
+    :param color_height: The height of the color image
+    :param depth_width: The width of the depth image
+    :param depth_heigth: The height of the depth image
+    :param fps: The frames per second of the camera
     :param depth_intrinsics: Whether to get the depth sensor intrinsics
-    :return: The camera, AprilTag detector, camera matrix, color intrinsics, and depth intrinsics
+    :return: The camera, AprilTag detector, camera matrix, and depth intrinsics
     """
     # Initialize the camera and AprilTag detector
     camera = Camera(color_width, color_height, depth_width, depth_heigth, fps)
@@ -32,10 +38,10 @@ def initialize_system(cam_K, color_width=1280, color_height=720, depth_width=128
 
 def get_calibration_data(calibration_data_path) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
-    Loads the camera and projector calibration data from the calibration.yml file.
+    Get the calibration data from the file.
 
-    :param calibration_data_path: Path to the calibration.yml file
-    :return: Camera matrix, distortion coefficients, projector matrix, projector distortion coefficients, rotation matrix, and translation vector
+    :param calibration_data_path: The path to the calibration data file
+    :return: The camera intrinsic matrix, camera distortion coefficients, projector intrinsic matrix, projector distortion coefficients, rotation matrix, and translation vector
     """
     # Load the file
     fs = cv2.FileStorage(calibration_data_path, cv2.FILE_STORAGE_READ)
@@ -62,9 +68,7 @@ def get_calibration_data(calibration_data_path) -> Tuple[np.ndarray, np.ndarray,
 
 def update_windows(projector_window_name) -> None:
     """
-    Update the windows in a separate thread so that the windows do not freeze or interfere with each other.
-
-    :param projector_window_name: The name of the projector window
+    Update the projector window so that it's independent of the camera window.
     """
     while True:
         if cv2.getWindowProperty(projector_window_name, cv2.WND_PROP_VISIBLE) < 1:

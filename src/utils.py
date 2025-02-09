@@ -8,10 +8,12 @@ import pygetwindow as gw
 
 def open_image_in_paint(image_path: str, screen) -> None:
     """
-    Open an image in MS Paint and create two new layers.
+    Open an image in MS Paint
 
     :param image_path: The path to the image
+    :param screen: The screen to open the image on
     """
+    # Check if the OS is Windows
     if os.name != 'nt':
         print("This function is only supported on Windows.")
         return
@@ -57,7 +59,7 @@ def open_image_in_paint(image_path: str, screen) -> None:
 
 def show_img(image_path: str) -> None:
     """
-    Show an image using opencv
+    Display an image using OpenCV
 
     :param image_path: The path to the image
     """

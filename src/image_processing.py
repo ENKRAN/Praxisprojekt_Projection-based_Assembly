@@ -1,18 +1,18 @@
 import cv2
-from typing import List, Dict, Tuple
+from typing import Tuple
 import numpy as np
 
-def extract_valid_image_points(image_with_drawings, depth_image, depth_scale) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+def extract_valid_image_points(image_with_drawings, depth_image, depth_scale) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
-    Extracts the valid image points (2D), depth values (meters) and colors (BGR) from the image with drawings using the depth image.
+    Extract valid image points, depth values and colors from an image with drawings and a depth image.
 
     :param image_with_drawings: The image with drawings
     :param depth_image: The depth image
     :param depth_scale: The depth scale
-    :return: The u coordinates, v coordinates, depth values and colors
+    :return: The u coordinates, the v coordinates, the depth values and the colors
     """
-    print(f"Depth image shape: {depth_image.shape}")
-    print(f"Image with drawings shape: {image_with_drawings.shape}")
+    # print(f"Depth image shape: {depth_image.shape}")
+    # print(f"Image with drawings shape: {image_with_drawings.shape}")
 
     # Check if the depth image and the image with drawings have the same resolution
     if depth_image.shape[:2] != image_with_drawings.shape[:2]:
@@ -39,15 +39,15 @@ def extract_valid_image_points(image_with_drawings, depth_image, depth_scale) ->
 
     return u_coords.astype(np.float32), v_coords.astype(np.float32), depth_values, colors_bgr
 
-def cam_2D_to_cam_3D(u_coords, v_coords, depth_values, cam_K) -> np.ndarray:
+def cam_2D_to_cam_3D(u_coords, v_coords, depth_values, cam_K) -> Tuple[np.ndarray, np.ndarray]:
     """
-    Converts multiple 2D image points to 3D camera coordinates.
+    Convert 2D image points to 3D camera coordinates.
 
-    :param u_coords: The u coordinates of the image points
-    :param v_coords: The v coordinates of the image points
-    :param depth_values: The depth values of the image points
+    :param u_coords: The u coordinates
+    :param v_coords: The v coordinates
+    :param depth_values: The depth values
     :param cam_K: The camera matrix
-    :return: The 3D camera coordinates
+    :return: The 3D camera coordinates and the homogeneous 3D camera coordinates
     """
     # Extract the camera intrinsics
     fx = cam_K[0, 0]
@@ -68,8 +68,7 @@ def cam_2D_to_cam_3D(u_coords, v_coords, depth_values, cam_K) -> np.ndarray:
 
     return points_3d, points_3d_hom 
 
-
-def cam_2D_to_tag_3D(image_path: str, depth_image, depth_scale, cam_K, april_tag_pose) -> Tuple[np.ndarray, np.ndarray]:
+def cam_2D_to_tag_3D(image_path: str, depth_image, depth_scale, cam_K, april_tag_pose) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Convert 2D image points to 3D tag coordinates.
 

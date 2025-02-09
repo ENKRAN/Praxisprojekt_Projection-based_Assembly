@@ -6,9 +6,9 @@ from typing import Any, Tuple
 
 def setup_projector_window() -> Tuple[str, int, int]:
     """
-    Setup the window for the projector screen.
+    Set up the projector window on the third screen.
 
-    :return: The window name, width, and height of the projector screen
+    :return: The name of the projector window, the width of the projector screen, and the height of the projector screen
     """
     # Get the third screen (projector)
     monitors = get_monitors()
@@ -37,20 +37,19 @@ def setup_projector_window() -> Tuple[str, int, int]:
 
 def project_image(img, points_3D_tag, valid_colors, R_cam_to_proj, tvec_cam_to_proj, R_tag_to_cam, tvec_tag_to_cam, proj_K, proj_kc, projector_width, projector_height) -> Any:
     """
-    Projects the image onto the projector screen.
+    Project the image onto the projector screen.
 
     :param img: The image to project
-    :param points_3D_tag: The 3D points relative to the AprilTag
-    :param valid_colors: The corresponding colors of the 3D points
-    :param R_cam_to_proj: Rotation matrix from the camera to the projector
-    :param tvec_cam_to_proj: Translation vector from the camera to the projector
-    :param R_tag_to_cam: Rotation matrix from the AprilTag to the camera
-    :param tvec_tag_to_cam: Translation vector from the AprilTag to the camera
-    :param proj_K: Camera matrix of the projector
-    :param proj_kc: Distortion coefficients of the projector
-    :param projector_width: Width of the projector screen
-    :param projector_height: Height of the projector screen
-    :return: The image projected onto the projector screen
+    :param points_3D_tag: The 3D points of the AprilTag
+    :param valid_colors: The colors of the AprilTag
+    :param R_cam_to_proj: The rotation matrix from the camera to the projector
+    :param tvec_cam_to_proj: The translation vector from the camera to the projector
+    :param R_tag_to_cam: The rotation matrix from the AprilTag to the camera
+    :param tvec_tag_to_cam: The translation vector from the AprilTag to the camera
+    :param proj_K: The intrinsic matrix of the projector
+    :param proj_kc: The distortion coefficients of the projector
+    :param projector_width: The width of the projector screen
+    :param projector_height: The height of the projector screen
     """
     # Calculate the rotation and translation from the AprilTag to the projector
     R_tag_to_proj = R_cam_to_proj @ R_tag_to_cam

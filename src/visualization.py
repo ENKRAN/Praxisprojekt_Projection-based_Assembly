@@ -4,15 +4,15 @@ from typing import Any
 
 def draw_axes(img, R_ct, tvec, camera_matrix, dist_coeffs, axis_length) -> Any:
     """
-    Draws the 3D coordinate axes on the image.
+    Draws the 3D axes on the apriltag.
 
     :param img: Image to draw on
-    :param R_ct: Rotation matrix from the camera to the tag
-    :param tvec: Translation vector from the camera to the tag
+    :param R_ct: Rotation matrix from the camera frame to the tag frame
+    :param tvec: Translation vector from the camera frame to the tag frame
     :param camera_matrix: Camera matrix
     :param dist_coeffs: Distortion coefficients
-    :param axis_length: Length of the axes in the visualization
-    :return: Image with the 3D coordinate axes drawn
+    :param axis_length: Length of the axes
+    :return: Image with the 3D axes drawn
     """
     # Convert the rotation matrix to a rotation vector
     rvec, _ = cv2.Rodrigues(R_ct)
@@ -39,10 +39,10 @@ def draw_axes(img, R_ct, tvec, camera_matrix, dist_coeffs, axis_length) -> Any:
 
 def draw_tag_border_and_id(img, result) -> Any:
     """
-    Draws the border and ID of the detected AprilTag.
+    Draws the border of the detected tag and its ID on the image.
 
     :param img: Image to draw on
-    :param result: Detected AprilTag result with corner positions and tag_id
+    :param result: Result of the tag detection
     :return: Image with the tag border and ID drawn
     """
     # Get the corners of the tag

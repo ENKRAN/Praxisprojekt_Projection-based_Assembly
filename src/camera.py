@@ -5,21 +5,23 @@ import cv2
 import time
 
 class Camera:
-    """
-    Class to interface with a RealSense camera
-    """
     def __init__(self, color_width=1280, color_height=720, depth_width=1280, depth_height=720, fps=30, enable_depth=True, enable_color=True) -> None:
         """
-        Initialize the camera pipeline with the desired settings.
+        Initialize the camera object with the desired settings.
 
-        :param width: Width of the frames
-        :param height: Height of the frames
+        :param color_width: Width of the color stream
+        :param color_height: Height of the color stream
+        :param depth_width: Width of the depth stream
+        :param depth_height: Height of the depth stream
         :param fps: Frames per second
         :param enable_depth: Enable depth stream
         :param enable_color: Enable color stream
         """
+        # Initialize the pipeline and configuration
         self.pipeline = rs.pipeline()
         self.config = rs.config()
+
+        # Flag to check if the camera is started
         self.started = False
 
         # Enable color stream if desired
@@ -30,6 +32,7 @@ class Camera:
         if enable_depth:
             self.config.enable_stream(rs.stream.depth, depth_width, depth_height, rs.format.z16, fps)
 
+        # Start the camera
         self.start()
 
         # Optional: Get depth scale
@@ -40,6 +43,9 @@ class Camera:
             self.depth_scale = None
 
     def start(self) -> None:
+        """
+        Start the camera with the desired configuration.
+        """
         try:
             self.profile = self.pipeline.start(self.config)
             self.started = True
@@ -50,11 +56,10 @@ class Camera:
 
     def get_frames(self, max_retries=10) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[rs.frame], Optional[rs.frame], Optional[float]]:
         """
-        Get color and depth frames from the camera, along with their numpy array representations.
-        Attempts to reconnect if frames are not received.
+        Get the frames from the camera and retries if no frames are received.
 
-        :param max_retries: Number of retry attempts before giving up
-        :return: Tuple of success flag, color_image, color_frame, depth_image, depth_frame, and depth_scale
+        :param max_retries: Maximum number of retries to get frames
+        :return: Tuple of color image, depth image, color frame, depth frame, depth scale
         """
         success = False
         retry_count = 0
@@ -80,7 +85,7 @@ class Camera:
                 if not color_frame or not depth_frame:
                     raise RuntimeError("No frames received")
 
-                # Convert frames to numpy arrays
+                # Convert frames to numpy arrays for opencv
                 color_image = np.asanyarray(color_frame.get_data())
                 depth_image = np.asanyarray(depth_frame.get_data())
 
@@ -96,13 +101,11 @@ class Camera:
         print("Failed to get frames after multiple attempts.")
         return False, None, None, None, None, None
 
-
-
     def get_color_sensor_intrinsics(self) -> Dict:
         """
-        Get the intrinsics of the color sensor as a dictionary.
+        Get the intrinsics of the color sensor
 
-        :return: Tuple of fx, fy, ppx, ppy, the distortion coefficients and the raw intrinsics
+        :return: Tuple of width, height, fx, fy, ppx, ppy, the distortion coefficients and the raw intrinsics
         """
         color_stream = self.profile.get_stream(rs.stream.color)
         video_stream_profile = color_stream.as_video_stream_profile()
@@ -141,31 +144,31 @@ class Camera:
     @staticmethod
     def get_3D_camera_coords_realsense(u, v, z, intrinsics) -> np.ndarray:
         """
-        Get the 3D coordinates of a pixel in the camera frame with the RealSense library.
+        Get the 3D coordinates of a pixel in the camera frame with functions from the RealSense library.
 
         :param u: x pixel coordinate
         :param v: y pixel coordinate
         :param z: Depth value
-        :param intrinsics: Intrinsics of the camera
-        :return: 3D coordinates as a numpy array
+        :param intrinsics: Intrinsics of the color sensor
+        :return: 3D coordinates as a 3x1 numpy array
         """
         x, y, z = rs.rs2_deproject_pixel_to_point(intrinsics, [u, v], z)
 
-        t_depth_vec =  np.array([x, y, z]).reshape(3, 1)
+        point_3D =  np.array([x, y, z]).reshape(3, 1)
 
-        return t_depth_vec
+        return point_3D
     
     @staticmethod
     def get_3D_camera_coords_opencv(u, v, cam_K, cam_kc, depth_frame) -> np.ndarray:
         """
-        Get the 3D coordinates of a pixel in the camera frame with OpenCV.
+        Get the 3D coordinates of a pixel in the camera frame with OpenCV functions.
 
         :param u: x pixel coordinate
         :param v: y pixel coordinate
         :param cam_K: Camera matrix
         :param cam_kc: Distortion coefficients
         :param depth_frame: Depth frame
-        :return: 3D coordinates as a numpy array
+        :return: 3D coordinates as a 3x1 numpy array
         """
         # Convert pixel coordinates to a numpy array for undistortion
         point = np.array([[[u, v]]], dtype=np.float32)
@@ -191,20 +194,23 @@ class Camera:
         return point_3D
     
     @staticmethod
-    def get_2D_camera_coords(intrinsics, tvec) -> Tuple[int, int]:
+    def get_2D_camera_coords(intrinsics, point_3D) -> Tuple[int, int]:
         """
-        Get the pixel coordinates of a 3D point in the camera frame.
+        Project 3D coordinates to 2D pixel coordinates with functions from the RealSense library.
 
-        :param depth_intrinsics: Intrinsics of the depth sensor
-        :param tvec: Translation vector
-        :return: Tuple of x, y pixel coordinates
+        :param intrinsics: Intrinsics of the color sensor
+        :param point_3D: 3D coordinates as a 3x1 numpy array
+        :return: Tuple of x and y pixel coordinates	
         """
-        x, y, z = tvec
+        x, y, z = point_3D
         u, v = rs.rs2_project_point_to_pixel(intrinsics, [x, y, z])
 
         return int(u), int(v)
 
     def stop(self) -> None:
+        """
+        Stop the camera.
+        """
         if self.started:
             try:
                 self.pipeline.stop()

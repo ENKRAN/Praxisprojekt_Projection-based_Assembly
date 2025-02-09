@@ -27,6 +27,9 @@ from .camera import Camera
 
 class DescriptionDialog(QDialog):
     def __init__(self, parent=None):
+        """
+        Initialize the DescriptionDialog object.
+        """
         super().__init__(parent)
         self.setWindowTitle("Enter Description")
         self.setFixedSize(400, 200)
@@ -55,6 +58,9 @@ class DescriptionDialog(QDialog):
         self.setLayout(layout)
 
     def validate_input(self):
+        """
+        Validate the input in the description input field.
+        """
         # Check if the description is empty
         if not self.description_input.text().strip():
             QMessageBox.warning(self, "Input Error", "Description cannot be empty. Please enter a description.")
@@ -62,6 +68,9 @@ class DescriptionDialog(QDialog):
             self.accept()
 
     def closeEvent(self, event):
+        """
+        Override the closeEvent method to prevent closing the window with 'X' if the description is empty.
+        """
         # Check if the description is empty and prevent closing the window with 'X'
         if not self.description_input.text().strip():
             QMessageBox.warning(self, "Input Error", "You cannot close this window without entering a description.")
@@ -70,25 +79,41 @@ class DescriptionDialog(QDialog):
             event.accept()  # Accept the event and close the window
 
     def get_description(self):
+        """
+        Get the description entered by the user.
+        """
         return self.description_input.text().strip()
 
 class ManualCreator(QMainWindow):
     def __init__(self, camera=None, apriltag_detector=None, cam_K=None, cam_kc=None, projector_window_name=None, projector_width=None, projector_height=None, \
                  proj_image=None, R_proj=None, T_proj=None, proj_K=None, proj_kc=None, base_manuals_dir="data/manuals", raw_images_dir="raw_images", instructions_dir="instructions") -> None:
         """
-        Initializes the ManualCreator object.
+        Initialize the ManualCreator object.
 
-        :param base_manuals_dir: The base directory where the manuals will be saved.
-        :param raw_images_dir: The directory where the raw images will be saved.
-        :param instructions_dir: The directory where the instructions will be saved.
+        :param camera: The camera object.
+        :param apriltag_detector: The AprilTag detector object.
+        :param cam_K: The camera matrix.
+        :param cam_kc: The distortion coefficients.
+        :param projector_window_name: The name of the projector window.
+        :param projector_width: The width of the projector window.
+        :param projector_height: The height of the projector window.
+        :param proj_image: The projected image.
+        :param R_proj: The rotation matrix of the projector.
+        :param T_proj: The translation vector of the projector.
+        :param proj_K: The projector matrix.
+        :param proj_kc: The projector distortion coefficients.
+        :param base_manuals_dir: The base directory for the manuals.
+        :param raw_images_dir: The directory for the raw images.
+        :param instructions_dir: The directory for the instructions.
         """
         # Initialize the parent class and the UI
         super().__init__()
-        # Create a container for the stacked widget
+
+        # Initialize the main window
         self.stacked_widget = QStackedWidget()
         self.setCentralWidget(self.stacked_widget)
 
-        # Create the start page
+        # Initialize the pages
         self.init_start_page()
         self.init_manual_creation_page()
         self.init_manual_loading_page()
@@ -97,20 +122,28 @@ class ManualCreator(QMainWindow):
         # Set the first page to the start page
         self.stacked_widget.setCurrentIndex(0)
 
+        # Initialize the camera properties
         self.camera = camera
         self.camera_running = False
         self.cam_K = cam_K
         self.cam_kc = cam_kc
+
+        # Initialize the AprilTag properties
         self.apriltag_detector = apriltag_detector
         self.tag_axis_length = self.apriltag_detector.tag_size
         self.min_distance_to_tag = 0.15
+
+        # Initialize the projector properties
         self.projector_window_name = projector_window_name
         self.projector_width = projector_width
         self.projector_height = projector_height
+
+        # Initialize the timer for the live feed
         self.timer = QTimer()
         self.last_time = time.time()
         self.second_screen = None
 
+        # Initialize the loop variables
         self.results = None
         self.color_image = None
         self.depth_image = None
@@ -123,10 +156,7 @@ class ManualCreator(QMainWindow):
         self.T_proj = T_proj
         self.proj_K = proj_K
         self.proj_kc = proj_kc
-
         self.last_raw_image_path = None
-
-        # Initialize the manual creator
         self.manual_saved = False
         self.manual_count = 0
         self.tag_id = None
@@ -137,16 +167,22 @@ class ManualCreator(QMainWindow):
         self.step_saved = False
         self.step_description = None
         self.extracted_3D_pixels = False
+
+        # Initialize the directories
         self.base_manuals_dir = Path(base_manuals_dir)
         self.current_manual_dir = self.base_manuals_dir / f"manual_{self.manual_count}"
         self.raw_images_dir = self.current_manual_dir / raw_images_dir
         self.instructions_dir = self.current_manual_dir / instructions_dir
 
     def init_start_page(self):
-        # Startseite mit einem Button zum Wechseln zur zweiten Seite
+        """
+        Initialize the start page of the application.
+        """
+        # Create the start page and the layout
         start_page = QWidget()
         layout = QVBoxLayout()
 
+        # Title
         label = QLabel("Projection-Based Augmented Reality Assembly Working Station")
         label.setFont(QFont("Arial", 28))
         label.setAlignment(Qt.AlignCenter)
@@ -154,16 +190,19 @@ class ManualCreator(QMainWindow):
         button_layout = QVBoxLayout()
         button_layout.setSpacing(20)
 
+        # Button to get to the manual creation page
         create_manual_button = QPushButton("Create Manual")
         create_manual_button.setFont(QFont("Arial", 18))
         create_manual_button.setFixedSize(250, 100)
         create_manual_button.clicked.connect(self.create_manual_button_clicked)
 
+        # Button to get to the manual loading page
         load_manual_button = QPushButton("Load Manual")
         load_manual_button.setFont(QFont("Arial", 18))
         load_manual_button.setFixedSize(250, 100)
         load_manual_button.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(2))
 
+        # Button to quit the application
         quit_button = QPushButton("Quit")
         quit_button.setFont(QFont("Arial", 18))
         quit_button.setFixedSize(250, 100)
@@ -182,6 +221,9 @@ class ManualCreator(QMainWindow):
         self.stacked_widget.addWidget(start_page)
 
     def init_manual_creation_page(self):
+        """
+        Initialize the manual creation page of the application.
+        """
         manual_creation_page = QWidget()
 
         self.setWindowTitle("Manual Creator")
@@ -317,6 +359,9 @@ class ManualCreator(QMainWindow):
         self.stacked_widget.addWidget(manual_creation_page)
 
     def init_manual_loading_page(self):
+        """
+        Initialize the manual loading page of the application.
+        """
         manual_loading_page = QWidget()
 
         self.setWindowTitle("Manual Loader")
@@ -367,6 +412,9 @@ class ManualCreator(QMainWindow):
         self.stacked_widget.addWidget(manual_loading_page)
 
     def init_manual_execution_page(self):
+        """
+        Initialize the manual execution page of the application.
+        """
         manual_execution_page = QWidget()
 
         manual_execution_page_layout = QVBoxLayout()
@@ -482,12 +530,18 @@ class ManualCreator(QMainWindow):
         self.stacked_widget.addWidget(manual_execution_page)
 
     def start_execution_button_pressed(self):
+        """
+        Start the execution of the manual.
+        """
         if self.camera_running:
             self.display_current_step()
         else:
             self.show_message("Please start the live feed first.", title="Error", message_type="error")
 
     def open_window(self):
+        """
+        Open the main window.
+        """
         # Get the second screen (projector)
         monitors = get_monitors()
         if len(monitors) < 2:
@@ -500,7 +554,10 @@ class ManualCreator(QMainWindow):
         self.move(second_screen.x, second_screen.y)
         self.showFullScreen()
 
-    def start_live_feed_button_pressed(self):    
+    def start_live_feed_button_pressed(self):
+        """
+        Start the live feed of the camera.
+        """    
         if not self.camera:
             self.camera = Camera()
         try:
@@ -511,6 +568,7 @@ class ManualCreator(QMainWindow):
         self.timer.timeout.connect(self.update_frame)
         self.timer.start(33)  # Refresh every 30ms (~30fps)
 
+        # Update the status label depending on the current page
         if self.stacked_widget.currentIndex() == 1:
             self.status_label.setText("Status: Live Feed Running")
         elif self.stacked_widget.currentIndex() == 3:
@@ -520,6 +578,9 @@ class ManualCreator(QMainWindow):
         self.camera_running = True
 
     def stop_live_feed_button_pressed(self):
+        """
+        Stop the live feed of the camera.
+        """
         # Stop the camera and the timer
         if self.camera:
             self.timer.stop()
@@ -527,6 +588,7 @@ class ManualCreator(QMainWindow):
                 self.timer.timeout.disconnect(self.update_frame)
             except TypeError:
                 pass  # Connection does not exist, nothing to disconnect
+
             self.camera.stop()
             self.camera = None
             self.live_image_label.clear()
@@ -535,6 +597,9 @@ class ManualCreator(QMainWindow):
             self.camera_running = False
 
     def update_frame(self):
+        """
+        Update the frame of the camera and display it in the GUI.
+        """
         # Calculate the FPS
         current_time = time.time()
         fps = 1 / (current_time - self.last_time)
@@ -551,8 +616,6 @@ class ManualCreator(QMainWindow):
         self.depth_image = depth_image
 
         # print("Color Image Shape: ", color_image.shape)
-
-        ### AprilTag Detection Logic ###
 
         gray = cv2.cvtColor(color_image, cv2.COLOR_BGR2GRAY)
         results = self.apriltag_detector.detect(gray)
@@ -611,6 +674,7 @@ class ManualCreator(QMainWindow):
         height, width, channel = frame.shape
         q_image = QImage(frame.data, width, height, channel * width, QImage.Format_RGB888)
 
+        # Display the QImage in the label depending on the current page
         if self.stacked_widget.currentIndex() == 1:
             # Display the QImage in the label
             self.live_image_label.setPixmap(QPixmap.fromImage(q_image))
@@ -633,19 +697,23 @@ class ManualCreator(QMainWindow):
 
     def save_photo(self, img) -> Tuple[str, str]:
         """
-        Captures a photo and saves it in the raw images directory.
+        Save the photo to the raw images directory.
 
         :param img: The image to save.
-        :return: The path to the saved image and the filename
+        :return: The path to the saved image and the filename.
         """
         filename = f"raw_image_{self.tag_id}_step_{self.step_number:03}.png"
         photo_path = self.raw_images_dir / filename
+
         cv2.imwrite(str(photo_path), img)
         self.show_message(f"Image saved at: {photo_path}", title="Information", message_type="info")
 
         return str(photo_path), filename
 
     def capture_photo_button_pressed(self):
+        """
+        Capture a photo and save it to the raw images directory.
+        """
         if self.results:
             self.tag_id = self.results[0].tag_id
 
@@ -694,6 +762,11 @@ class ManualCreator(QMainWindow):
             self.show_message("No AprilTag detected, please try again.", title="Warning", message_type="warning")
 
     def reset_projection_border_color(self, color):
+        """
+        Reset the color of the projection border.
+
+        :param color: The color to set the border to.
+        """
         self.proj_image = np.zeros((self.projector_height, self.projector_width, 3), dtype=np.uint8)
         if color == "red":
             self.proj_image = cv2.rectangle(self.proj_image, (0, 0), (self.projector_width - 1, self.projector_height - 1), (0, 0, 255), 10)
@@ -701,6 +774,9 @@ class ManualCreator(QMainWindow):
             self.proj_image = cv2.rectangle(self.proj_image, (0, 0), (self.projector_width - 1, self.projector_height - 1), (0, 255, 0), 10)
     
     def save_step_button_pressed(self):
+        """
+        Save the current step with the image with drawings and the description.
+        """
         if self.tag_id is None:
             self.show_message("No AprilTag ID found. Can't save step!", title="Error", message_type="error")
             return
@@ -741,6 +817,9 @@ class ManualCreator(QMainWindow):
             self.reset_projection_border_color("red")
 
     def undo_step_button_pressed(self):
+        """
+        Undo the last step.
+        """
         undo_confirm = QMessageBox.question(
             self, 
             "Undo Step", 
@@ -754,6 +833,9 @@ class ManualCreator(QMainWindow):
             self.status_label.setText("Undo cancelled.")
 
     def save_manual_button_pressed(self):
+        """
+        Save the manual.
+        """
         saved = self.save_manual()
 
         if not saved:
@@ -775,7 +857,7 @@ class ManualCreator(QMainWindow):
 
     def reset_manual_creator(self) -> None:
         """
-        Resets the manual creator by creating a new directory for the new manual.
+        Reset the manual creator to create a new manual.
         """
         self.manual_saved = False
         self.manual_count += 1
@@ -824,6 +906,9 @@ class ManualCreator(QMainWindow):
         self.show_message(f"Step {self.step_number} saved successfully!", title="Information", message_type="info")
 
     def undo_last_step(self):
+        """
+        Undo the last step.
+        """
         if self.steps:
             removed_step = self.steps.pop()
             self.step_number -= 1
@@ -880,16 +965,16 @@ class ManualCreator(QMainWindow):
 
     def show_message(self, message, title="Message", message_type="info", duration=3000):
         """
-        Shows a message box with the given message.
+        Show a message box with the given message.
 
-        :param message: The message to show
-        :param title: The title of the message box
-        :param message_type: The type of the message box (info, warning, error)
-        :param duration: The duration in milliseconds to show the message
+        :param message: The message to display.
+        :param title: The title of the message box.
+        :param message_type: The type of the message (info, warning, error).
+        :param duration: The duration to show the message in milliseconds.
         """
         msg_box = QMessageBox(self)
         
-        # Setze den Nachrichtentyp und das entsprechende Icon
+        # Set the icon based on the message type
         if message_type == "info":
             msg_box.setIcon(QMessageBox.Information)
         elif message_type == "warning":
@@ -901,13 +986,16 @@ class ManualCreator(QMainWindow):
 
         msg_box.setText(message)
         msg_box.setWindowTitle(title)
-        msg_box.setStandardButtons(QMessageBox.NoButton)  # Keine Buttons anzeigen, da es automatisch geschlossen wird
+        msg_box.setStandardButtons(QMessageBox.NoButton)  # No buttons
 
-        # Timer, um das Fenster automatisch zu schließen
+        # Close the message box after the given duration
         QTimer.singleShot(duration, msg_box.accept)
         msg_box.show()
 
     def show_manuals_in_list(self):
+        """
+        Show the manuals with the given AprilTag ID in the list.
+        """
         # Get the AprilTag ID from the input field
         search_tag_id = self.tag_id_input_field.text().strip()
 
@@ -949,10 +1037,16 @@ class ManualCreator(QMainWindow):
             self.show_message("No manuals available. Please create a manual first.", title="Information", message_type="info")
 
     def create_manual_button_clicked(self):
+        """
+        Create a new manual.
+        """
         self.stacked_widget.setCurrentIndex(1)
         self.reset_manual_creator()
 
     def quit_button_manual_creation_page_clicked(self):
+        """
+        Quit the manual creation page.
+        """
         if not self.manual_saved:
             quit_confirm = QMessageBox.question(
                 self, 
@@ -979,6 +1073,9 @@ class ManualCreator(QMainWindow):
             self.stacked_widget.setCurrentIndex(0)
 
     def load_manual(self, item):
+        """
+        Load the selected manual from the list.
+        """
         manual_name = item.text()
         manual_path = self.base_manuals_dir / manual_name
         json_path = manual_path / f"{manual_name}.json"
@@ -1000,6 +1097,9 @@ class ManualCreator(QMainWindow):
                 self.show_message(f"Error loading manual: {e}", title="Error", message_type="error")
 
     def display_current_step(self):
+        """
+        Display the current step of the manual.
+        """
         # Show the instruction of the current step
         instruction_description = self.execution_steps[self.current_execution_step_index]["description"]
         self.step_instruction_label.setText(f"Step {self.current_execution_step_index + 1} of {len(self.execution_steps)}: {instruction_description}")
@@ -1011,11 +1111,17 @@ class ManualCreator(QMainWindow):
         self.update_manual_execution_buttons()
 
     def update_progress_bar(self):
+        """
+        Update the progress bar of the manual execution.
+        """
         # Update the progress bar
         self.progress_bar.setMaximum(len(self.execution_steps))
         self.progress_bar.setValue(self.current_execution_step_index)
 
     def update_activity_diagram(self):
+        """
+        Update the activity diagram of the manual execution.
+        """
         self.activity_diagram_scene.clear()
         total_steps = len(self.execution_steps)
         step_spacing = 100
@@ -1039,29 +1145,44 @@ class ManualCreator(QMainWindow):
                 self.activity_diagram_scene.addItem(line)
 
     def update_manual_execution_buttons(self):
-        # Blende Buttons je nach Schritt aus oder ein
+        """
+        Update the buttons of the manual execution page.
+        """
+        # Update the buttons based on the current step
         self.previous_step_button.setVisible(self.current_execution_step_index > 0)
         self.next_step_button.setVisible(self.current_execution_step_index < len(self.execution_steps) - 1)
         self.finish_button.setVisible(self.current_execution_step_index == len(self.execution_steps) - 1)
 
     def next_step(self):
+        """
+        Go to the next step of the manual.
+        """
         if self.current_execution_step_index < len(self.execution_steps):
             self.current_execution_step_index += 1
             self.display_current_step()
 
     def previous_step(self):
+        """
+        Go to the previous step of the manual.
+        """
         if self.current_execution_step_index > 0:
             self.current_execution_step_index -= 1
             self.display_current_step()
 
     def finish_manual(self):
-        self.progress_bar.setValue(len(self.execution_steps))  # Fortschrittsbalken auf 100% setzen
+        """
+        Finish the manual execution.
+        """
+        self.progress_bar.setValue(len(self.execution_steps))  # Set the progress bar to 100%
         self.step_instruction_label.setText("Manual completed! 🎉")
         self.next_step_button.hide()
         self.previous_step_button.hide()
         self.finish_button.hide()
 
     def quit_button_manual_execution_page_clicked(self):
+        """
+        Quit the manual execution page.
+        """
         self.points_3D_tag = None
         self.valid_colors = None
         
@@ -1070,18 +1191,21 @@ class ManualCreator(QMainWindow):
         
         self.stacked_widget.setCurrentIndex(0)
 
-    def load_instruction(self):        
+    def load_instruction(self):    
+        """
+        Load the instruction for the current step.
+        """    
         instruction_path = self.execution_steps[self.current_execution_step_index]["drawing_path"]
 
         if instruction_path is None:
             self.show_message("No instruction found for this step.", title="Error", message_type="error")
             return
         
-        points_3D_tag_shape = self.execution_steps[self.current_execution_step_index]["3D_points_tag_shape"]
+        # points_3D_tag_shape = self.execution_steps[self.current_execution_step_index]["3D_points_tag_shape"]
         points_3D_tag_dtype = self.execution_steps[self.current_execution_step_index]["3D_points_tag_dtype"]
         points_3D_tag_data = self.execution_steps[self.current_execution_step_index]["3D_points_tag_data"]
 
-        colors_bgr_shape = self.execution_steps[self.current_execution_step_index]["colors_bgr_shape"]
+        # colors_bgr_shape = self.execution_steps[self.current_execution_step_index]["colors_bgr_shape"]
         colors_bgr_dtype = self.execution_steps[self.current_execution_step_index]["colors_bgr_dtype"]
         colors_bgr_data = self.execution_steps[self.current_execution_step_index]["colors_bgr_data"]
 
