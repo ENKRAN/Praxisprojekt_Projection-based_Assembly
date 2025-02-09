@@ -380,75 +380,44 @@ class ManualCreator(QMainWindow):
         self.execution_status_label.setFont(QFont("Arial", 16))  # Bigger font for status label
         manual_execution_page_layout.addWidget(self.execution_status_label)
 
-        image_layout = QHBoxLayout()
-        image_layout.setSpacing(10)
-        
-        exec_instruction_text_left = (
-            "<b>How to use a Manual:</b><br><br>"
-            "<b>1.</b> Start the camera live feed by clicking the 'Start Live Feed' button.<br>"
-            "<b>2.</b> Place the object with the AprilTag in the projected red outline (working area).<br>"
-            "<b>3.</b> Ensure that the AprilTag is detected (its coordinate system should be visible). "
-            "Make sure the camera has a clear view of the working area, the object, and the AprilTag.<br>"
-            "<b>4.</b> Start the manual by clicking the 'Start Execution' button.<br>"
-            "<b>5.</b> Follow the step-by-step instructions projected onto the working area.<br>"
-        )
-
-        self.exec_instruction_label_left = QLabel(exec_instruction_text_left)
-        self.exec_instruction_label_left.setFixedSize(300, 720)
-        # self.instruction_label_left.setFrameStyle(QFrame.Panel | QFrame.Sunken)
-        self.exec_instruction_label_left.setAlignment(Qt.AlignLeft)
-        self.exec_instruction_label_left.setFont(QFont("Arial", 12))
-        self.exec_instruction_label_left.setWordWrap(True)
-        self.exec_instruction_label_left.setTextFormat(Qt.RichText)  # Important for HTML
-
-        self.exec_instruction_label_right = QLabel()
-        self.exec_instruction_label_right.setFixedSize(300, 720)
-        # self.instruction_label_right.setFrameStyle(QFrame.Panel | QFrame.Sunken)
-        self.exec_instruction_label_right.setAlignment(Qt.AlignLeft)
-        self.exec_instruction_label_right.setFont(QFont("Arial", 12))
-        self.exec_instruction_label_right.setWordWrap(True)
-        self.exec_instruction_label_right.setTextFormat(Qt.RichText)  # Important for HTML
-
-        # Live Camera Feed (1280x720)
-        self.execution_live_image_label = QLabel("Live Camera Feed")
-        self.execution_live_image_label.setFixedSize(1280, 720)
-        self.execution_live_image_label.setFrameStyle(QFrame.Panel | QFrame.Sunken)
-        self.execution_live_image_label.setAlignment(Qt.AlignCenter)
-
-        image_layout.addWidget(self.exec_instruction_label_left)
-        image_layout.addWidget(self.execution_live_image_label)
-        image_layout.addWidget(self.exec_instruction_label_right)
-
-        manual_execution_page_layout.addLayout(image_layout)
-
         start_stop_button_layout = QHBoxLayout()
-        start_stop_button_layout.setSpacing(20)  # Enough space between buttons
+        start_stop_button_layout.setSpacing(30)  # Enough space between buttons
 
-        button_font = QFont("Arial", 18)  # Bigger font for buttons
+        button_font = QFont("Arial", 16)  # Bigger font for buttons
 
         self.execution_start_live_button = QPushButton("Start Live Feed")
         self.execution_start_live_button.setFont(button_font)
-        self.execution_start_live_button.setFixedSize(250, 100)
+        self.execution_start_live_button.setFixedSize(200, 60)
         self.execution_start_live_button.clicked.connect(self.start_live_feed_button_pressed)
         start_stop_button_layout.addWidget(self.execution_start_live_button)
 
-        self.start_execution_button = QPushButton("Start Execution")
-        self.start_execution_button.setFont(button_font)
-        self.start_execution_button.setFixedSize(250, 100)
-        self.start_execution_button.clicked.connect(self.start_execution_button_pressed)
-        start_stop_button_layout.addWidget(self.start_execution_button)
-
         self.execution_stop_live_button = QPushButton("Stop Live Feed")
         self.execution_stop_live_button.setFont(button_font)
-        self.execution_stop_live_button.setFixedSize(250, 100)
+        self.execution_stop_live_button.setFixedSize(200, 60)
         self.execution_stop_live_button.clicked.connect(self.stop_live_feed_button_pressed)
         start_stop_button_layout.addWidget(self.execution_stop_live_button)
 
         manual_execution_page_layout.addLayout(start_stop_button_layout)
 
+        image_layout = QHBoxLayout()
+        
+        # Live Camera Feed (640x480)
+        self.execution_live_image_label = QLabel("Live Camera Feed")
+        self.execution_live_image_label.setFixedSize(1280, 720)
+        self.execution_live_image_label.setFrameStyle(QFrame.Panel | QFrame.Sunken)
+        self.execution_live_image_label.setAlignment(Qt.AlignCenter)
+        image_layout.addWidget(self.execution_live_image_label)
+        manual_execution_page_layout.addLayout(image_layout)
+
+        self.start_execution_button = QPushButton("Start Execution")
+        self.start_execution_button.setFont(QFont("Arial", 16))
+        self.start_execution_button.setFixedSize(200, 60)
+        self.start_execution_button.clicked.connect(self.start_execution_button_pressed)
+        manual_execution_page_layout.addWidget(self.start_execution_button, alignment=Qt.AlignCenter)
+
         # Text label for the step description
         self.step_instruction_label = QLabel()
-        self.step_instruction_label.setFont(QFont("Arial", 20))
+        self.step_instruction_label.setFont(QFont("Arial", 16))
         self.step_instruction_label.setAlignment(Qt.AlignCenter)
         manual_execution_page_layout.addWidget(self.step_instruction_label)
 
@@ -480,23 +449,23 @@ class ManualCreator(QMainWindow):
         button_layout.setSpacing(20)
 
         self.previous_step_button = QPushButton("Previous Step")
-        self.previous_step_button.setFont(button_font)
-        self.previous_step_button.setFixedSize(250, 100)
+        self.previous_step_button.setFont(QFont("Arial", 14))
+        self.previous_step_button.setFixedSize(150, 50)
         self.previous_step_button.clicked.connect(self.previous_step)
 
         self.next_step_button = QPushButton("Next Step")
-        self.next_step_button.setFont(button_font)
-        self.next_step_button.setFixedSize(250, 100)
+        self.next_step_button.setFont(QFont("Arial", 14))
+        self.next_step_button.setFixedSize(150, 50)
         self.next_step_button.clicked.connect(self.next_step)
 
         self.finish_button = QPushButton("Finish")
-        self.finish_button.setFont(button_font)
-        self.finish_button.setFixedSize(250, 100)
+        self.finish_button.setFont(QFont("Arial", 14))
+        self.finish_button.setFixedSize(150, 50)
         self.finish_button.clicked.connect(self.finish_manual)
 
         self.quit_manual_execution_button = QPushButton("Quit")
-        self.quit_manual_execution_button.setFont(button_font)
-        self.quit_manual_execution_button.setFixedSize(250, 100)
+        self.quit_manual_execution_button.setFont(QFont("Arial", 14))
+        self.quit_manual_execution_button.setFixedSize(150, 50)
         self.quit_manual_execution_button.clicked.connect(self.quit_button_manual_execution_page_clicked)
 
         button_layout.addStretch()
@@ -562,8 +531,6 @@ class ManualCreator(QMainWindow):
             self.camera = None
             self.live_image_label.clear()
             self.live_image_label.setText("Live Camera Feed")
-            self.execution_live_image_label.clear()
-            self.execution_live_image_label.setText("Live Camera Feed")
             self.status_label.setText("Status: Live Feed Stopped")
             self.camera_running = False
 
