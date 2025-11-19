@@ -542,7 +542,7 @@ class ManualCreator(QMainWindow):
         """
         Open the main window.
         """
-        # Get the second screen (projector)
+        # Get the second screen (GUI)
         monitors = get_monitors()
         if len(monitors) < 2:
             print("Error: No second screen found. Please connect a second screen and try again.")

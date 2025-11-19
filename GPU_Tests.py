@@ -1,0 +1,160 @@
+import sys
+from PyQt6.QtWidgets import QApplication, QMainWindow
+from PyQt6.QtOpenGLWidgets import QOpenGLWidget
+from PyQt6.QtCore import QTimer
+
+# OpenGL Imports
+from OpenGL.GL import *
+# Importiere die Nvidia Extension Funktionen
+from OpenGL.GL.NV.path_rendering import *
+
+class PathRenderingWidget(QOpenGLWidget):
+    def initializeGL(self):
+        """Hier wird alles einmalig initialisiert."""
+        # Teste erst mal, was wir überhaupt für einen Context haben
+        version = glGetString(GL_VERSION)
+        vendor = glGetString(GL_VENDOR)
+        renderer = glGetString(GL_RENDERER)
+        print(f"OpenGL Version: {version}")
+        print(f"Vendor: {vendor}") # Sollte "NVIDIA Corporation" sein
+        print(f"Renderer: {renderer}")
+
+        # Prüfen, ob die Extension geladen wurde
+        num_extensions = glGetIntegerv(GL_NUM_EXTENSIONS)
+        has_nv_path = False
+        
+        # Wir suchen manuell in der Liste (moderner Weg)
+        for i in range(num_extensions):
+            ext_name = glGetStringi(GL_EXTENSIONS, i)
+            if ext_name == b"GL_NV_path_rendering":
+                has_nv_path = True
+                break
+                
+        if not has_nv_path:
+            print("FEHLER: GL_NV_path_rendering wird von diesem Treiber/Context nicht unterstützt!")
+            return # Abbruch, sonst crash
+        
+        # Hintergrundfarbe (dunkelgrau)
+        glClearColor(0.2, 0.2, 0.2, 1.0)
+
+        glEnable(GL_MULTISAMPLE)
+        
+        # Stencil Buffer ist essenziell für Path Rendering!
+        # PyQt kümmert sich meist darum, dass einer da ist.
+        
+        # 1. Pfad-Objekt erstellen (Wir nutzen hier eine generierte ID statt 42)
+        self.pathObj = glGenPathsNV(1)
+        
+        # SVG Daten aus deinem PDF-Beispiel (Herz)
+        # "M300 300 C 100 400,100 200,300 100,500 200,500 400,300 300Z"
+        svgPathString = b"M300 300 C 100 400,100 200,300 100,500 200,500 400,300 300Z"
+        
+        # Pfad an die GPU senden
+        glPathStringNV(self.pathObj, GL_PATH_FORMAT_SVG_NV, len(svgPathString), svgPathString)
+
+        # Timer für Animation (damit wir die 3D Drehung sehen)
+        self.angle = 0
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.update) # Ruft paintGL auf
+        self.timer.start(16) # ca. 60 FPS
+
+    def paintGL(self):
+        """Hier wird bei jedem Frame gezeichnet."""
+        # WICHTIG: Stencil Buffer muss auch gecleart werden 
+        glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT)
+        
+        # --- PROJEKTIVE TRANSFORMATION ---
+        glMatrixMode(GL_PROJECTION)
+        glLoadIdentity()
+        # Wir nutzen glFrustum für echte 3D Perspektive (Projektion)
+        # Parameter: left, right, bottom, top, near, far
+        glFrustum(-1, 1, -1, 1, 1, 1000)
+        
+        glMatrixMode(GL_MODELVIEW)
+        glLoadIdentity()
+        # Kamera etwas zurückziehen
+        glTranslatef(0, 0, -800)
+        
+        # Das Objekt im 3D Raum drehen (Hier passiert die Magie)
+        glRotatef(self.angle, 0, 1, 0) # Drehung um Y-Achse
+        glRotatef(15, 1, 0, 0)         # Leicht nach hinten kippen
+        
+        # Den Pfad so verschieben, dass er mittig rotiert (er ist im SVG bei 300,300 definiert)
+        glTranslatef(-300, -300, 0)
+
+        # --- RENDERING SCHRITTE (Stencil then Cover) ---
+        
+        # Schritt A: Stencil (Schablone erstellen)
+        # Zählt hoch im Stencil Buffer, analog zum PDF [cite: 89]
+        glStencilFillPathNV(self.pathObj, GL_COUNT_UP_NV, 0x1F)
+        
+        # Schritt B: Cover (Farbe auftragen)
+        # Wir aktivieren den Stencil Test
+        glEnable(GL_STENCIL_TEST)
+        glStencilFunc(GL_NOTEQUAL, 0, 0x1F)
+        glStencilOp(GL_KEEP, GL_KEEP, GL_ZERO)
+        
+        # Farbe setzen (Gelb wie im PDF Beispiel)
+        glColor3f(1, 1, 0)
+        
+        # Zeichnen! "Cover" füllt alles, wo der Stencil != 0 ist
+        glCoverFillPathNV(self.pathObj, GL_BOUNDING_BOX_NV)
+
+        glCoverFillPathNV(self.pathObj, GL_BOUNDING_BOX_NV)
+
+        # --- NEU: STROKE (UMRANDUNG) ---
+        
+        # 1. Einstellungen für den Pinsel setzen
+        # Breite des Strichs (in Koordinaten-Einheiten)
+        glPathParameterfNV(self.pathObj, GL_PATH_STROKE_WIDTH_NV, 5.0)
+        # Runde Ecken bei Linienverbindungen (sieht bei Herz besser aus)
+        glPathParameteriNV(self.pathObj, GL_PATH_JOIN_STYLE_NV, GL_ROUND_NV)
+
+        # 2. Stencil für den Stroke berechnen
+        # Wir nutzen wieder den Stencil Buffer, setzen das Referenz-Bit auf 1
+        # 0x1 = Maske, ~0 = Maske für Invertierung (alle Bits an)
+        glStencilStrokePathNV(self.pathObj, 0x1, ~0)
+
+        # 3. Cover Stroke (Die Farbe zeichnen)
+        glColor3f(1.0, 1.0, 1.0) # Weiß
+        # Wir zeichnen nur dort, wo der Stencil-Wert durch Schritt 2 gesetzt wurde
+        glStencilFunc(GL_EQUAL, 0x1, 0x1)
+        glStencilOp(GL_KEEP, GL_KEEP, GL_ZERO) # Danach wieder aufräumen
+        
+        glCoverStrokePathNV(self.pathObj, GL_CONVEX_HULL_NV)
+        
+        glDisable(GL_STENCIL_TEST)
+        
+        # Animation weiterdrehen
+        self.angle += 1
+
+    def resizeGL(self, w, h):
+        glViewport(0, 0, w, h)
+
+# Standard PyQt Boilerplate
+if __name__ == '__main__':
+    app = QApplication(sys.argv)
+    
+    from PyQt6.QtGui import QSurfaceFormat
+    fmt = QSurfaceFormat()
+    
+    # 1. Stencil Buffer (Wichtig für die Pfad-Berechnung)
+    fmt.setStencilBufferSize(8)
+    
+    # 2. Compatibility Profile (Damit NV-Funktionen da sind)
+    fmt.setProfile(QSurfaceFormat.OpenGLContextProfile.CompatibilityProfile)
+
+    # --- NEU: SAMPLES SETZEN ---
+    # 4 ist Standard, 8 ist sehr gut, 16 ist Maximum (kein Problem für deine RTX 4070)
+    fmt.setSamples(8) 
+    # ---------------------------
+    
+    QSurfaceFormat.setDefaultFormat(fmt)
+    
+    window = QMainWindow()
+    widget = PathRenderingWidget()
+    window.setCentralWidget(widget)
+    window.resize(800, 600)
+    window.show()
+    
+    sys.exit(app.exec())
