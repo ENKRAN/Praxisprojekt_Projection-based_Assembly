@@ -74,7 +74,7 @@ class Camera:
                 frames = self.pipeline.wait_for_frames(timeout_ms=5000)  # Timeout in 5 seconds
 
                 # Align frames to the color stream
-                align_to = rs.stream.color
+                align_to = rs.stream.color  # FIXME: Should not be in the main loop -> too expensive!
                 align = rs.align(align_to)
                 aligned_frames = align.process(frames)
 

@@ -2,15 +2,29 @@ import sys
 from PyQt6.QtWidgets import QApplication, QMainWindow
 from PyQt6.QtOpenGLWidgets import QOpenGLWidget
 from PyQt6.QtCore import QTimer
+import math
+from src.setup import get_calibration_data
 
 # OpenGL Imports
 from OpenGL.GL import *
 # Importiere die Nvidia Extension Funktionen
 from OpenGL.GL.NV.path_rendering import *
 
+from src.setup import get_calibration_data
+
 class PathRenderingWidget(QOpenGLWidget):
     def initializeGL(self):
         """Hier wird alles einmalig initialisiert."""
+        calibration_data_path = 'data/projector_camera_calibration/calibration.yml'
+        cam_K, cam_kc, proj_K, proj_kc, R, T = get_calibration_data(calibration_data_path)
+
+        print(f"Camera Intrinsics (Shape: {cam_K.shape}):\n{cam_K}")
+        print(f"Camera Distortion Coefficients (Shape: {cam_kc.shape}):\n{cam_kc}")
+        print(f"Projector Intrinsics (Shape: {proj_K.shape}):\n{proj_K}")
+        print(f"Projector Distortion Coefficients (Shape: {proj_kc.shape}):\n{proj_kc}")
+        print(f"Rotation Matrix (Shape: {R.shape}):\n{R}")
+        print(f"Translation Vector (Shape: {T.shape}):\n{T}")
+    
         # Teste erst mal, was wir überhaupt für einen Context haben
         version = glGetString(GL_VERSION)
         vendor = glGetString(GL_VENDOR)
@@ -39,9 +53,6 @@ class PathRenderingWidget(QOpenGLWidget):
 
         glEnable(GL_MULTISAMPLE)
         
-        # Stencil Buffer ist essenziell für Path Rendering!
-        # PyQt kümmert sich meist darum, dass einer da ist.
-        
         # 1. Pfad-Objekt erstellen (Wir nutzen hier eine generierte ID statt 42)
         self.pathObj = glGenPathsNV(1)
         
@@ -63,12 +74,37 @@ class PathRenderingWidget(QOpenGLWidget):
         # WICHTIG: Stencil Buffer muss auch gecleart werden 
         glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT)
         
-        # --- PROJEKTIVE TRANSFORMATION ---
+        # --- PROJEKTIONSMATRIX BASIEREND AUF WINKEL ---
         glMatrixMode(GL_PROJECTION)
         glLoadIdentity()
-        # Wir nutzen glFrustum für echte 3D Perspektive (Projektion)
+        
+        # 1. Parameter definieren (wie in der Vorlesung)
+        fov_degrees = 65.5  # Dein Öffnungswinkel (phi)
+        z_near = 1.0        # n
+        z_far = 1000.0      # f
+        
+        # Aspect Ratio berechnen (w / h)
+        w = self.width()
+        h = self.height()
+        if h == 0: h = 1
+        aspect_ratio = w / h
+        
+        # 2. Die Formel aus DEINEM BILD anwenden!
+        # t = n * tan(phi / 2)
+        # Wichtig: Python math.tan erwartet Bogenmaß (Radians), nicht Grad!
+        fov_radians = math.radians(fov_degrees)
+        t = z_near * math.tan(fov_radians / 2)
+        
+        # b = -t (Symmetrie, wie im Bild b = -n * tan(...))
+        b = -t
+        
+        # 3. Breite berechnen (basierend auf Aspect Ratio)
+        r = t * aspect_ratio
+        l = -r
+        
+        # 4. Matrix erstellen (Das füllt die Matrix im Bild aus)
         # Parameter: left, right, bottom, top, near, far
-        glFrustum(-1, 1, -1, 1, 1, 1000)
+        glFrustum(l, r, b, t, z_near, z_far)
         
         glMatrixMode(GL_MODELVIEW)
         glLoadIdentity()
@@ -146,7 +182,7 @@ if __name__ == '__main__':
 
     # --- NEU: SAMPLES SETZEN ---
     # 4 ist Standard, 8 ist sehr gut, 16 ist Maximum (kein Problem für deine RTX 4070)
-    fmt.setSamples(8) 
+    fmt.setSamples(16) 
     # ---------------------------
     
     QSurfaceFormat.setDefaultFormat(fmt)
