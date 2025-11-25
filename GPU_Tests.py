@@ -7,14 +7,19 @@ from src.setup import get_calibration_data
 
 # OpenGL Imports
 from OpenGL.GL import *
-# Importiere die Nvidia Extension Funktionen
+# Import the Nvidia Extension functions
 from OpenGL.GL.NV.path_rendering import *
 
 from src.setup import get_calibration_data
 
 class PathRenderingWidget(QOpenGLWidget):
+    def __init__(self, num_paths=1, parent=None):
+        super().__init__(parent)
+        self.num_paths = num_paths
+        self.pathObjs = [] 
+
     def initializeGL(self):
-        """Hier wird alles einmalig initialisiert."""
+        """Initialize everything once here."""
         calibration_data_path = 'data/projector_camera_calibration/calibration.yml'
         cam_K, cam_kc, proj_K, proj_kc, R, T = get_calibration_data(calibration_data_path)
 
@@ -24,20 +29,48 @@ class PathRenderingWidget(QOpenGLWidget):
         print(f"Projector Distortion Coefficients (Shape: {proj_kc.shape}):\n{proj_kc}")
         print(f"Rotation Matrix (Shape: {R.shape}):\n{R}")
         print(f"Translation Vector (Shape: {T.shape}):\n{T}")
+
+        if not self.checkSupport():
+            return
+
+        # Background color (dark gray)
+        glClearColor(0.0, 0.0, 0.0, 1.0)
+
+        # For MXAA (Multisample Anti-Aliasing)
+        glEnable(GL_MULTISAMPLE)
+        
+        base_id = glGenPathsNV(self.num_paths)
+
+        # Store all path IDs in order to use them later
+        self.pathObjs = [base_id + i for i in range(self.num_paths)]
+
+        print("Generated Path IDs:", self.pathObjs)
+
+        # SVG data from your PDF example (heart)
+        svgPathString = b"M300 300 C 100 400,100 200,300 100,500 200,500 400,300 300Z"
     
-        # Teste erst mal, was wir überhaupt für einen Context haben
+        for path_id in self.pathObjs:
+            glPathStringNV(path_id, GL_PATH_FORMAT_SVG_NV, len(svgPathString), svgPathString)
+
+        # Timer for animation (so we can see the 3D rotation)
+        self.angle = 0
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.update) # Calls paintGL
+        self.timer.start(16) # approx. 60 FPS
+
+    def checkSupport(self):
+        # First test what context we actually have
         version = glGetString(GL_VERSION)
         vendor = glGetString(GL_VENDOR)
         renderer = glGetString(GL_RENDERER)
         print(f"OpenGL Version: {version}")
-        print(f"Vendor: {vendor}") # Sollte "NVIDIA Corporation" sein
+        print(f"Vendor: {vendor}") # Should be "NVIDIA Corporation"
         print(f"Renderer: {renderer}")
 
-        # Prüfen, ob die Extension geladen wurde
+        # Check if the extension was loaded
         num_extensions = glGetIntegerv(GL_NUM_EXTENSIONS)
         has_nv_path = False
         
-        # Wir suchen manuell in der Liste (moderner Weg)
         for i in range(num_extensions):
             ext_name = glGetStringi(GL_EXTENSIONS, i)
             if ext_name == b"GL_NV_path_rendering":
@@ -45,143 +78,126 @@ class PathRenderingWidget(QOpenGLWidget):
                 break
                 
         if not has_nv_path:
-            print("FEHLER: GL_NV_path_rendering wird von diesem Treiber/Context nicht unterstützt!")
-            return # Abbruch, sonst crash
-        
-        # Hintergrundfarbe (dunkelgrau)
-        glClearColor(0.2, 0.2, 0.2, 1.0)
-
-        glEnable(GL_MULTISAMPLE)
-        
-        # 1. Pfad-Objekt erstellen (Wir nutzen hier eine generierte ID statt 42)
-        self.pathObj = glGenPathsNV(1)
-        
-        # SVG Daten aus deinem PDF-Beispiel (Herz)
-        # "M300 300 C 100 400,100 200,300 100,500 200,500 400,300 300Z"
-        svgPathString = b"M300 300 C 100 400,100 200,300 100,500 200,500 400,300 300Z"
-        
-        # Pfad an die GPU senden
-        glPathStringNV(self.pathObj, GL_PATH_FORMAT_SVG_NV, len(svgPathString), svgPathString)
-
-        # Timer für Animation (damit wir die 3D Drehung sehen)
-        self.angle = 0
-        self.timer = QTimer()
-        self.timer.timeout.connect(self.update) # Ruft paintGL auf
-        self.timer.start(16) # ca. 60 FPS
+            print("ERROR: GL_NV_path_rendering is not supported by this driver/context!")
+            return False
+        else:   
+            print("GL_NV_path_rendering is supported.")
+            return True
 
     def paintGL(self):
-        """Hier wird bei jedem Frame gezeichnet."""
-        # WICHTIG: Stencil Buffer muss auch gecleart werden 
-        glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT)
-        
-        # --- PROJEKTIONSMATRIX BASIEREND AUF WINKEL ---
-        glMatrixMode(GL_PROJECTION)
-        glLoadIdentity()
-        
-        # 1. Parameter definieren (wie in der Vorlesung)
-        fov_degrees = 65.5  # Dein Öffnungswinkel (phi)
-        z_near = 1.0        # n
-        z_far = 1000.0      # f
-        
-        # Aspect Ratio berechnen (w / h)
-        w = self.width()
-        h = self.height()
-        if h == 0: h = 1
-        aspect_ratio = w / h
-        
-        # 2. Die Formel aus DEINEM BILD anwenden!
-        # t = n * tan(phi / 2)
-        # Wichtig: Python math.tan erwartet Bogenmaß (Radians), nicht Grad!
-        fov_radians = math.radians(fov_degrees)
-        t = z_near * math.tan(fov_radians / 2)
-        
-        # b = -t (Symmetrie, wie im Bild b = -n * tan(...))
-        b = -t
-        
-        # 3. Breite berechnen (basierend auf Aspect Ratio)
-        r = t * aspect_ratio
-        l = -r
-        
-        # 4. Matrix erstellen (Das füllt die Matrix im Bild aus)
-        # Parameter: left, right, bottom, top, near, far
-        glFrustum(l, r, b, t, z_near, z_far)
-        
-        glMatrixMode(GL_MODELVIEW)
-        glLoadIdentity()
-        # Kamera etwas zurückziehen
-        glTranslatef(0, 0, -800)
-        
-        # Das Objekt im 3D Raum drehen (Hier passiert die Magie)
-        glRotatef(self.angle, 0, 1, 0) # Drehung um Y-Achse
-        glRotatef(15, 1, 0, 0)         # Leicht nach hinten kippen
-        
-        # Den Pfad so verschieben, dass er mittig rotiert (er ist im SVG bei 300,300 definiert)
-        glTranslatef(-300, -300, 0)
+        """Draw every frame here."""
+        for pathObj in self.pathObjs:
+            # IMPORTANT: Stencil buffer must also be cleared
+            glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT)
+            
+            # --- PROJECTION MATRIX BASED ON ANGLE ---
+            glMatrixMode(GL_PROJECTION)
+            glLoadIdentity()
+            
+            # 1. Define parameters (as in the lecture)
+            fov_degrees = 65.5  # Your opening angle (phi)
+            z_near = 1.0        # n
+            z_far = 1000.0      # f
+            
+            # Calculate aspect ratio (w / h)
+            w = self.width()
+            h = self.height()
+            if h == 0: h = 1
+            aspect_ratio = w / h
+            
+            # 2. Apply the formula from YOUR IMAGE!
+            # t = n * tan(phi / 2)
+            # Important: Python math.tan expects radians, not degrees!
+            fov_radians = math.radians(fov_degrees)
+            t = z_near * math.tan(fov_radians / 2)
+            
+            # b = -t (symmetry, as in the image b = -n * tan(...))
+            b = -t
+            
+            # 3. Calculate width (based on aspect ratio)
+            r = t * aspect_ratio
+            l = -r
+            
+            # 4. Create matrix (fills in the matrix in the image)
+            # Parameters: left, right, bottom, top, near, far
+            glFrustum(l, r, b, t, z_near, z_far)
+            
+            glMatrixMode(GL_MODELVIEW)
+            glLoadIdentity()
+            # Move camera back a bit
+            glTranslatef(0, 0, -800)
+            
+            # Rotate the object in 3D space (here the magic happens)
+            glRotatef(self.angle, 0, 1, 0) # Rotation around Y-axis
+            glRotatef(15, 1, 0, 0)         # Slightly tilt backwards
+            
+            # Shift the path so it rotates in the middle (it is defined at 300,300 in the SVG)
+            glTranslatef(-300, -300, 0)
 
-        # --- RENDERING SCHRITTE (Stencil then Cover) ---
-        
-        # Schritt A: Stencil (Schablone erstellen)
-        # Zählt hoch im Stencil Buffer, analog zum PDF [cite: 89]
-        glStencilFillPathNV(self.pathObj, GL_COUNT_UP_NV, 0x1F)
-        
-        # Schritt B: Cover (Farbe auftragen)
-        # Wir aktivieren den Stencil Test
-        glEnable(GL_STENCIL_TEST)
-        glStencilFunc(GL_NOTEQUAL, 0, 0x1F)
-        glStencilOp(GL_KEEP, GL_KEEP, GL_ZERO)
-        
-        # Farbe setzen (Gelb wie im PDF Beispiel)
-        glColor3f(1, 1, 0)
-        
-        # Zeichnen! "Cover" füllt alles, wo der Stencil != 0 ist
-        glCoverFillPathNV(self.pathObj, GL_BOUNDING_BOX_NV)
+            # --- RENDERING STEPS (Stencil then Cover) ---
+            
+            # Step A: Stencil (create template)
+            # Counts up in the stencil buffer, analogous to the PDF [cite: 89]
+            glStencilFillPathNV(pathObj, GL_COUNT_UP_NV, 0x1F)
+            
+            # Step B: Cover (apply color)
+            # Enable the stencil test
+            glEnable(GL_STENCIL_TEST)
+            glStencilFunc(GL_NOTEQUAL, 0, 0x1F)
+            glStencilOp(GL_KEEP, GL_KEEP, GL_ZERO)
+            
+            # Set color (yellow as in the PDF example)
+            glColor3f(1, 1, 0)
+            
+            # Draw! "Cover" fills everything where stencil != 0
+            glCoverFillPathNV(pathObj, GL_BOUNDING_BOX_NV)
 
-        glCoverFillPathNV(self.pathObj, GL_BOUNDING_BOX_NV)
+            glCoverFillPathNV(pathObj, GL_BOUNDING_BOX_NV)
 
-        # --- NEU: STROKE (UMRANDUNG) ---
-        
-        # 1. Einstellungen für den Pinsel setzen
-        # Breite des Strichs (in Koordinaten-Einheiten)
-        glPathParameterfNV(self.pathObj, GL_PATH_STROKE_WIDTH_NV, 5.0)
-        # Runde Ecken bei Linienverbindungen (sieht bei Herz besser aus)
-        glPathParameteriNV(self.pathObj, GL_PATH_JOIN_STYLE_NV, GL_ROUND_NV)
+            # --- NEW: STROKE (OUTLINE) ---
+            
+            # 1. Set brush settings
+            # Width of the stroke (in coordinate units)
+            glPathParameterfNV(pathObj, GL_PATH_STROKE_WIDTH_NV, 5.0)
+            # Round corners at line connections (looks better for heart)
+            glPathParameteriNV(pathObj, GL_PATH_JOIN_STYLE_NV, GL_ROUND_NV)
 
-        # 2. Stencil für den Stroke berechnen
-        # Wir nutzen wieder den Stencil Buffer, setzen das Referenz-Bit auf 1
-        # 0x1 = Maske, ~0 = Maske für Invertierung (alle Bits an)
-        glStencilStrokePathNV(self.pathObj, 0x1, ~0)
+            # 2. Calculate stencil for the stroke
+            # We use the stencil buffer again, set the reference bit to 1
+            # 0x1 = mask, ~0 = mask for inversion (all bits on)
+            glStencilStrokePathNV(pathObj, 0x1, ~0)
 
-        # 3. Cover Stroke (Die Farbe zeichnen)
-        glColor3f(1.0, 1.0, 1.0) # Weiß
-        # Wir zeichnen nur dort, wo der Stencil-Wert durch Schritt 2 gesetzt wurde
-        glStencilFunc(GL_EQUAL, 0x1, 0x1)
-        glStencilOp(GL_KEEP, GL_KEEP, GL_ZERO) # Danach wieder aufräumen
-        
-        glCoverStrokePathNV(self.pathObj, GL_CONVEX_HULL_NV)
-        
-        glDisable(GL_STENCIL_TEST)
-        
-        # Animation weiterdrehen
-        self.angle += 1
+            # 3. Cover stroke (draw the color)
+            glColor3f(1.0, 1.0, 1.0) # White
+            # We only draw where the stencil value was set by step 2
+            glStencilFunc(GL_EQUAL, 0x1, 0x1)
+            glStencilOp(GL_KEEP, GL_KEEP, GL_ZERO) # Clean up afterwards
+            
+            glCoverStrokePathNV(pathObj, GL_CONVEX_HULL_NV)
+            
+            glDisable(GL_STENCIL_TEST)
+            
+            # Continue rotating animation
+            self.angle += 1
 
     def resizeGL(self, w, h):
         glViewport(0, 0, w, h)
 
-# Standard PyQt Boilerplate
+# Standard PyQt boilerplate
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     
     from PyQt6.QtGui import QSurfaceFormat
     fmt = QSurfaceFormat()
     
-    # 1. Stencil Buffer (Wichtig für die Pfad-Berechnung)
+    # 1. Stencil buffer (important for path calculation)
     fmt.setStencilBufferSize(8)
     
-    # 2. Compatibility Profile (Damit NV-Funktionen da sind)
+    # 2. Compatibility profile (so NV functions are available)
     fmt.setProfile(QSurfaceFormat.OpenGLContextProfile.CompatibilityProfile)
 
-    # --- NEU: SAMPLES SETZEN ---
-    # 4 ist Standard, 8 ist sehr gut, 16 ist Maximum (kein Problem für deine RTX 4070)
+    # --- NEW: SET SAMPLES ---
+    # 4 is standard, 8 is very good, 16 is maximum (no problem for your RTX 4070)
     fmt.setSamples(16) 
     # ---------------------------
     
