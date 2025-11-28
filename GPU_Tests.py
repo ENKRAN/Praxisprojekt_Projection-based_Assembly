@@ -13,14 +13,15 @@ from OpenGL.GL.NV.path_rendering import *
 from src.setup import get_calibration_data
 
 class PathRenderingWidget(QOpenGLWidget):
-    def __init__(self, num_paths=1, parent=None):
+    def __init__(self, num_paths=1, svg_path=None, parent=None):
         super().__init__(parent)
         self.num_paths = num_paths
+        self.svg_path = svg_path
         self.pathObjs = [] 
 
     def initializeGL(self):
         """Initialize everything once here."""
-        calibration_data_path = 'data/projector_camera_calibration/calibration.yml'
+        """calibration_data_path = 'data/projector_camera_calibration/calibration.yml'
         cam_K, cam_kc, proj_K, proj_kc, R, T = get_calibration_data(calibration_data_path)
 
         print(f"Camera Intrinsics (Shape: {cam_K.shape}):\n{cam_K}")
@@ -28,7 +29,7 @@ class PathRenderingWidget(QOpenGLWidget):
         print(f"Projector Intrinsics (Shape: {proj_K.shape}):\n{proj_K}")
         print(f"Projector Distortion Coefficients (Shape: {proj_kc.shape}):\n{proj_kc}")
         print(f"Rotation Matrix (Shape: {R.shape}):\n{R}")
-        print(f"Translation Vector (Shape: {T.shape}):\n{T}")
+        print(f"Translation Vector (Shape: {T.shape}):\n{T}")"""
 
         if not self.checkSupport():
             return
@@ -45,12 +46,9 @@ class PathRenderingWidget(QOpenGLWidget):
         self.pathObjs = [base_id + i for i in range(self.num_paths)]
 
         print("Generated Path IDs:", self.pathObjs)
-
-        # SVG data from your PDF example (heart)
-        svgPathString = b"M300 300 C 100 400,100 200,300 100,500 200,500 400,300 300Z"
     
         for path_id in self.pathObjs:
-            glPathStringNV(path_id, GL_PATH_FORMAT_SVG_NV, len(svgPathString), svgPathString)
+            glPathStringNV(path_id, GL_PATH_FORMAT_SVG_NV, len(self.svg_path), self.svg_path)
 
         # Timer for animation (so we can see the 3D rotation)
         self.angle = 0
@@ -94,40 +92,35 @@ class PathRenderingWidget(QOpenGLWidget):
             glMatrixMode(GL_PROJECTION)
             glLoadIdentity()
             
-            # 1. Define parameters (as in the lecture)
-            fov_degrees = 65.5  # Your opening angle (phi)
+            fov_degrees = 65.5  # opening angle (phi)
             z_near = 1.0        # n
             z_far = 1000.0      # f
             
-            # Calculate aspect ratio (w / h)
             w = self.width()
             h = self.height()
             if h == 0: h = 1
             aspect_ratio = w / h
             
-            # 2. Apply the formula from YOUR IMAGE!
             # t = n * tan(phi / 2)
-            # Important: Python math.tan expects radians, not degrees!
             fov_radians = math.radians(fov_degrees)
             t = z_near * math.tan(fov_radians / 2)
             
             # b = -t (symmetry, as in the image b = -n * tan(...))
             b = -t
             
-            # 3. Calculate width (based on aspect ratio)
             r = t * aspect_ratio
             l = -r
             
-            # 4. Create matrix (fills in the matrix in the image)
             # Parameters: left, right, bottom, top, near, far
             glFrustum(l, r, b, t, z_near, z_far)
             
             glMatrixMode(GL_MODELVIEW)
             glLoadIdentity()
+
             # Move camera back a bit
-            glTranslatef(0, 0, -800)
+            glTranslatef(0, 0, -400)
             
-            # Rotate the object in 3D space (here the magic happens)
+            # Rotate the object in 3D space
             glRotatef(self.angle, 0, 1, 0) # Rotation around Y-axis
             glRotatef(15, 1, 0, 0)         # Slightly tilt backwards
             
@@ -190,23 +183,20 @@ if __name__ == '__main__':
     from PyQt6.QtGui import QSurfaceFormat
     fmt = QSurfaceFormat()
     
-    # 1. Stencil buffer (important for path calculation)
     fmt.setStencilBufferSize(8)
     
-    # 2. Compatibility profile (so NV functions are available)
     fmt.setProfile(QSurfaceFormat.OpenGLContextProfile.CompatibilityProfile)
 
-    # --- NEW: SET SAMPLES ---
-    # 4 is standard, 8 is very good, 16 is maximum (no problem for your RTX 4070)
     fmt.setSamples(16) 
-    # ---------------------------
     
     QSurfaceFormat.setDefaultFormat(fmt)
+
+    svgPathString = b"M300 200 A100 100 0 1 0 300 400 A100 100 0 1 0 300 200"
     
     window = QMainWindow()
-    widget = PathRenderingWidget()
+    widget = PathRenderingWidget(svg_path=svgPathString)
     window.setCentralWidget(widget)
-    window.resize(800, 600)
+    window.resize(1280, 720)
     window.show()
     
     sys.exit(app.exec())
