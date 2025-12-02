@@ -107,7 +107,14 @@ if __name__ == "__main__":
                                  [0, 0, 1, 0.5],
                                  [0, 0, 0, 1]])
 
-    tag_plane_intersect = findTagPlaneIntersect(u, v, cam_intrinsics, dummy_tag_to_cam)
+    tag_plane_intersect_point = findTagPlaneIntersect(u, v, cam_intrinsics, dummy_tag_to_cam)
+
+    x_mm = tag_plane_intersect_point[0] * 1000
+    y_mm = tag_plane_intersect_point[1] * 1000
+
+    print(f"Tag Plane Intersection in mm: x={x_mm}, y={y_mm}")
+
+    
 
     test_svg_path = 'test.svg'
      
