@@ -83,95 +83,75 @@ class PathRenderingWidget(QOpenGLWidget):
             return True
 
     def paintGL(self):
-        """Draw every frame here."""
-        for pathObj in self.pathObjs:
-            # IMPORTANT: Stencil buffer must also be cleared
-            glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT)
-            
-            # --- PROJECTION MATRIX BASED ON ANGLE ---
-            glMatrixMode(GL_PROJECTION)
-            glLoadIdentity()
-            
-            fov_degrees = 65.5  # opening angle (phi)
-            z_near = 1.0        # n
-            z_far = 1000.0      # f
-            
-            w = self.width()
-            h = self.height()
-            if h == 0: h = 1
-            aspect_ratio = w / h
-            
-            # t = n * tan(phi / 2)
-            fov_radians = math.radians(fov_degrees)
-            t = z_near * math.tan(fov_radians / 2)
-            
-            # b = -t (symmetry, as in the image b = -n * tan(...))
-            b = -t
-            
-            r = t * aspect_ratio
-            l = -r
-            
-            # Parameters: left, right, bottom, top, near, far
-            glFrustum(l, r, b, t, z_near, z_far)
-            
-            glMatrixMode(GL_MODELVIEW)
-            glLoadIdentity()
+        """
+        Does the actual rendering each frame.
+        """
+        glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT)
+        
+        glMatrixMode(GL_PROJECTION)
+        glLoadIdentity()
+        
+        fov_degrees = 65.5
+        z_near = 1.0
+        z_far = 1000.0
+        
+        w = self.width()
+        h = self.height()
+        if h == 0: h = 1
+        aspect_ratio = w / h
+        
+        fov_radians = math.radians(fov_degrees)
+        t = z_near * math.tan(fov_radians / 2)
+        b = -t
+        r = t * aspect_ratio
+        l = -r
+        
+        glFrustum(l, r, b, t, z_near, z_far)
+        
+        glMatrixMode(GL_MODELVIEW)
+        glLoadIdentity()
 
-            # Move camera back a bit
-            glTranslatef(0, 0, -400)
-            
-            # Rotate the object in 3D space
-            glRotatef(self.angle, 0, 1, 0) # Rotation around Y-axis
-            glRotatef(15, 1, 0, 0)         # Slightly tilt backwards
-            
-            # Shift the path so it rotates in the middle (it is defined at 300,300 in the SVG)
-            glTranslatef(-300, -300, 0)
+        glTranslatef(0, 0, -400)
+        
+        glRotatef(self.angle, 0, 1, 0) 
+        glRotatef(15, 1, 0, 0)
+        
+        glTranslatef(-300, -300, 0)
 
-            # --- RENDERING STEPS (Stencil then Cover) ---
-            
-            # Step A: Stencil (create template)
-            # Counts up in the stencil buffer, analogous to the PDF [cite: 89]
+
+        for pathObj in self.pathObjs:            
+            # Stencil Schritt
             glStencilFillPathNV(pathObj, GL_COUNT_UP_NV, 0x1F)
             
-            # Step B: Cover (apply color)
-            # Enable the stencil test
+            # Cover Schritt
             glEnable(GL_STENCIL_TEST)
             glStencilFunc(GL_NOTEQUAL, 0, 0x1F)
-            glStencilOp(GL_KEEP, GL_KEEP, GL_ZERO)
+            glStencilOp(GL_KEEP, GL_KEEP, GL_ZERO) # Setzt Stencil danach zurück auf 0!
             
-            # Set color (yellow as in the PDF example)
-            glColor3f(1, 1, 0)
-            
-            # Draw! "Cover" fills everything where stencil != 0
+            glColor3f(1, 1, 0) # Gelb
             glCoverFillPathNV(pathObj, GL_BOUNDING_BOX_NV)
-
-            glCoverFillPathNV(pathObj, GL_BOUNDING_BOX_NV)
-
-            # --- NEW: STROKE (OUTLINE) ---
             
-            # 1. Set brush settings
-            # Width of the stroke (in coordinate units)
+            # --- B. STROKE (Rand) ---
+            
+            # Einstellungen (siehe Tipp unten: Besser in initializeGL)
             glPathParameterfNV(pathObj, GL_PATH_STROKE_WIDTH_NV, 5.0)
-            # Round corners at line connections (looks better for heart)
             glPathParameteriNV(pathObj, GL_PATH_JOIN_STYLE_NV, GL_ROUND_NV)
 
-            # 2. Calculate stencil for the stroke
-            # We use the stencil buffer again, set the reference bit to 1
-            # 0x1 = mask, ~0 = mask for inversion (all bits on)
+            # Stencil für Stroke
             glStencilStrokePathNV(pathObj, 0x1, ~0)
 
-            # 3. Cover stroke (draw the color)
-            glColor3f(1.0, 1.0, 1.0) # White
-            # We only draw where the stencil value was set by step 2
+            # Cover für Stroke
+            glColor3f(1.0, 1.0, 1.0) # Weiß
             glStencilFunc(GL_EQUAL, 0x1, 0x1)
-            glStencilOp(GL_KEEP, GL_KEEP, GL_ZERO) # Clean up afterwards
+            glStencilOp(GL_KEEP, GL_KEEP, GL_ZERO)
             
             glCoverStrokePathNV(pathObj, GL_CONVEX_HULL_NV)
-            
-            glDisable(GL_STENCIL_TEST)
-            
-            # Continue rotating animation
-            self.angle += 1
+
+        # --- 3. NACHBEREITUNG ---
+        glDisable(GL_STENCIL_TEST)
+        
+        # Animation für den nächsten Frame vorbereiten
+        self.angle += 1
 
     def resizeGL(self, w, h):
         glViewport(0, 0, w, h)
@@ -187,7 +167,7 @@ if __name__ == '__main__':
     
     fmt.setProfile(QSurfaceFormat.OpenGLContextProfile.CompatibilityProfile)
 
-    fmt.setSamples(16) 
+    fmt.setSamples(8) 
     
     QSurfaceFormat.setDefaultFormat(fmt)
 
