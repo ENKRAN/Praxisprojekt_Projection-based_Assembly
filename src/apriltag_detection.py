@@ -2,7 +2,7 @@ from pupil_apriltags import Detector
 from typing import Any
 
 class AprilTagDetector:
-    def __init__(self, tag_family="tagStandard41h12", fx=None, fy=None, cx=None, cy=None, tag_size=0.04) -> None:
+    def __init__(self, tag_family="tagStandard41h12", camera_intrinsics=None, tag_size=0.038) -> None:
         """
         Initialize the AprilTag detector
 
@@ -14,10 +14,12 @@ class AprilTagDetector:
         :param tag_size: Size of the tag in meters
         """
         self.detector = Detector(families=tag_family)
-        self.fx = fx
-        self.fy = fy
-        self.cx = cx
-        self.cy = cy
+        if camera_intrinsics is None:
+            raise ValueError("Camera intrinsics must be provided")
+        self.fx = camera_intrinsics[0, 0]
+        self.fy = camera_intrinsics[1, 1]
+        self.cx = camera_intrinsics[0, 2]
+        self.cy = camera_intrinsics[1, 2]
         self.tag_size = tag_size
 
     def detect(self, gray_frame) -> Any:

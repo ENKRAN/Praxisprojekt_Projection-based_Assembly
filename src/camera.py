@@ -158,7 +158,6 @@ class Camera:
 
         return point_3D
     
-    @staticmethod
     def get_3D_camera_coords_opencv(u, v, cam_K, cam_kc, depth_frame) -> np.ndarray:
         """
         Get the 3D coordinates of a pixel in the camera frame with OpenCV functions.
@@ -193,8 +192,7 @@ class Camera:
         
         return point_3D
     
-    @staticmethod
-    def get_2D_camera_coords(intrinsics, point_3D) -> Tuple[int, int]:
+    def getUVFrom3DCoords(cam_intrinsics, point_3D) -> Tuple[int, int]:
         """
         Project 3D coordinates to 2D pixel coordinates with functions from the RealSense library.
 
@@ -203,7 +201,7 @@ class Camera:
         :return: Tuple of x and y pixel coordinates	
         """
         x, y, z = point_3D
-        u, v = rs.rs2_project_point_to_pixel(intrinsics, [x, y, z])
+        u, v = rs.rs2_project_point_to_pixel(cam_intrinsics, [x, y, z])
 
         return int(u), int(v)
 

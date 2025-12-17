@@ -3,7 +3,6 @@ import numpy as np
 from src.setup import get_calibration_data
 from PyQt6.QtWidgets import QApplication, QMainWindow
 import sys
-from GPU_Tests import PathRenderingWidget
 
 def numpy_to_rs_intrinsics(K, dist_coeffs, width, height):
     intrin = rs.intrinsics()
@@ -65,33 +64,6 @@ def findTagPlaneIntersect(u, v, cam_intrinsics, tag_to_cam_filtered):
     print(f"Intersect Point: {intersect_point}")
 
     return intersect_point[:2]
-
-def startRendering():
-    app = QApplication(sys.argv)
-    
-    from PyQt6.QtGui import QSurfaceFormat
-    fmt = QSurfaceFormat()
-    
-    # 1. Stencil buffer (important for path calculation)
-    fmt.setStencilBufferSize(8)
-    
-    # 2. Compatibility profile (so NV functions are available)
-    fmt.setProfile(QSurfaceFormat.OpenGLContextProfile.CompatibilityProfile)
-
-    # --- NEW: SET SAMPLES ---
-    # 4 is standard, 8 is very good, 16 is maximum (no problem for your RTX 4070)
-    fmt.setSamples(16) 
-    # ---------------------------
-    
-    QSurfaceFormat.setDefaultFormat(fmt)
-    
-    window = QMainWindow()
-    widget = PathRenderingWidget()
-    window.setCentralWidget(widget)
-    window.resize(1280, 720)
-    window.show()
-    
-    sys.exit(app.exec())
 
 if __name__ == "__main__":
     # Example usage

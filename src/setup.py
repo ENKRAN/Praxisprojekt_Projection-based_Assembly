@@ -36,6 +36,21 @@ def initialize_system(cam_K, color_width=1280, color_height=720, depth_width=128
     
     return camera, apriltag_detector, camera_matrix, depth_intrinsics
 
+def buildExtrinsicMatrix(R, T):
+    """
+    Build the extrinsic matrix from rotation matrix R and translation vector T.
+    """
+    matrix = np.eye(4, dtype=np.float32)
+    
+    # Rotation matrix in the top-left 3x3 part
+    matrix[:3, :3] = R
+    
+    # Translation in the right column
+    # .flatten() or .reshape(-1) ensures that T is a vector
+    matrix[:3, 3] = T.flatten() 
+    
+    return matrix
+
 def get_calibration_data(calibration_data_path) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Get the calibration data from the file.
