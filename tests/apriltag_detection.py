@@ -13,7 +13,7 @@ class AprilTagTrackingWorker(QThread):
     # Signals for the GUI (thread-safe communication)
     # sends: (image_qt, pose_text, depth_val)
     pose_update_signal = pyqtSignal(np.ndarray, np.ndarray)
-    baking_update_signal = pyqtSignal(np.ndarray)
+    baking_update_signal = pyqtSignal(np.ndarray, np.ndarray)
     image_update_signal = pyqtSignal(QImage) 
     
     def __init__(self, width=1280, height=720, cam_intrinsics=None, cam_dist_coeffs=None):
@@ -29,6 +29,12 @@ class AprilTagTrackingWorker(QThread):
         
         # Filter (initialization happens on first measurement)
         self.filter = None 
+        self.filter_config = {
+        'freq': 60,       # Hz
+        'mincutoff': 1.0,  # Hz
+        'beta': 0.01,       
+        'dcutoff': 1.0    
+        }
 
         self.snapshot_requested = False
 
@@ -79,7 +85,7 @@ class AprilTagTrackingWorker(QThread):
                         curr_time = time.time()
                         
                         if self.filter is None:
-                            self.filter = OneEuroFilter(curr_time, z_measured, min_cutoff=1.0, beta=0.01)
+                            self.filter = OneEuroFilter(**self.filter_config)
                             z_filtered = z_measured
                         else:
                             z_filtered = self.filter(z_measured, curr_time)
@@ -91,7 +97,7 @@ class AprilTagTrackingWorker(QThread):
 
                             if self.snapshot_requested:
                                 print("Sending snapshot homography...")
-                                self.baking_update_signal.emit(tag.homography)
+                                self.baking_update_signal.emit(tag.homography, color_img)
                                 self.snapshot_requested = False
                             
                             self.pose_update_signal.emit(R_ct, t_final)

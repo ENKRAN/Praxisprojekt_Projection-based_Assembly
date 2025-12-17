@@ -721,6 +721,8 @@ class DrawingTool(QWidget):
         print(f"SVG reduced from {len(original_svg_code)} to {len(optimized_svg_code)} bytes")
 
 class MainWindow(QMainWindow):
+    editor_closed_signal = pyqtSignal()
+
     def __init__(self, input_path, output_dir):
         super().__init__()
 
@@ -941,6 +943,14 @@ class MainWindow(QMainWindow):
         else:
             self.merge_branch_action.setVisible(False)
 
+    def closeEvent(self, event):
+        # Bevor das Fenster zugeht, feuern wir das Signal ab!
+        print("Drawing Tool closing, emitting signal...")
+        self.editor_closed_signal.emit()
+        
+        # Standard Schließ-Verhalten
+        event.accept()
+        
 class StartPage(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -964,7 +974,7 @@ class StartPage(QWidget):
         quit_button = QPushButton("Quit")
         quit_button.setFont(QFont("Arial", 20))
         quit_button.setMinimumSize(300, 100)
-        quit_button.clicked.connect(QApplication.instance().quit)
+        quit_button.clicked.connect(self.close)
 
         button_layout.addWidget(main_button)
         button_layout.addWidget(quit_button)

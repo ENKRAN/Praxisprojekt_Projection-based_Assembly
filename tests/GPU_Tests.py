@@ -116,8 +116,8 @@ class PathRenderingWidget(QOpenGLWidget):
         
         glMatrixMode(GL_MODELVIEW)
     
-    @pyqtSlot(np.ndarray)
-    def setBakingMatrix(self, homography):
+    @pyqtSlot(np.ndarray, np.ndarray)
+    def setBakingMatrix(self, homography, color_img):
         """
         Receives a homography and computes the baking matrix (ONE TIME).
         """
@@ -189,7 +189,7 @@ class PathRenderingWidget(QOpenGLWidget):
 
                 glDisable(GL_STENCIL_TEST)
     
-    def computeSVGToTagMatrix(homography, tag_size_meters):
+    def computeSVGToTagMatrix(self, homography, tag_size_meters):
         """
         Calculates the Transformation from Image Pixels to Physical Tag Plane.
         
@@ -308,7 +308,7 @@ if __name__ == '__main__':
     fmt.setSamples(8) 
     QSurfaceFormat.setDefaultFormat(fmt)
 
-    svg = "tests/svgs/raw_image_0_step_001_drawn.svg"
+    svg = "tests/result/baking_snapshot_drawn.svg"
     test_elements = convertSVGElementsToBytePaths(svg)
 
     calibration_data_path = 'data/projector_camera_calibration/calibration.yml'
@@ -325,7 +325,7 @@ if __name__ == '__main__':
     control_win = ControlWindow(apriltag_tracking_thread, projector_win)
     apriltag_tracking_thread.pose_update_signal.connect(gl_widget.updateTagPose)
     apriltag_tracking_thread.baking_update_signal.connect(gl_widget.setBakingMatrix)
-    projector_win.show()
+    projector_win.showFullScreen()
     control_win.show()
     
     sys.exit(app.exec())
