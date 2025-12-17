@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="149.109375" height="74.5546875"
+     viewBox="19.9219 225.2188 155.109375 80.5546875"
+     preserveAspectRatio="xMidYMid meet">
+  <path d="M37.27734375,18.638671875
+           L0,37.27734375
+           L74.5546875,74.5546875
+           L149.109375,37.27734375
+           L74.5546875,0
+           L0,37.27734375Z"
+        fill="#ffffff" stroke="#000000" stroke-width="3"
+        transform="translate(22.9219,228.2188)"
+        id="cond2"/>
+  <text x="74.5546875" y="37.27734375"
+        text-anchor="middle" dominant-baseline="middle"
+        font-family="Arial" font-size="14px"
+        transform="translate(22.9219,228.2188)"
+        id="cond2t">
+    condition
+  </text>
+</svg>

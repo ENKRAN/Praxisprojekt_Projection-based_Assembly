@@ -2,7 +2,7 @@ import numpy as np
 import cv2
 from typing import Any
 
-def draw_axes(img, R_ct, tvec, camera_matrix, dist_coeffs, axis_length) -> Any:
+def drawAxes(img, R_ct, tvec, camera_matrix, dist_coeffs, axis_length) -> Any:
     """
     Draws the 3D axes on the apriltag.
 
@@ -37,23 +37,23 @@ def draw_axes(img, R_ct, tvec, camera_matrix, dist_coeffs, axis_length) -> Any:
 
     return img
 
-def draw_tag_border_and_id(img, result) -> Any:
+def drawTagBorderAndId(img, tag) -> Any:
     """
     Draws the border of the detected tag and its ID on the image.
 
     :param img: Image to draw on
-    :param result: Result of the tag detection
+    :param tag: Detected tag object
     :return: Image with the tag border and ID drawn
     """
     # Get the corners of the tag
-    corners = np.array(result.corners, dtype=np.int32).reshape((-1, 1, 2))
+    corners = np.array(tag.corners, dtype=np.int32).reshape((-1, 1, 2))
     
     # Draw the border of the tag
     img = cv2.polylines(img, [corners], isClosed=True, color=(0, 255, 0), thickness=2)
 
     # Label the tag with its ID
     center = tuple(corners[0][0])
-    cv2.putText(img, f"ID: {result.tag_id}", (center[0], center[1] - 10), 
+    cv2.putText(img, f"ID: {tag.tag_id}", (center[0], center[1] - 10), 
                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
     return img

@@ -1,6 +1,6 @@
 import sys
 import numpy as np
-from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QLabel
+from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QLabel, QPushButton
 from PyQt6.QtOpenGLWidgets import QOpenGLWidget
 from PyQt6.QtCore import pyqtSlot, Qt
 from PyQt6.QtGui import QSurfaceFormat, QPixmap, QImage
@@ -11,13 +11,10 @@ from OpenGL.GL.NV.path_rendering import *
 from tests.svg_manipulation import convertSVGElementsToBytePaths
 from src.setup import get_calibration_data
 from src.setup import buildExtrinsicMatrix
-from tests.apriltag_tests import WebcamThread
-from src.apriltag_detection import AprilTagDetector
-
+from tests.apriltag_detection import AprilTagTrackingWorker
 
 class PathRenderingWidget(QOpenGLWidget):
-    def __init__(self, svg_converted_elements, projector_intrinsics, T_proj_cam, 
-                 initial_tag_pose, camera_intrinsics, parent=None):
+    def __init__(self, svg_converted_elements, projector_intrinsics, T_proj_cam, tag_size, parent=None):
         super().__init__(parent)
         self.num_paths = len(svg_converted_elements) if svg_converted_elements is not None else 0
         self.svg_converted_elements = svg_converted_elements
@@ -31,9 +28,11 @@ class PathRenderingWidget(QOpenGLWidget):
         self.T_proj_cam[1, 3] /= 1000.0
         self.T_proj_cam[2, 3] /= 1000.0
 
-        self.current_tag_pose = initial_tag_pose
+        self.tag_size = tag_size
+        self.is_baked = False
 
-        self.M_svg_to_tag = self.computeSVGToTagMatrixAnalytic(camera_intrinsics, initial_tag_pose)
+        self.current_tag_pose = np.eye(4, dtype=np.float32)
+        self.M_svg_to_tag = np.eye(4, dtype=np.float32) 
 
     def initializeGL(self):
         """
@@ -117,23 +116,28 @@ class PathRenderingWidget(QOpenGLWidget):
         
         glMatrixMode(GL_MODELVIEW)
     
+    @pyqtSlot(np.ndarray)
+    def setBakingMatrix(self, homography):
+        """
+        Receives a homography and computes the baking matrix (ONE TIME).
+        """
+        print("Computing baking matrix from snapshot homography...")
+        self.M_svg_to_tag = self.computeSVGToTagMatrix(homography, self.tag_size)
+        self.is_baked = True
+        self.update()
+
     @pyqtSlot(np.ndarray, np.ndarray)
     def updateTagPose(self, R_ct, tvec):
-        """ 
-        Update the current tag pose and trigger a redraw.
-
-        Args:
-            R_ct (np.ndarray): 3x3 rotation matrix of the tag w.r.t. the camera.
-            tvec (np.ndarray): 3x1 translation vector of the tag w.r.t. the camera.
+        """
+        Updates the current tag pose to be used in paintGL.
         """
         new_pose = buildExtrinsicMatrix(R_ct, tvec)
         self.current_tag_pose = new_pose
-        self.update() # Triggers paintGL
+        
+        if self.is_baked:
+            self.update()
     
     def paintGL(self):
-        """
-   
-        """
         # glDisable(GL_CULL_FACE)
         glClearStencil(0)
         glClearColor(0.0, 0.0, 0.0, 1.0)
@@ -152,6 +156,9 @@ class PathRenderingWidget(QOpenGLWidget):
         glMultMatrixf(self.current_tag_pose.T)
 
         glMultMatrixf(self.M_svg_to_tag.T)
+
+        if not self.is_baked:
+            return
 
         # --- RENDERING LOOP ---
         for pathObj, element in zip(self.pathObjs, self.svg_converted_elements):     
@@ -182,67 +189,74 @@ class PathRenderingWidget(QOpenGLWidget):
 
                 glDisable(GL_STENCIL_TEST)
     
-    def computeSVGToTagMatrixAnalytic(self, cam_intrinsics, initial_tag_pose):
+    def computeSVGToTagMatrix(homography, tag_size_meters):
         """
-        Calculates the SVG to Tag transformation matrix analytically.
-
+        Calculates the Transformation from Image Pixels to Physical Tag Plane.
+        
         Args:
-            cam_intrinsics (np.ndarray): 3x3 camera intrinsic matrix.
-            initial_tag_pose (np.ndarray): 4x4 transformation matrix of the tag at time t0.
-        Returns:
-            np.ndarray: 4x4 transformation matrix from SVG to Tag plane.
+            tag: The pupil_apriltags detection object.
+            tag_size_meters (float): The physical size of the tag (e.g. 0.05).
         """
-        r1 = initial_tag_pose[0:3, 0] # First column of rotation
-        r2 = initial_tag_pose[0:3, 1] # Second column of rotation
-        t  = initial_tag_pose[0:3, 3] # Translation vector
+        # 1. Access the raw homography (Ideal Tag [-1,1] -> Pixel)
+        H_lib = homography
         
-        # Order them in a 3x3 matrix
-        M_ext_reduced = np.column_stack((r1, r2, t)) 
-        
-        H_forward = cam_intrinsics @ M_ext_reduced
-        
-        # 3. Invert the homography to get from image to tag plane
-        # Now map pixels (u,v) back to the tag plane (x,y).
+        # 2. Invert (Pixel -> Ideal Tag [-1,1])
         try:
-            H_inv = np.linalg.inv(H_forward)
+            H_inv = np.linalg.inv(H_lib)
         except np.linalg.LinAlgError:
             print("Error: Homography matrix is singular!")
             return np.identity(4)
         
+        # 3. Scaling from "Ideal" (-1 to 1) to "Metric" (-size/2 to size/2)
+        # We multiply H_inv from the left with the scaling matrix.
+        # Since H_inv maps [u, v, 1]^T to [x_ideal, y_ideal, w]^T,
+        # we simply scale x and y by (tag_size / 2).
+        
+        scale_factor = tag_size_meters / 2.0
+        
+        # We scale the first two rows of H_inv
+        H_phys_inv = H_inv.copy()
+        H_phys_inv[0, :] *= scale_factor
+        H_phys_inv[1, :] *= scale_factor
+        # The 3rd row (homogeneous coordinate w) remains unchanged!
+        
+        # 4. "Baking" into 4x4 matrix (for OpenGL/SVG/Rendering)
+        # The format is identical to your previous code.
         M_baking = np.eye(4, dtype=np.float32)
         
-        # Rotation / Scaling part (top-left 2x2 submatrix)
-        M_baking[0, 0] = H_inv[0, 0]
-        M_baking[0, 1] = H_inv[0, 1]
-        M_baking[1, 0] = H_inv[1, 0]
-        M_baking[1, 1] = H_inv[1, 1]
+        # Rotation / Scaling / Shearing part (2x2 top left)
+        M_baking[0, 0] = H_phys_inv[0, 0]
+        M_baking[0, 1] = H_phys_inv[0, 1]
+        M_baking[1, 0] = H_phys_inv[1, 0]
+        M_baking[1, 1] = H_phys_inv[1, 1]
         
-        # Translation part (last column)
-        M_baking[0, 3] = H_inv[0, 2]
-        M_baking[1, 3] = H_inv[1, 2]
+        # Translation part (Column 3 in your notation, index 3 at 0-based)
+        # Note: In your original code, you mapped H_inv[0, 2] to M[0, 3].
+        # That is correct for the translation in 2D space.
+        M_baking[0, 3] = H_phys_inv[0, 2]
+        M_baking[1, 3] = H_phys_inv[1, 2]
         
-        # Homogeneous coordinate row
-        M_baking[3, 0] = H_inv[2, 0]
-        M_baking[3, 1] = H_inv[2, 1]
-        M_baking[3, 3] = H_inv[2, 2]
-        
-        print("Calculated Baking Matrix:\n", M_baking)
+        # Homogeneous coordinate row (Important for perspective division)
+        # This row ensures that (u,v) is projected correctly.
+        M_baking[3, 0] = H_phys_inv[2, 0]
+        M_baking[3, 1] = H_phys_inv[2, 1]
+        M_baking[3, 3] = H_phys_inv[2, 2]
         
         return M_baking
     
 class ProjectorWindow(QMainWindow):
-    def __init__(self, gl_widget):
+    def __init__(self, gl_widget, width=1280, height=720):
         super().__init__()
         self.setWindowTitle("Projector Output")
         self.setCentralWidget(gl_widget)
-        self.resize(1280, 720)
+        self.resize(width, height)
 
 class ControlWindow(QMainWindow):
-    def __init__(self, webcam_thread, projector_window):
+    def __init__(self, apriltag_tracking_thread, projector_window):
         super().__init__()
         self.setWindowTitle("Control Panel")
         self.resize(1280, 720)
-        self.projector_window = projector_window # Referenz speichern zum Schließen
+        self.projector_window = projector_window # Store reference to close later
 
         # Layout
         central = QWidget()
@@ -250,32 +264,40 @@ class ControlWindow(QMainWindow):
         central.setLayout(layout)
         self.setCentralWidget(central)
 
-        # Kamera Label
-        self.camera_label = QLabel("Kamera startet...")
+        # Camera label
+        self.camera_label = QLabel("Camera starting...")
         self.camera_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.camera_label.setStyleSheet("background-color: black;")
         layout.addWidget(self.camera_label)
 
-        # Thread Setup
-        self.webcam_thread = webcam_thread
-        
-        # Verbindung: Thread Bild -> GUI Label
-        self.webcam_thread.image_update_signal.connect(self.update_image)
-        
-        self.webcam_thread.start()
+        self.btn_snapshot = QPushButton("Set Reference Frame (Bake SVG)")
+        self.btn_snapshot.setMinimumHeight(50)
+        self.btn_snapshot.setStyleSheet("font-size: 16px; font-weight: bold;")
+        self.btn_snapshot.clicked.connect(self.onSnapshotClicked)
+        layout.addWidget(self.btn_snapshot)
+
+        # Thread setup
+        self.apriltag_tracking_thread = apriltag_tracking_thread
+        self.apriltag_tracking_thread.image_update_signal.connect(self.updateImage)
+        self.apriltag_tracking_thread.start()
+
+    def onSnapshotClicked(self):
+        # Ruft die Methode im Thread auf, die das Flag setzt
+        self.apriltag_tracking_thread.triggerSnapshot()
+        self.btn_snapshot.setText("Snapshot Requested... (Hold Steady!)")
 
     @pyqtSlot(QImage)
-    def update_image(self, image):
-        # Bild anzeigen
+    def updateImage(self, image):
+        # Display image
         pixmap = QPixmap.fromImage(image)
-        # Skalieren auf Fenstergröße
+        # Scale to window size
         scaled = pixmap.scaled(self.camera_label.size(), Qt.AspectRatioMode.KeepAspectRatio)
         self.camera_label.setPixmap(scaled)
 
     def closeEvent(self, event):
-        # Wenn wir das Kontrollfenster schließen, alles beenden
-        self.webcam_thread.stop()
-        self.projector_window.close() # Projektor Fenster auch schließen
+        # When we close the control window, shut everything down
+        self.apriltag_tracking_thread.stop()
+        self.projector_window.close()
         super().closeEvent(event)
 
 if __name__ == '__main__':
@@ -292,31 +314,17 @@ if __name__ == '__main__':
     calibration_data_path = 'data/projector_camera_calibration/calibration.yml'
     cam_K, cam_kc, projector_intrinsics, _, R, T = get_calibration_data(calibration_data_path)
 
-    R_ct = np.array([
-        [ 0.93521196, -0.21958008, -0.27778261],
-        [ 0.32582255,  0.84079681,  0.43231977],
-        [ 0.13862992, -0.49481846,  0.85786738]
-    ])
-
-    tvec_ref = np.array([
-        [-0.01003388],
-        [-0.02722046],
-        [ 1.22538255]
-    ])
-
-    initial_tag_pose = buildExtrinsicMatrix(R_ct, tvec_ref)
     T_proj_cam = buildExtrinsicMatrix(R, T)
 
-    gl_widget = PathRenderingWidget(test_elements, projector_intrinsics, T_proj_cam, initial_tag_pose, cam_K)
+    TAG_SIZE = 0.038
 
-    apriltag_detector = AprilTagDetector(camera_intrinsics=cam_K)
-
-    webcam_thread = WebcamThread(apriltag_detector=apriltag_detector, camera_intrinsics=cam_K, dist_coeffs=cam_kc)
+    gl_widget = PathRenderingWidget(test_elements, projector_intrinsics, T_proj_cam, TAG_SIZE)
+    apriltag_tracking_thread = AprilTagTrackingWorker(width=1280, height=720, cam_intrinsics=cam_K, cam_dist_coeffs=cam_kc)
     
-    projector_win = ProjectorWindow(gl_widget)
-    control_win = ControlWindow(webcam_thread, projector_win)
-    webcam_thread.pose_update_signal.connect(gl_widget.updateTagPose)
-
+    projector_win = ProjectorWindow(gl_widget, width=1280, height=720)
+    control_win = ControlWindow(apriltag_tracking_thread, projector_win)
+    apriltag_tracking_thread.pose_update_signal.connect(gl_widget.updateTagPose)
+    apriltag_tracking_thread.baking_update_signal.connect(gl_widget.setBakingMatrix)
     projector_win.show()
     control_win.show()
     
