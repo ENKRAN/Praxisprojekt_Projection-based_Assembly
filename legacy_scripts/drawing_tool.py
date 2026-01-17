@@ -44,7 +44,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtGui import QPainter, QPixmap, QPen, QColor, QBrush, QIcon, QPainterPath, QTransform, QFont, QTextCharFormat, QAction, QFontMetrics
 from PyQt6.QtCore import Qt, QPoint, QSize, QRectF, QPointF, QRect, pyqtSignal, QPropertyAnimation, QEasingCurve, pyqtProperty, QTimer, QUrl
 from PyQt6.QtWebEngineWidgets import QWebEngineView
-from tests.palette import PaletteHorizontal, PALETTES, PaletteGrid
+from legacy_scripts.palette import PaletteHorizontal, PALETTES, PaletteGrid
 from PyQt6.QtWidgets import QLineEdit
 
 def profiliere_funktion(func, *args, **kwargs):
@@ -805,7 +805,7 @@ class MainWindow(QMainWindow):
         for tool, text in self.drawing_tool.tools.items():
             action = QAction(text, self)
             action.setCheckable(True)
-            action.setIcon(QIcon(f"tests/resources/{tool}.svg"))
+            action.setIcon(QIcon(f"legacy_scripts/resources/{tool}.svg"))
             action.triggered.connect(lambda checked, t=tool: self.drawing_tool.selectTool(t))
             self.tools_toolbar.addAction(action)
             if tool == 'brush':
@@ -841,7 +841,7 @@ class MainWindow(QMainWindow):
         self.tools_toolbar.addSeparator()
 
         self.delete_action = QAction("Delete", self)
-        self.delete_action.setIcon(QIcon("tests/resources/delete.svg")) 
+        self.delete_action.setIcon(QIcon("legacy_scripts/resources/delete.svg")) 
         self.delete_action.triggered.connect(self.drawing_tool.deleteSelectedItems)
         self.tools_toolbar.addAction(self.delete_action)
         self.delete_action.setVisible(False)
@@ -1039,14 +1039,14 @@ class FlowchartPage(QWidget):
 
         self.is_merging = False
 
-        output_dir = Path("tests/resources/flowchart_dynamic")
+        output_dir = Path("legacy_scripts/resources/flowchart_dynamic")
         if not output_dir.exists():
             output_dir.mkdir(parents=True, exist_ok=True)
 
         self.output_svg_path = Path(f"{output_dir}/current_flowchart.svg")
 
     def get_svg_files(self):
-        svg_dir = Path("tests/resources/flowchart_icons")
+        svg_dir = Path("legacy_scripts/resources/flowchart_icons")
 
         if not svg_dir.exists():
             svg_dir.mkdir()
@@ -1334,8 +1334,6 @@ class FlowchartPage(QWidget):
         self.main_window.toggleMergeButton()
 
         self.updateFlowchart()
-
-
 
     def getYesBranches(self):
         yes_branches = [
