@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>SVG Sender</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; text-align: center;}
+        svg { border: 1px solid #ccc; margin: 20px; cursor: pointer; }
+        svg:hover { background-color: #f0f0f0; }
+        #log { margin-top: 20px; color: #555; }
+    </style>
+</head>
+<body>
+
+    <h1>Webseite -> Python Skript -> Server</h1>
+    <p>Klicke auf den Kreis, um das SVG an dein Python-Skript zu senden.</p>
+
+    <svg id="mySvg" width="200" height="200" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="100" cy="100" r="80" fill="cornflowerblue" stroke="black" stroke-width="5" />
+        <text x="100" y="105" font-size="20" text-anchor="middle" fill="white">Klick mich</text>
+    </svg>
+
+    <div id="log">Status: Warte auf Verbindung...</div>
+
+    <script>
+        const logDiv = document.getElementById('log');
+        const svgElement = document.getElementById('mySvg');
+        let socket;
+
+        // Verbindung zum LOKALEN Python-Skript (Port 5555)
+        function connect() {
+            socket = new WebSocket("ws://localhost:5555");
+
+            socket.onopen = () => {
+                logDiv.innerText = "Status: Verbunden mit Python-Skript (Port 5555)";
+                logDiv.style.color = "green";
+            };
+
+            socket.onmessage = (event) => {
+                logDiv.innerText = "Empfangen: " + event.data;
+            };
+
+            socket.onclose = () => {
+                logDiv.innerText = "Status: Getrennt. Python-Skript läuft nicht?";
+                logDiv.style.color = "red";
+            };
+        }
+
+        // Klick-Handler
+        svgElement.addEventListener('click', () => {
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                // Wir holen das komplette HTML des SVGs als String
+                const svgString = svgElement.outerHTML;
+                socket.send(svgString);
+                console.log("Gesendet an Python Script");
+            } else {
+                alert("Keine Verbindung zum Python Skript!");
+            }
+        });
+
+        connect();
+    </script>
+</body>
+</html>

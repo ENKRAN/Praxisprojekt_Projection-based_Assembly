@@ -6,7 +6,7 @@ from PyQt6.QtGui import QImage
 from OneEuroFilter import OneEuroFilter
 
 from src.camera import Camera
-from src.apriltag_detection import AprilTagDetector
+from src.apriltag_detection_old import AprilTagDetector
 from src.visualization import drawAxes, drawTagBorderAndId
 
 class AprilTagTrackingWorker(QThread):

@@ -56,3 +56,25 @@ def computeSVGToTagMatrix(homography: np.ndarray, tag_size_meters: float) -> np.
         M_baking[3, 3] = H_phys_inv[2, 2]
         
         return M_baking
+
+def buildExtrinsicMatrix(R: np.ndarray, T: np.ndarray) -> np.ndarray:
+    """
+    Builds the 4x4 extrinsic matrix from a rotation matrix (3x3) and a translation vector.
+    
+    Args:
+        R: 3x3 Rotation matrix.
+        T: Translation vector (3x1 or flattened).
+        
+    Returns:
+        4x4 Extrinsic matrix (float32).
+    """
+    matrix = np.eye(4, dtype=np.float32)
+    
+    # Rotation matrix in the top-left 3x3 part
+    matrix[:3, :3] = R
+    
+    # Translation in the right column
+    # .flatten() ensures that T is a vector, regardless of shape (3,1) or (3,)
+    matrix[:3, 3] = T.flatten() 
+    
+    return matrix
