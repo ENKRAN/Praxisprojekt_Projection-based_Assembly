@@ -1,5 +1,8 @@
 from pyflowchart import StartNode, EndNode, OperationNode, ConditionNode, InputOutputNode, SubroutineNode, Flowchart
-from typing import List, Optional, Dict, Any
+from typing import List
+import tempfile
+import subprocess
+from pathlib import Path
 
 class FlowchartManager:
     def __init__(self):
@@ -60,12 +63,22 @@ class FlowchartManager:
         return self._current_branch
 
     def getDSL(self) -> str:
-        """Returns the flowchart DSL string for SVG generation."""
+        """
+        Returns the flowchart DSL string for SVG generation.
+        
+        Returns:
+            str: The flowchart DSL representation.
+        """
         fc = Flowchart(self.start_node)
         return fc.flowchart()
 
     def getMergeCandidates(self) -> List[ConditionNode]:
-        """Returns a list of ConditionNodes that are valid targets for a merge."""
+        """
+        Returns a list of ConditionNodes that are valid targets for a merge.
+
+        Returns:
+            List[ConditionNode]: List of candidate ConditionNodes for merging.
+        """
         # Logic: Only allow merge if not in Yes-Branch and not in Main
         if self._current_branch_state_yn == "Yes" or self._current_branch == "main":
             return []
@@ -79,7 +92,15 @@ class FlowchartManager:
         return candidates
 
     def mergeWithCondition(self, condition_node_text: str) -> bool:
-        """Merges the current path back to a specific existing condition node."""
+        """
+        Merges the current path back to a specific existing condition node.
+
+        Args:
+            condition_node_text (str): The text of the target ConditionNode to merge with.
+
+        Returns:
+            bool: True if merge was successful, False otherwise.
+        """
         target_node = None
         # Search for the node by text
         for node_list in self._condition_nodes_map.values():
@@ -93,6 +114,7 @@ class FlowchartManager:
             # Temporarily treat logic as if adding a node, but connecting to existing one
             previous_node = self.current_node
             self._connectPreviousToExistingCondition(previous_node, target_node)
+            # TODO: Remember to toggle the merge button and update the Flowchart (generate a new one)
             return True
         return False
 
@@ -100,8 +122,10 @@ class FlowchartManager:
     
     def _connectNode(self, new_node):
         """
-        Connects self.current_node to new_node based on the current state engine.
-        Replicates the exact logic from legacy 'connectPreviousToNewNode'.
+        Connects self.current_node to new_node based on the current state and branching logic.
+
+        Args:
+            new_node: The new node to connect to.
         """
         previous_node = self.current_node
         
@@ -135,16 +159,7 @@ class FlowchartManager:
                 if self._current_branch == "main" and self._current_branch_state_yn is None:
                     self._current_branch_state_yn = "Yes"
 
-                # B. Handle Merge Mode
-                if self._is_merging:
-                    # Legacy: Force connection to "right"
-                    previous_node.connect(new_node, "right")
-                    self._switchToPreviousBranch()
-                    self._is_merging = False
-                    # Pointer is NOT updated to new_node, as we jumped back!
-                    return 
-
-                # C. Visual Layout Direction (To keep connections consequent)
+                # B. Visual Layout Direction (To keep connections consequent)
                 if self._current_branch_state_yn == "No":
                     previous_node.connect(new_node, "right")
                 else:
@@ -159,7 +174,7 @@ class FlowchartManager:
             self.current_node = new_node
 
         # 5. Logic for End Nodes
-        elif isinstance(new_node, EndNode):
+        elif isinstance(new_node, EndNode) and not isinstance(previous_node, StartNode):
             if isinstance(previous_node, ConditionNode):
                 self._connectToCondition(previous_node, new_node)
             else:
@@ -173,7 +188,13 @@ class FlowchartManager:
                 # Pointer is updated inside _switchToPreviousBranch
 
     def _connectToCondition(self, condition_node, new_node):
-        """Helper to connect based on Yes/No state."""
+        """
+        Helper to connect based on Yes/No state.
+        
+        Args:
+            condition_node: The ConditionNode to connect from.
+            new_node: The new node to connect to.
+        """
         if self._current_branch_state_yn == "Yes":
             condition_node.connect_yes(new_node)
         else:
@@ -184,8 +205,10 @@ class FlowchartManager:
 
     def _registerNewBranch(self, condition_node):
         """
-        Prepares the state for a new branch.
-        Replicates legacy 'addConditionBranch'.
+        Registers a new branch when a ConditionNode is added.
+
+        Args:
+            condition_node: The newly added ConditionNode.
         """
         # 1. Add current condition to the map of the CURRENT branch
         self._condition_nodes_map[self._current_branch].append(condition_node)
@@ -205,13 +228,11 @@ class FlowchartManager:
         self._current_branch = new_branch_name
         
         # Init map for the new branch
-        if new_branch_name not in self._condition_nodes_map:
-            self._condition_nodes_map[new_branch_name] = []
+        self._condition_nodes_map.setdefault(new_branch_name, []).append(condition_node)
 
     def _switchToPreviousBranch(self):
         """
         Backtracking logic to find the next active open branch.
-        Replicates legacy 'switchToPreviousBranch'.
         """
         # 1. Mark current branch as completed
         self._branches_status[self._current_branch] = "Completed"
@@ -245,9 +266,65 @@ class FlowchartManager:
         """
         Special case for Merge: Connect previous -> existing condition.
         Replicates the 'is_merging' block from legacy 'connectPreviousToNewNode'.
+
+        Args:
+            previous_node: The node to connect from.
+            target_condition_node: The existing ConditionNode to connect to.
         """
         # Legacy: enforced "right" connection for merges
         previous_node.connect(target_condition_node, "right")
         
         # After connecting, we need to backtrack because this path is closed
         self._switchToPreviousBranch()
+
+        self._is_merging = False
+
+    def generateFlowchartSVG(self, diagrams_tool_path: str, output_svg_path: str):
+        """
+        Generates an SVG file from the current flowchart DSL using the specified diagrams tool.
+
+        Args:
+            diagrams_tool_path (str): The path to the 'seflless/diagrams' CLI tool.
+            output_svg_path (str): The desired output path for the SVG file.
+        """
+        flowchart_dsl = self.getDSL()
+        print("Flowchart DSL generated: \n----------------------------------------------------------------------")
+        print(flowchart_dsl)
+        print("----------------------------------------------------------------------")
+
+        temp_dsl_file = None    
+        try:
+            # 2. Write DSL to a temporary file with LF line endings (LF is important for compatibility with the diagrams tool because Windows uses CRLF by default!!!)
+            with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix=".flowchart", encoding="utf-8", newline='\n') as temp_dsl_file:
+                temp_dsl_file.write(flowchart_dsl)
+                temp_dsl_path = Path(temp_dsl_file.name) # Use Path object
+            print(f"Step 2: Flowchart DSL saved to temporary file: {temp_dsl_path} \n")
+
+            # 3. Call `seflless/diagrams` CLI tool
+            print(f"Step 3: Converting DSL to SVG with '{diagrams_tool_path} flowchart' CLI tool... \n")
+            command = [
+                diagrams_tool_path, # Dynamically found path
+                "flowchart",
+                str(temp_dsl_path), # Convert Path to string for the command
+                str(output_svg_path)    # Convert Path to string for the command
+            ]
+            
+            subprocess.run(command, check=True, capture_output=True, text=True)
+
+            print(f"Command executed: {' '.join(command)}")
+
+            print(f"Step 4: SVG file successfully created at: {output_svg_path} \n")
+
+        except subprocess.CalledProcessError as e:
+            print(f"Error executing the '{diagrams_tool_path}' tool:")
+            print(f"Return code: {e.returncode}")
+            print(f"STDOUT: {e.stdout}")
+            print(f"STDERR: {e.stderr}")
+            print("Possible reason: The provided DSL is faulty or the tool could not read/write the files.")
+        except Exception as e:
+            print(f"An unexpected error occurred: {e}")
+        finally:
+            # Use Path object for file operations
+            if temp_dsl_path.exists():
+                temp_dsl_path.unlink()
+                print(f"Temporary DSL file deleted: {temp_dsl_path}")
