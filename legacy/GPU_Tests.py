@@ -8,10 +8,10 @@ from PyQt6.QtGui import QSurfaceFormat, QPixmap, QImage
 from OpenGL.GL import *
 from OpenGL.GL.NV.path_rendering import *
 
-from legacy_scripts.svg_manipulation import convertSVGElementsToBytePaths
+from legacy.svg_manipulation import convertSVGElementsToBytePaths
 from src.setup import get_calibration_data
 from src.setup import buildExtrinsicMatrix
-from legacy_scripts.apriltag_detection import AprilTagTrackingWorker
+from legacy.apriltag_detection import AprilTagTrackingWorker
 
 class PathRenderingWidget(QOpenGLWidget):
     def __init__(self, svg_converted_elements, projector_intrinsics, T_proj_cam, tag_size, parent=None):

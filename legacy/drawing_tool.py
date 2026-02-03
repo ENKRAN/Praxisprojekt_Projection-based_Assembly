@@ -44,7 +44,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtGui import QPainter, QPixmap, QPen, QColor, QBrush, QIcon, QPainterPath, QTransform, QFont, QTextCharFormat, QAction, QFontMetrics
 from PyQt6.QtCore import Qt, QPoint, QSize, QRectF, QPointF, QRect, pyqtSignal, QPropertyAnimation, QEasingCurve, pyqtProperty, QTimer, QUrl
 from PyQt6.QtWebEngineWidgets import QWebEngineView
-from legacy_scripts.palette import PaletteHorizontal, PALETTES, PaletteGrid
+from legacy.palette import PaletteHorizontal, PALETTES, PaletteGrid
 from PyQt6.QtWidgets import QLineEdit
 
 def profiliere_funktion(func, *args, **kwargs):

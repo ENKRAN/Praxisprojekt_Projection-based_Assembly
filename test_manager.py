@@ -3,7 +3,7 @@ import shutil
 from pathlib import Path
 
 def testManagerLogic():
-    output_dir = Path("app/resources/flowchart_dynamic")
+    output_dir = Path("app/flowchart_dynamic")
     if not output_dir.exists():
         output_dir.mkdir(parents=True, exist_ok=True)
 
