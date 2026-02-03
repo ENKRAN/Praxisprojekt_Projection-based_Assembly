@@ -1,4 +1,5 @@
 import numpy as np
+from svgelements import Color
 
 def computeSVGToTagMatrix(homography: np.ndarray, tag_size_meters: float) -> np.ndarray:
         """
@@ -78,3 +79,20 @@ def buildExtrinsicMatrix(R: np.ndarray, T: np.ndarray) -> np.ndarray:
     matrix[:3, 3] = T.flatten() 
     
     return matrix
+
+def float_to_css(vals):
+    if vals is None: return "none"
+    r = int(vals[0] * 255)
+    g = int(vals[1] * 255)
+    b = int(vals[2] * 255)
+    return f"rgb({r},{g},{b})"
+
+def color_to_opengl_float(c):
+    """
+    Konvertiert svgelements.Color zu einem Tupel aus Floats (0.0 - 1.0).
+    Geeignet für glColor3f(r, g, b).
+    """
+    if isinstance(c, Color) and c.value is not None:
+        # Division durch 255.0 für Normalisierung auf 0.0-1.0
+        return (c.red / 255.0, c.green / 255.0, c.blue / 255.0)
+    return None

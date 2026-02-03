@@ -1,5 +1,5 @@
 import numpy as np
-from app.core.math_utils import computeSVGToTagMatrix
+from app.utils.math_utils import computeSVGToTagMatrix
 from app.core.domain import InstructionContent, PoseData
 
 def testEverything():

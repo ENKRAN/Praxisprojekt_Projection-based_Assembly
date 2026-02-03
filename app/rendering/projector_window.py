@@ -1,4 +1,3 @@
-import sys
 import numpy as np
 from PyQt6.QtWidgets import QMainWindow
 from PyQt6.QtOpenGLWidgets import QOpenGLWidget
@@ -7,8 +6,8 @@ from OpenGL.GL import *
 from OpenGL.GL.NV.path_rendering import *
 
 # Make sure you moved svg_manipulation.py to app/utils/svg_loader.py
-from app.utils.svg_loader import convertSVGElementsToBytePaths
-from app.core.math_utils import computeSVGToTagMatrix, buildExtrinsicMatrix
+from app.utils.svg_utils import convertSVGElementsToBytePaths
+from app.utils.math_utils import computeSVGToTagMatrix, buildExtrinsicMatrix
 from app.core.config import Config
 
 class PathRenderingWidget(QOpenGLWidget):
@@ -125,8 +124,8 @@ class PathRenderingWidget(QOpenGLWidget):
         glFrustum(l, r, b, t, z_near, z_far)
         glMatrixMode(GL_MODELVIEW)
     
-    @pyqtSlot(np.ndarray, np.ndarray)
-    def setBakingMatrix(self, homography, color_img):
+    @pyqtSlot(np.ndarray, np.ndarray, int)
+    def setBakingMatrix(self, homography, color_img, tag_id):
         """
         Called when Snapshot is taken. Computes the fixed relation SVG <-> Tag.
         
@@ -139,8 +138,8 @@ class PathRenderingWidget(QOpenGLWidget):
         self.is_baked = True
         self.update()
 
-    @pyqtSlot(np.ndarray, np.ndarray)
-    def updateTagPose(self, R_ct, tvec):
+    @pyqtSlot(np.ndarray, np.ndarray, int)
+    def updateTagPose(self, R_ct, tvec, tag_id):
         """
         Called every frame by VisionWorker to move the projection.
         
