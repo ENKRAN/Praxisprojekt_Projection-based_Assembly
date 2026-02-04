@@ -51,7 +51,7 @@ class DrawingPage(QWidget):
         self._initUI()
 
         # Path info for saving
-        self.output_dir = Path(output_dir)
+        self.output_dir = Path(output_dir)  
         base = Path(input_path)
         self.input_name = base.stem
         

@@ -1,37 +1,18 @@
-import asyncio
-import websockets
-import datetime
+from flask import Flask
+from flask_sock import Sock
 
-# Diese Funktion wird für jeden verbundenen Client ausgeführt
-async def svg_handler(websocket):
-    print("🟢 Client (Browser) verbunden!")
-    
-    try:
-        async for message in websocket:
-            # Hier simulieren wir die Verarbeitung
-            timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-            size = len(message)
-            
-            # Ausgabe im Terminal
-            print(f"[{timestamp}] SVG empfangen ({size} Bytes)")
-            print(f"    Inhalt Vorschau: {message[:60]}...") 
+app = Flask(__name__)
+sock = Sock(app)
 
-            # Bestätigung an den Browser zurücksenden
-            response = f"Server: SVG empfangen um {timestamp}"
-            await websocket.send(response)
-            
-    except websockets.exceptions.ConnectionClosed:
-        print("🔴 Verbindung getrennt")
+@sock.route("/ws")
+def ws_handler(ws):
+    print("WS client connected")
 
-async def main():
-    # 'localhost' bedeutet: Nur auf diesem PC erreichbar
-    async with websockets.serve(svg_handler, "localhost", 8765):
-        print("🚀 Server läuft auf ws://localhost:8765")
-        print("   Warte auf Verbindung...")
-        await asyncio.Future()  # Hält das Programm am Laufen
+    while True:
+        svg_vector = ws.receive()
+        if svg_vector is None:
+            print("WS client disconnected")
+            break
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        print("\nServer gestoppt.")
+    app.run(host="0.0.0.0", port=9001, threaded=True, debug=False, use_reloader=False)
