@@ -1,0 +1,64 @@
+import time
+import websocket
+
+from .state import SharedState
+from .config import AppConfig
+from .svg_utils import extract_last_vector_element_xml
+
+def forward_loop(state: SharedState, cfg: AppConfig) -> None:
+    target = (cfg.forward_ws_url or "").strip()
+    if not target:
+        print("[Forwarder] disabled (no forward_ws_url)")
+        return
+
+    ws = None
+
+    def connect():
+        return websocket.create_connection(target, timeout=5)
+
+    while True:
+        time.sleep(cfg.forward_interval_sec)
+
+        with state.lock:
+            dirty = state.forward_dirty
+            last_change = state.last_change_ts
+            full_svg = state.latest_svg
+            last_sent = state.last_forward_sent
+
+        if not dirty or not (full_svg or "").strip():
+            continue
+        if (time.time() - last_change) < cfg.debounce_sec:
+            continue
+
+        last_vec = extract_last_vector_element_xml(full_svg)
+        if not last_vec:
+            with state.lock:
+                state.forward_dirty = False
+            continue
+
+        if last_vec == last_sent:
+            with state.lock:
+                state.forward_dirty = False
+            continue
+
+        try:
+            if ws is None:
+                ws = connect()
+                print(f"[Forwarder] connected to receiver: {target}")
+        except Exception as e:
+            ws = None
+            print("[Forwarder] connect failed:", e)
+            continue
+
+        try:
+            ws.send(last_vec)
+            with state.lock:
+                state.last_forward_sent = last_vec
+                state.forward_dirty = False
+        except Exception as e:
+            print("[Forwarder] send failed:", e)
+            try:
+                ws.close()
+            except Exception:
+                pass
+            ws = None
