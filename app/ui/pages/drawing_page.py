@@ -1,287 +1,164 @@
+import tempfile
 from pathlib import Path
+import numpy as np
+import cv2
+
 from PyQt6.QtWidgets import (
-    QApplication,
-    QSlider, 
-    QWidgetAction, 
-    QGraphicsView,
-    QGraphicsTextItem,
-    QWidget,
-    QHBoxLayout
+    QWidget, QHBoxLayout, QGraphicsView, QSlider
 )
-from PyQt6.QtGui import QPixmap, QColor, QBrush, QTextCharFormat
+from PyQt6.QtGui import QPixmap, QColor, QImage
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 
 from app.ui.components.drawing.zoomable_view import ZoomableView
-from app.ui.components.drawing.interactive_scene import InteractiveScene, EditableTextItem
+from app.ui.components.drawing.interactive_scene import InteractiveScene
 from app.utils.svg_utils import generateSVGfromDrawing, optimizeSVG
 
 class DrawingPage(QWidget):
     """
-    A drawing tool application that allows users to draw shapes on a background image.
-    Args:
-        input_path (str): Path to the input image file.
-        output_dir (str): Directory where the output image will be saved.
+    The central widget for drawing.
+    It manages the scene and the view, but delegates Toolbar-Control to the MainWindow.
     """
-    save_clicked = pyqtSignal(str) # Emits the path to the temp SVG file
+    # Signal emits the path to the temporary SVG file when user clicks Save
+    save_clicked = pyqtSignal(str) 
+    # Signal to cancel/go back
     cancel_clicked = pyqtSignal()
 
-    def __init__(self, input_path, output_dir, parent=None):
+    def __init__(self, parent=None):
         super().__init__(parent)
-        self.main_window = parent
-
-        try:
-            self.bg = QPixmap(input_path)
-            print(f"Size of Image to be drawn on: ", self.bg.size())
-        except Exception as e:
-            self.bg = QPixmap(1280, 720); self.bg.fill(QColor("darkslategray"))
-
-        # Create a scene for drawing
-        self.scene = InteractiveScene(0, 0, self.bg.width(), self.bg.height(), parent=self)
-
-        # Add the background image to the scene
-        self.bg_item = self.scene.addPixmap(self.bg)
-        self.bg_item.setPos(0, 0)
-        self.bg_item.setZValue(0)
-
-        # Create a transparent view for displaying the drawing layer
-        self.view = ZoomableView(self.scene, self)
-        self.view.setFixedSize(self.bg.width(), self.bg.height())
-
-        self._initUI()
-
-        # Path info for saving
-        self.output_dir = Path(output_dir)  
-        base = Path(input_path)
-        self.input_name = base.stem
         
-        init_html = """<html>
-          <body style="background-color: #2e3440;">
-          </body>
-        </html>"""
-
-        self.flowchart_widget.setHtml(init_html)
-
-    def _initUI(self):
-        layout = QHBoxLayout(self)
-
-        self.tools = {
-            'select': 'Select',
-            'scale': 'Scale',
-            'erase': 'Erase',
-            'nodes': 'Nodes',
-            'brush': 'Brush',
-            'rectangle': 'Rectangle',
-            'circle': 'Circle',
-            'arrow': 'Arrow',
-            'text': 'Text'
-        }
-
-        # Base drawing states
+        # Internal State (Accessed by InteractiveScene via parent())
+        self.bg_pixmap = None
+        self.bg_item = None
+        
+        # Drawing Attributes (Controlled by MainWindow)
         self.current_tool = 'brush'
         self.pen_color = QColor(Qt.GlobalColor.white)
-        self.pen_width = 2
-        self.show_radius = False
+        self.pen_width = 3
         self.fill_shape = False
-        self.text_size = 12 
+        self.text_size = 24
+        self.show_radius = False 
 
-        # Slider
-        self.size_slider = QSlider(Qt.Orientation.Vertical, self)
-        self.size_slider.setRange(1, 100)
+        self.initUI()
+        
+    def initUI(self):
+        # Layout: Horizontal (Slider | DrawingView | Flowchart)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(10)
+
+        # 1. Size Slider (Vertical, Left)
+        self.size_slider = QSlider(Qt.Orientation.Vertical)
+        self.size_slider.setRange(1, 50)
         self.size_slider.setValue(self.pen_width)
-        self.size_slider.setMinimumSize(80, 300)
-        self.size_slider.setMaximumSize(120, 500)
         self.size_slider.valueChanged.connect(self.handleBrushSizeChange)
+        self.styleSlider(self.size_slider)
+        layout.addWidget(self.size_slider)
 
-        self.size_slider.setStyleSheet("""
-            QSlider::groove:vertical {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                                            stop:0 #B1B1B1, stop:1 #c4c4c4);
-                border: 1px solid #999999;
-                width: 50px;
-                border-radius: 25px;
-                margin: 0 0;
-            }
-
-            QSlider::add-page:vertical,
-            QSlider::sub-page:vertical {
-                background: transparent;
-                border: none;
-            }
-
-            QSlider::handle:vertical {
-                background: #535c8f;
-                width: 50px;
-                height: 50px;
-                margin: -2px 0px;
-                border: 2px solid #a8acbf;
-                border-radius: 25px;
-            }
-
-            QSlider::handle:vertical:hover {
-                background: #838fd6;
-                border-color: #4f5159;
-            }
-        """)
-
+        # 2. Drawing View (Center)
+        # We start with a default size, will be updated in loadSnapshot
+        self.scene = InteractiveScene(0, 0, 1280, 720, parent=self)
+        self.view = ZoomableView(self.scene, self)
+        
+       
+        self.view.setFixedSize(1280, 720)
+        layout.addWidget(self.view, stretch=1)
+        
+        # 3. Flowchart/Help View (Right)
         self.flowchart_widget = QWebEngineView()
-        self.flowchart_widget.setMinimumWidth(200)
-        self.flowchart_widget.setMaximumWidth(400)
+        self.flowchart_widget.setMaximumWidth(200)
+        self.flowchart_widget.setMaximumHeight(400)
 
-        layout.addWidget(self.size_slider, 0)
-        layout.addWidget(self.view, 1)
-        layout.addWidget(self.flowchart_widget, 0)
+        # Initialize with empty dark page
+        layout.addWidget(self.flowchart_widget)
+        self.flowchart_widget.setHtml('<html><body style="background-color: #2e3440;"></body></html>')
+        
         self.setLayout(layout)
 
-    def showEvent(self, event):
+    def loadSnapshot(self, cv_image: np.ndarray):
         """
-        Fit the scene in the view when the widget is first shown.
+        Loads the snapshot (OpenCV BGR Array) into the scene.
+        Called by MainWindow before switching to this page.
         """
-        # self.view.fitInView(self.scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
-        super().showEvent(event)
+        # Convert CV BGR to QImage
+        height, width, channel = cv_image.shape
+        bytes_per_line = 3 * width
+        q_img = QImage(cv_image.data, width, height, bytes_per_line, QImage.Format.Format_RGB888).rgbSwapped()
+        self.bg_pixmap = QPixmap.fromImage(q_img)
+        
+        # Clear previous items
+        self.scene.clear()
+        
+        # Set Background
+        self.scene.setSceneRect(0, 0, width, height)
+        self.bg_item = self.scene.addPixmap(self.bg_pixmap)
+        self.bg_item.setZValue(-100) # Ensure background is behind everything
+        
+        # Fit view to new image
+        self.view.fitInView(self.scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
 
-    def onSelectionChanged(self):
-        """
-        Updates the visibility of the delete action based on the number of selected items.
-        """
-        num_selected = len(self.scene.selectedItems())
-        self.main_window.delete_action.setVisible(num_selected >= 1)
+    # --- Public Methods called by MainWindow Toolbars ---
 
-    def selectTool(self, tool):
-        """
-        Selects the drawing tool and updates the UI accordingly.
-
-        Args:
-            tool (str): The tool to select, one of 'brush', 'rectangle', 'circle', 'arrow'.
-        """
-        # Change tool
-        self.current_tool = tool
-
-        if tool == 'select':
+    def setTool(self, tool_key: str):
+        """Called when a tool button is clicked in MainWindow."""
+        self.current_tool = tool_key
+        
+        if tool_key == 'select':
             self.view.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
         else:
             self.view.setDragMode(QGraphicsView.DragMode.NoDrag)
-
-        # Reset the scene to ensure no items are selected
+        
+        # Clear selection when switching tools
         self.scene.clearSelection()
 
-        for item in self.scene.items():
-            if isinstance(item, QGraphicsTextItem):
-                if tool != 'text':
-                    item.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
+    def setPenColor(self, color: QColor):
+        """Called when color is picked."""
+        self.pen_color = color
+        self.scene.update()
 
-        # Update buttons visually
-        for action in self.main_window.tools_toolbar.actions():
-            if not isinstance(action, QWidgetAction) and action.text() in ['Select', 'Scale', 'Erase', 'Nodes', 'Brush','Rectangle','Circle','Arrow', 'Text']: # Check if not QWidgetAction
-                action.setChecked(action.text() == {'select':'Select', 'scale':'Scale', 'erase':'Erase', 'nodes':'Nodes', 'brush':'Brush', 'rectangle':'Rectangle', 'circle':'Circle', 'arrow':'Arrow', 'text':'Text'}[tool])
+    def setFillShape(self, enabled: bool):
+        """Called when Fill Checkbox is toggled."""
+        self.fill_shape = enabled
 
-        # Enable/disable fill_action based on the selected tool
-        if self.current_tool in ['brush', 'rectangle', 'circle']:
-            self.main_window.fill_action.setEnabled(True)
-        else:
-            self.main_window.fill_action.setEnabled(False)
-            self.main_window.fill_shape_checkbox.setChecked(False) 
-            if self.fill_shape:  # only update if it was true
-                self.fill_shape = False
-
-    def deleteSelectedItems(self):
-        """
-        Deletes all selected items from the scene.
-        """
+    def deleteSelected(self):
+        """Deletes selected items."""
         for item in self.scene.selectedItems():
             self.scene.removeItem(item)
 
-    def toggleFillShape(self, checked):
-        """
-        Toggles the fill shape option for rectangle and circle tools.
-
-        Args:
-            checked (bool): True if fill shape should be enabled, False otherwise.
-        """
-        self.fill_shape = checked
-        self.scene.update()  # Update the scene to reflect the change
-
-    def handlePaletteSelection(self, color_hex_string):
-        """
-        Handles color selection from the palette and updates the pen color.
-        Applies the new color to the selected text or the current cursor format.
-        """
-        new_color = QColor(color_hex_string)
-        self.pen_color = new_color
-
-        # Check if a text item is currently being edited
-        focused_item = self.scene.focusItem()
-        if isinstance(focused_item, EditableTextItem):
-            cursor = focused_item.textCursor()
-            char_format = QTextCharFormat()
-            char_format.setForeground(QBrush(new_color))
-            cursor.mergeCharFormat(char_format)
-        else:
-            # Apply to all selected text items if no item is being edited
-            for item in self.scene.selectedItems():
-                if isinstance(item, QGraphicsTextItem):
-                    item.setDefaultTextColor(new_color)
-        
-        self.scene.update()
-
     def handleBrushSizeChange(self, value):
-        """
-        Updates brush thickness and shows preview.
-
-        Args:
-            value (int): The new thickness value for the brush.
-        """
+        """Internal slot for the slider."""
         self.pen_width = value
         self.show_radius = True
-        if hasattr(self, 'scene') and self.scene:
-            self.scene.update()
+        self.scene.update()
 
-    def handleTextSizeChange(self, value):
+    def saveStep(self):
         """
-        Updates the text size for the text tool.
-        Applies the new size to the selected text or the current cursor format.
+        Generates the SVG, saves it to a temp file, and emits the signal.
+        The MainWindow catches the signal and handles the persistent storage.
         """
-        self.text_size = value
+        temp_svg = tempfile.NamedTemporaryFile(delete=False, suffix=".svg")
+        temp_svg.close()
+        save_path = Path(temp_svg.name)
         
-        # Check if a text item is currently being edited
-        focused_item = self.scene.focusItem()
-        if isinstance(focused_item, EditableTextItem):
-            cursor = focused_item.textCursor()
-            char_format = QTextCharFormat()
-            char_format.setFontPointSize(float(value))
-            cursor.mergeCharFormat(char_format)
-        else:
-            # Apply to all selected text items if no item is being edited
-            for item in self.scene.selectedItems():
-                if isinstance(item, QGraphicsTextItem):
-                    font = item.font()
-                    font.setPointSize(value)
-                    item.setFont(font)
+        try:
+            # Generate SVG using your utility
+            generateSVGfromDrawing(save_path, self.bg_pixmap, self.bg_item, self.scene)
+            optimizeSVG(save_path)
+            
+            # Inform MainWindow
+            self.save_clicked.emit(str(save_path))
+            
+        except Exception as e:
+            print(f"Error saving SVG: {e}")
 
-    def finishAndSave(self):
-        """
-        Finishes the drawing session and saves the current scene as an SVG file.
-        """
-        screen = QApplication.primaryScreen()
-        dpi = screen.physicalDotsPerInch()
-        print(f"DPI: {dpi}")
-
-        save_path = self.output_dir / f"{self.input_name}_drawn.svg"
-        generateSVGfromDrawing(save_path, self.bg, self.bg_item, self.scene)
-        optimizeSVG(save_path)
-
-        if self.main_window.flowchart_page.output_svg_path.exists():
-            try:
-                self.main_window.flowchart_page.output_svg_path.unlink()
-            except Exception as e:
-                print(f"Error deleting existing Flowchart SVG file: {e}")
-        else:
-            print("No existing Flowchart SVG file to delete.")
-
-        self.parent().setCurrentIndex(1)
-
-    def resetToolbars(self):
-        self.main_window.tools_toolbar.show()
-        self.main_window.fill_shape_toolbar.show()
-        self.main_window.colors_toolbar.show()
-        self.main_window.save_button_toolbar.show()
+    def styleSlider(self, slider):
+        """Applies the custom CSS to the slider."""
+        slider.setStyleSheet("""
+            QSlider::groove:vertical {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #B1B1B1, stop:1 #c4c4c4);
+                border: 1px solid #999999; width: 20px; border-radius: 10px;
+            }
+            QSlider::handle:vertical {
+                background: #535c8f; height: 20px; margin: 0 -5px; border-radius: 10px;
+            }
+        """)
