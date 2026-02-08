@@ -4,7 +4,7 @@ import tempfile
 import subprocess
 from pathlib import Path
 
-class FlowchartManager:
+class FlowchartManager:    
     def __init__(self):
         # 1. Initialize State
         self.start_node = StartNode("")  # Implicit "Start" text
@@ -28,6 +28,12 @@ class FlowchartManager:
         self._current_branch_state_yn = None 
         self._is_merging = False
 
+        output_dir = Path("resources/flowchart_dynamic")
+        if not output_dir.exists():
+            output_dir.mkdir(parents=True, exist_ok=True)
+
+        self.output_svg_path = Path(f"{output_dir}/current_flowchart.svg")
+
     # --- Public API (Used by GUI) ---
 
     def addOperation(self, text: str) -> OperationNode:
@@ -42,7 +48,12 @@ class FlowchartManager:
 
     def addInputOutput(self, io_type: str, text: str) -> InputOutputNode:
         """ io_type should be 'input' or 'output' """
-        node = InputOutputNode(io_type, text) 
+        if io_type == "input":
+            node = InputOutputNode(InputOutputNode.INPUT, text)
+        elif io_type == "output":
+            node = InputOutputNode(InputOutputNode.OUTPUT, text)
+        else:
+            raise ValueError("Invalid io_type. Must be 'input' or 'output'.")
         self._connectNode(node)
         return node
         
@@ -71,6 +82,23 @@ class FlowchartManager:
         """
         fc = Flowchart(self.start_node)
         return fc.flowchart()
+    
+    def addNode(self, node_type: str, popup, popup_io_text):
+        match node_type:
+            case "operation":
+                self.addOperation(popup.user_input)
+                
+            case "condition":
+                self.addCondition(popup.user_input)
+
+            case "inputoutput":
+                self.addInputOutput(popup.user_input, popup_io_text.user_input)
+
+            case "subroutine":
+                self.addSubroutine(popup.user_input)
+
+            case "end":
+                self.addEnd()
 
     def getMergeCandidates(self) -> List[ConditionNode]:
         """
@@ -279,13 +307,13 @@ class FlowchartManager:
 
         self._is_merging = False
 
-    def generateFlowchartSVG(self, diagrams_tool_path: str, output_svg_path: str):
+    def generateFlowchartSVG(self, diagrams_tool_path: str):
+    
         """
         Generates an SVG file from the current flowchart DSL using the specified diagrams tool.
 
         Args:
             diagrams_tool_path (str): The path to the 'seflless/diagrams' CLI tool.
-            output_svg_path (str): The desired output path for the SVG file.
         """
         flowchart_dsl = self.getDSL()
         print("Flowchart DSL generated: \n----------------------------------------------------------------------")
@@ -306,14 +334,14 @@ class FlowchartManager:
                 diagrams_tool_path, # Dynamically found path
                 "flowchart",
                 str(temp_dsl_path), # Convert Path to string for the command
-                str(output_svg_path)    # Convert Path to string for the command
+                str(self.output_svg_path)    # Convert Path to string for the command
             ]
             
             subprocess.run(command, check=True, capture_output=True, text=True)
 
             print(f"Command executed: {' '.join(command)}")
 
-            print(f"Step 4: SVG file successfully created at: {output_svg_path} \n")
+            print(f"Step 4: SVG file successfully created at: {self.output_svg_path} \n")
 
         except subprocess.CalledProcessError as e:
             print(f"Error executing the '{diagrams_tool_path}' tool:")
@@ -328,3 +356,6 @@ class FlowchartManager:
             if temp_dsl_path.exists():
                 temp_dsl_path.unlink()
                 print(f"Temporary DSL file deleted: {temp_dsl_path}")
+
+    def updateFlowchart(self):
+        self.generateFlowchartSVG(self.start_node)

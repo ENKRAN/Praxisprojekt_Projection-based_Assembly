@@ -4,16 +4,16 @@ from PyQt6.QtGui import QPainter
 from PyQt6.QtCore import Qt, pyqtSignal, QRectF, QPropertyAnimation, QEasingCurve, pyqtProperty
 
 class ClickableSvgWidget(QWidget):
-    clicked = pyqtSignal(str)
+    clicked = pyqtSignal(str, QWidget)
 
-    def __init__(self, svg_path, name, parent=None):
+    def __init__(self, svg_path, node_name, parent=None):
         super().__init__(parent)
         self.svg_path = svg_path
         self.renderer = QSvgRenderer(svg_path)
         self.renderer.setAspectRatioMode(Qt.AspectRatioMode.KeepAspectRatio)
         self.setMinimumSize(200, 200)  # Angepasst an Grid
         self.setMaximumSize(600, 600)
-        self.name = name
+        self.node_name = node_name
         
         self._scale = 1.0
         self.animation = QPropertyAnimation(self, b"scale")
@@ -39,7 +39,7 @@ class ClickableSvgWidget(QWidget):
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             self.playAnimation()
-            self.clicked.emit(self.name)
+            self.clicked.emit(self.node_name, self)
         super().mousePressEvent(event)
 
     def playAnimation(self):

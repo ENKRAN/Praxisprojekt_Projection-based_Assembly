@@ -13,7 +13,7 @@ class NodeSelectionPage(QWidget):
     Selects a node type and emits a signal.
     """
     # Signal sends the type of node selected (e.g., "operation", "decision")
-    node_selected = pyqtSignal(str)
+    node_selected = pyqtSignal(str, QWidget)
     back_clicked = pyqtSignal()
 
     def __init__(self, parent=None):
@@ -108,7 +108,7 @@ class NodeSelectionPage(QWidget):
                 col = 0
                 row += 1
 
-    def onNodeClicked(self, node_type: str):
+    def onNodeClicked(self, node_type: str, node: QWidget):
         """Relays the signal from the widget to the page controller."""
         print(f"NodeSelectionPage: Clicked {node_type}")
-        self.node_selected.emit(node_type)
+        self.node_selected.emit(node_type, node)

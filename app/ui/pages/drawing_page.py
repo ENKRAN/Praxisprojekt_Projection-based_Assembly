@@ -4,15 +4,16 @@ import numpy as np
 import cv2
 
 from PyQt6.QtWidgets import (
-    QWidget, QHBoxLayout, QGraphicsView, QSlider
+    QWidget, QHBoxLayout, QGraphicsView, QSlider, QGraphicsTextItem, QApplication
 )
-from PyQt6.QtGui import QPixmap, QColor, QImage
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QPixmap, QColor, QImage, QTextCharFormat, QBrush
+from PyQt6.QtCore import Qt, pyqtSignal, QUrl
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 
 from app.ui.components.drawing.zoomable_view import ZoomableView
 from app.ui.components.drawing.interactive_scene import InteractiveScene
 from app.utils.svg_utils import generateSVGfromDrawing, optimizeSVG
+from app.ui.components.drawing.interactive_scene import EditableTextItem
 
 class DrawingPage(QWidget):
     """
@@ -21,8 +22,8 @@ class DrawingPage(QWidget):
     """
     # Signal emits the path to the temporary SVG file when user clicks Save
     save_clicked = pyqtSignal(str) 
-    # Signal to cancel/go back
     cancel_clicked = pyqtSignal()
+    tool_selected = pyqtSignal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -78,24 +79,29 @@ class DrawingPage(QWidget):
     def loadSnapshot(self, cv_image: np.ndarray):
         """
         Loads the snapshot (OpenCV BGR Array) into the scene.
-        Called by MainWindow before switching to this page.
         """
-        # Convert CV BGR to QImage
-        height, width, channel = cv_image.shape
-        bytes_per_line = 3 * width
-        q_img = QImage(cv_image.data, width, height, bytes_per_line, QImage.Format.Format_RGB888).rgbSwapped()
+        # 1. Convert BGR (OpenCV) to RGB (Qt)
+        # We use the same robust logic as in VisionWorker
+        rgb_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
+        
+        height, width, channel = rgb_image.shape
+        bytes_per_line = channel * width
+        
+        # 2. Create QImage
+        # .copy() is crucial to ensure QImage owns the data and doesn't crash 
+        # if the numpy array gets garbage collected later.
+        q_img = QImage(rgb_image.data, width, height, bytes_per_line, QImage.Format.Format_RGB888).copy()
+        
         self.bg_pixmap = QPixmap.fromImage(q_img)
         
-        # Clear previous items
+        # 3. Setup Scene
         self.scene.clear()
-        
-        # Set Background
-        self.scene.setSceneRect(0, 0, width, height)
+        # self.scene.setSceneRect(0, 0, width, height)
         self.bg_item = self.scene.addPixmap(self.bg_pixmap)
-        self.bg_item.setZValue(-100) # Ensure background is behind everything
+        self.bg_item.setPos(0, 0)
+        self.bg_item.setZValue(0)
         
-        # Fit view to new image
-        self.view.fitInView(self.scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
+        self.view.setFixedSize(self.bg_pixmap.width(), self.bg_pixmap.height())
 
     # --- Public Methods called by MainWindow Toolbars ---
 
@@ -111,14 +117,45 @@ class DrawingPage(QWidget):
         # Clear selection when switching tools
         self.scene.clearSelection()
 
-    def setPenColor(self, color: QColor):
-        """Called when color is picked."""
-        self.pen_color = color
+        for item in self.scene.items():
+            if isinstance(item, QGraphicsTextItem):
+                if tool_key != 'text':
+                    item.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
+
+        self.tool_selected.emit(tool_key)
+
+    def setPenColor(self, color_hex_string: str):
+        """
+        Handles color selection from the palette and updates the pen color.
+        Applies the new color to the selected text or the current cursor format.
+        """
+        new_color = QColor(color_hex_string)
+        self.pen_color = new_color
+
+        # Check if a text item is currently being edited
+        focused_item = self.scene.focusItem()
+        if isinstance(focused_item, EditableTextItem):
+            cursor = focused_item.textCursor()
+            char_format = QTextCharFormat()
+            char_format.setForeground(QBrush(new_color))
+            cursor.mergeCharFormat(char_format)
+        else:
+            # Apply to all selected text items if no item is being edited
+            for item in self.scene.selectedItems():
+                if isinstance(item, QGraphicsTextItem):
+                    item.setDefaultTextColor(new_color)
+        
         self.scene.update()
 
-    def setFillShape(self, enabled: bool):
-        """Called when Fill Checkbox is toggled."""
-        self.fill_shape = enabled
+    def toggleFillShape(self, checked):
+        """
+        Toggles the fill shape option for rectangle and circle tools.
+
+        Args:
+            checked (bool): True if fill shape should be enabled, False otherwise.
+        """
+        self.fill_shape = checked
+        self.scene.update()
 
     def deleteSelected(self):
         """Deletes selected items."""
@@ -131,11 +168,40 @@ class DrawingPage(QWidget):
         self.show_radius = True
         self.scene.update()
 
+    def handleTextSizeChange(self, value):
+        """
+        Updates the text size for the text tool.
+        Applies the new size to the selected text or the current cursor format.
+        """
+        self.text_size = value
+        
+        # Check if a text item is currently being edited
+        focused_item = self.scene.focusItem()
+        if isinstance(focused_item, EditableTextItem):
+            cursor = focused_item.textCursor()
+            char_format = QTextCharFormat()
+            char_format.setFontPointSize(float(value))
+            cursor.mergeCharFormat(char_format)
+        else:
+            # Apply to all selected text items if no item is being edited
+            for item in self.scene.selectedItems():
+                if isinstance(item, QGraphicsTextItem):
+                    font = item.font()
+                    font.setPointSize(value)
+                    item.setFont(font)
+
     def saveStep(self):
         """
         Generates the SVG, saves it to a temp file, and emits the signal.
         The MainWindow catches the signal and handles the persistent storage.
         """
+        # Debug: Print DPI for troubleshooting scaling issues
+        screen = QApplication.primaryScreen()
+        dpi = screen.physicalDotsPerInch()
+        print(f"DPI: {dpi}")
+
+        # ---------------------------------------------------
+
         temp_svg = tempfile.NamedTemporaryFile(delete=False, suffix=".svg")
         temp_svg.close()
         save_path = Path(temp_svg.name)
@@ -162,3 +228,14 @@ class DrawingPage(QWidget):
                 background: #535c8f; height: 20px; margin: 0 -5px; border-radius: 10px;
             }
         """)
+
+    def load_svg(self, svg_path):
+        abs_path = svg_path.resolve()
+        html = f"""
+        <html>
+          <body style="background-color: #2e3440;">
+            <embed src="{abs_path}" type="image/svg+xml" style="width:100%; height:100%"/>
+          </body>
+        </html>
+        """
+        self.flowchart_widget.setHtml(html, QUrl.fromLocalFile(str(abs_path.parent)))

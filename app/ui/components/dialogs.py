@@ -67,8 +67,8 @@ class PopupDialog(QDialog):
             button_layout = QHBoxLayout()
             button_layout.setSpacing(15)
             
-            self.create_btn("OK", self.on_text_input_ok, button_layout)
-            self.create_btn("Cancel", self.reject, button_layout)
+            self.createBtn("OK", self.onTextInputOk, button_layout)
+            self.createBtn("Cancel", self.reject, button_layout)
             
             layout.addLayout(button_layout)
             self.text_input.setFocus()
@@ -78,21 +78,21 @@ class PopupDialog(QDialog):
             for i in range(button_count):
                 text = button_texts[i] if i < len(button_texts) else f"Option {i}"
                 btn = QPushButton(text)
-                self.style_button(btn)
-                btn.clicked.connect(lambda _, t=text: self.on_choice(t))
+                self.styleButton(btn)
+                btn.clicked.connect(lambda _, t=text: self.onChoice(t))
                 layout.addWidget(btn)
 
     def resizeEvent(self, event):
         self.shadow_widget.setGeometry(10, 10, self.width() - 20, self.height() - 20)
         super().resizeEvent(event)
 
-    def create_btn(self, text, callback, layout):
+    def createBtn(self, text, callback, layout):
         btn = QPushButton(text)
-        self.style_button(btn)
+        self.styleButton(btn)
         btn.clicked.connect(callback)
         layout.addWidget(btn)
 
-    def style_button(self, btn):
+    def styleButton(self, btn):
         btn.setMinimumHeight(60)
         btn.setFont(QFont("Arial", 18))
         btn.setStyleSheet("""
@@ -107,11 +107,16 @@ class PopupDialog(QDialog):
             }
         """)
 
-    def on_choice(self, choice_text):
+    def onChoice(self, choice_text):
         self.user_input = choice_text
         self.accept()
 
-    def on_text_input_ok(self):
+    def onTextInputOk(self):
         self.user_input = self.text_input.text().strip()
         if self.user_input:
             self.accept()
+
+    def isPopupResultValid(self, result, popup_text):
+        if result == QDialog.DialogCode.Rejected or not popup_text.user_input:
+            return False
+        return True

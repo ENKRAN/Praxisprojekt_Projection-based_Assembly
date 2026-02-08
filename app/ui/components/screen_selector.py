@@ -11,7 +11,7 @@ class ScreenSelectorDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Monitor Setup")
         self.setModal(True)
-        self.resize(450, 350)
+        self.resize(750, 550)
         
         self.selected_gui_screen = None
         self.selected_proj_screen = None

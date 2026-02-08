@@ -2,9 +2,19 @@
 <svg width="338.67mm" height="190.5mm" baseProfile="tiny" version="1.2" viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg">
  <title>Vektor-Editor Export</title>
  <desc>SVG export from PyQt6 QGraphicsScene</desc>
- <g fill="none" fill-rule="evenodd" stroke="#000" stroke-linecap="square" stroke-linejoin="bevel">
-  <g fill="#000" font-family="Segoe UI" font-size="12" font-weight="400" stroke="none">
+ <g fill-rule="evenodd" font-family="Segoe UI" font-size="12" font-weight="400" stroke-linecap="square" stroke-linejoin="bevel">
+  <g>
    <rect width="1280" height="720"/>
+  </g>
+  <g transform="translate(350 273)" fill="none" stroke="#a6cee3" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+   <path d="m0 0v-2-1-7l6-5 44-18 93-19 133-20 138 6 78 42 12 58-30 54-46 45-24 27-2 18 6 12 20 14 22 7 12 3h2 3l5-7 1-7" fill-rule="evenodd"/>
+  </g>
+  <g fill="none" stroke="#a6cee3" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+   <rect x="306" y="283" width="436" height="222"/>
+   <path d="m235 529 629-198-7.992-0.353m7.992 0.353-6.349 4.867" fill-rule="evenodd"/>
+  </g>
+  <g fill="none" stroke="#e31a1c" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+   <path d="m204 199 553 134-6.662-4.43m6.662 4.43-7.95 0.889" fill-rule="evenodd"/>
   </g>
  </g>
 </svg>

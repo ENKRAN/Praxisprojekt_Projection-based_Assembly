@@ -805,7 +805,7 @@ class MainWindow(QMainWindow):
         for tool, text in self.drawing_tool.tools.items():
             action = QAction(text, self)
             action.setCheckable(True)
-            action.setIcon(QIcon(f"legacy_scripts/resources/{tool}.svg"))
+            action.setIcon(QIcon(f"legacy/resources/{tool}.svg"))
             action.triggered.connect(lambda checked, t=tool: self.drawing_tool.selectTool(t))
             self.tools_toolbar.addAction(action)
             if tool == 'brush':
@@ -841,7 +841,7 @@ class MainWindow(QMainWindow):
         self.tools_toolbar.addSeparator()
 
         self.delete_action = QAction("Delete", self)
-        self.delete_action.setIcon(QIcon("legacy_scripts/resources/delete.svg")) 
+        self.delete_action.setIcon(QIcon("legacy/resources/delete.svg")) 
         self.delete_action.triggered.connect(self.drawing_tool.deleteSelectedItems)
         self.tools_toolbar.addAction(self.delete_action)
         self.delete_action.setVisible(False)
@@ -1039,14 +1039,14 @@ class FlowchartPage(QWidget):
 
         self.is_merging = False
 
-        output_dir = Path("legacy_scripts/resources/flowchart_dynamic")
+        output_dir = Path("legacy/resources/flowchart_dynamic")
         if not output_dir.exists():
             output_dir.mkdir(parents=True, exist_ok=True)
 
         self.output_svg_path = Path(f"{output_dir}/current_flowchart.svg")
 
     def get_svg_files(self):
-        svg_dir = Path("legacy_scripts/resources/flowchart_icons")
+        svg_dir = Path("legacy/resources/flowchart_icons")
 
         if not svg_dir.exists():
             svg_dir.mkdir()
@@ -1300,12 +1300,13 @@ class FlowchartPage(QWidget):
 
         yes_branches = self.getYesBranches()
         yes_branches_count = len(yes_branches)
-        print("Yes Branches: ", yes_branches)
+        print("Length Yes Branches: ", yes_branches_count)
 
         button_texts = set()
         for branch in yes_branches:
             for cond in self.main_window.condition_nodes_to_branches[branch]:
                 button_texts.add(cond.node_text)
+        print("Length Button Texts: ", len(button_texts))
 
         popup_merge = PopupDialog(self, dialog_type="buttons", header="To which Condition Node do you want to connect to? (Branches will be merged)", button_count=yes_branches_count, button_texts=list(button_texts))
         result_merge = popup_merge.exec()

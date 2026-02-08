@@ -1,8 +1,0 @@
-<?xml version="1.0" ?>
-<svg xmlns="http://www.w3.org/2000/svg" id="overlay" viewBox="0 0 1280 720">
-  <path fill="none" stroke="#00ff00" stroke-width="6" d="M 698 174 L 698 175 L 692 185 L 633 246 L 622 262 L 556 342 L 546 356 L 533 371 L 521 388 L 520 391 L 518 394 L 517 395"/>
-  <path fill="none" stroke="#00ff00" stroke-width="6" d="M 378 57 L 377 63 L 377 79 L 392 112 L 493 198 L 525 216 L 622 276 L 796 413 L 883 491 L 908 511 L 940 538 L 943 541"/>
-  <path fill="none" stroke="#00ff00" stroke-width="6" d="M 912 157 L 912 204 L 903 219 L 835 281 L 640 418 L 494 512 L 353 584 L 240 633 L 194 649"/>
-  <path fill="none" stroke="#00ff00" stroke-width="6" d="M 411 362 L 422 362 L 449 362 L 579 376 L 652 388 L 667 389 L 687 387"/>
-  <ellipse fill="none" stroke="#00ff00" stroke-width="6" cx="237" cy="75" rx="289" ry="203"/>
-</svg>

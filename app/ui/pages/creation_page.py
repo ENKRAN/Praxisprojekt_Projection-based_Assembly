@@ -3,19 +3,19 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import QMessageBox
 
-from app.ui.components.camera_view import CameraView
-
 class CreationPage(QWidget):
     # Signals for navigation/actions
+    start_live_clicked = pyqtSignal()
+    stop_live_clicked = pyqtSignal()
     capture_clicked = pyqtSignal()
     save_step_clicked = pyqtSignal()
     undo_step_clicked = pyqtSignal()
     save_manual_clicked = pyqtSignal()
     quit_clicked = pyqtSignal()
 
-    def __init__(self, vision_worker, parent=None):
+    def __init__(self, camera_view, parent=None):
         super().__init__(parent)
-        self.vision_worker = vision_worker
+        self.camera_view = camera_view
         self.initUI()
         self.setupConnections()
 
@@ -36,7 +36,6 @@ class CreationPage(QWidget):
         video_container = QHBoxLayout()
         video_container.addStretch()
         
-        self.camera_view = CameraView()
         self.camera_view.setFixedSize(1280, 720) 
         
         video_container.addWidget(self.camera_view)
@@ -83,53 +82,21 @@ class CreationPage(QWidget):
 
         layout.addLayout(button_layout)
 
-        self.setButtonsState(running=False)
+        self.setInitialButtonsState(enabled=True)
 
     def setupConnections(self):
-        self.vision_worker.image_update_signal.connect(self.camera_view.setImage)
-        self.vision_worker.status_signal.connect(self.updateStatus)
-        
-        # Connect the critical error signal
-        self.vision_worker.error_signal.connect(self.onCameraError)
-
         # Button Actions
-        self.btn_start.clicked.connect(self.onStartLive)
-        self.btn_stop.clicked.connect(self.onStopLive)
-        self.btn_capture.clicked.connect(self.onCapture)
+        self.btn_start.clicked.connect(self.start_live_clicked.emit())
+        self.btn_stop.clicked.connect(self.stop_live_clicked.emit())
+        self.btn_capture.clicked.connect(self.capture_clicked.emit)
         self.btn_save_step.clicked.connect(self.save_step_clicked.emit)
         self.btn_undo.clicked.connect(self.undo_step_clicked.emit)
         self.btn_save_manual.clicked.connect(self.save_manual_clicked.emit)
         self.btn_quit.clicked.connect(self.onQuit)
-
-    def onStartLive(self):
-        if not self.vision_worker.isRunning():
-            self.status_label.setText("Status: Starting Camera...")
-            self.vision_worker.start()
-            self.status_label.setText("Status: Camera Running")
-        else:
-            self.status_label.setText("Status: Camera already running")
-
-    def onStopLive(self):
-        if self.vision_worker.isRunning():
-            self.status_label.setText("Status: Stopping Camera...")
-            self.vision_worker.stop()
-            self.status_label.setText("Status: Live Feed Stopped")
-            self.camera_view.clear()
-            self.setButtonsState(running=False)
-        else:
-            self.status_label.setText("Status: Camera is not running")
-
-    def onCapture(self):
-        if self.vision_worker.isRunning():
-            self.status_label.setText("Status: Capturing Photo...")
-            self.vision_worker.triggerSnapshot()
-            self.capture_clicked.emit()
-        else:
-             self.status_label.setText("Status: Cannot capture - Camera not running")
-
+        
     def onQuit(self):
         """Stops the camera before leaving the page."""
-        self.onStopLive()
+        self.stop_live_clicked.emit()
         self.quit_clicked.emit()
 
     def onCameraError(self, error_message: str):
@@ -138,7 +105,7 @@ class CreationPage(QWidget):
         QMessageBox.critical(self, "Camera Error", f"Critical Camera Failure:\n\n{error_message}\n\nPlease check connection and restart.")
         
         # Force UI reset
-        self.onStopLive()
+        self.stop_live_clicked.emit()
         self.setButtonsState(running=False)
 
     def updateStatus(self, message: str):
@@ -160,3 +127,16 @@ class CreationPage(QWidget):
         self.btn_start.setEnabled(not running)
         self.btn_stop.setEnabled(running)
         self.btn_capture.setEnabled(running)
+        self.btn_save_step.setEnabled(running)
+        self.btn_undo.setEnabled(running)
+        self.btn_save_manual.setEnabled(running)
+
+    def setInitialButtonsState(self, enabled: bool):
+        """Initial state for buttons when page loads."""
+        self.btn_start.setEnabled(enabled)
+        self.btn_stop.setEnabled(not enabled)
+        self.btn_capture.setEnabled(not enabled)
+        self.btn_save_step.setEnabled(not enabled)
+        self.btn_undo.setEnabled(not enabled)
+        self.btn_save_manual.setEnabled(not enabled)
+        self.btn_quit.setEnabled(enabled)
