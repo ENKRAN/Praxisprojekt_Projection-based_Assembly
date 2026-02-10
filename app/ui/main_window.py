@@ -49,6 +49,7 @@ class MainWindow(QMainWindow):
         self.current_node_type = None    # The selected node type (e.g., "operation")
         self.current_tag_id = -1         # ID of the tag in the snapshot
         self.step_counter = 1            # Counter for step IDs
+        self.pending_step_data = None
 
         # 3. Setup Hardware & Windows
         self.vision_worker = VisionWorker()
@@ -103,7 +104,7 @@ class MainWindow(QMainWindow):
         
         # Page 3: Drawing Page
         self.drawing_page = DrawingPage()
-        self.drawing_page.save_clicked.connect(self.onDrawingSaved)
+        self.drawing_page.save_clicked.connect(self.onDrawingFinished)
         self.drawing_page.cancel_clicked.connect(self.gotoCreationPage)
         self.drawing_page.tool_selected.connect(self.onToolSelected)
         self.stack.addWidget(self.drawing_page)
@@ -231,7 +232,7 @@ class MainWindow(QMainWindow):
         save_button = QPushButton("Save", self)
         save_button.setFont(QFont("Arial", 20))
         save_button.setMinimumSize(200, 100)
-        save_button.clicked.connect(lambda: self.drawing_page.saveStep())
+        save_button.clicked.connect(self.drawing_page.saveStep)
 
         save_action = QWidgetAction(self)
         save_action.setDefaultWidget(save_button)
@@ -423,36 +424,66 @@ class MainWindow(QMainWindow):
         else:
             self.merge_branch_action.setVisible(False)
 
-    def onDrawingSaved(self, temp_svg_path: str):
+    def onDrawingFinished(self, temp_svg_path: str):
         """
         Called when 'Save' is clicked in DrawingPage.
         Uses ManualManager to persist data.
         """
-        print("Saving Drawing and Flowchart...")
+        print("Drawing finished. Switching to Review Mode...")
         
+        self.pending_step_data = {
+            "temp_svg_path": temp_svg_path,
+            "node_type": self.current_node_type,
+            "node_data": getattr(self, 'current_node_data', None), 
+            "snapshot": self.current_snapshot,
+            "homography": self.current_homography,
+            "tag_id": self.current_tag_id
+        }
+
+        self.projector_window.loadInstruction(temp_svg_path)
+
+        self.creation_page.showReviewUI(True) # TODO: Implement this
+
+        self.gotoCreationPage()
+
+    def onConfirmStep(self):
+        """
+        Called when user confirms the step in CreationPage after reviewing the projection.
+        """
+        if not self.pending_step_data:
+            return
+
+        print("Confirming Step... Saving to disk.")
         try:
-            # TODO: Add Description Input here if needed
-            description = f"Step {self.step_counter}: {self.current_node_type}"
+            data = self.pending_step_data
             
-            # Save via Manager
+            desc = f"Step {self.step_counter}: {data['node_type']}"
+            if data.get('node_data'):
+                desc = str(data['node_data'])
+
             self.manual_manager.saveStep(
                 step_id=self.step_counter,
-                node_uid=f"node_{self.step_counter}", 
-                node_type=self.current_node_type,
-                description=description,
-                snapshot_img=self.current_snapshot,
-                svg_source_path=temp_svg_path,
-                homography=self.current_homography,
-                tag_id=self.current_tag_id
+                node_uid=f"node_{self.step_counter}",
+                node_type=data['node_type'],
+                description=desc,
+                snapshot_img=data['snapshot'],
+                svg_source_path=data['temp_svg_path'],
+                homography=data['homography'],
+                tag_id=data['tag_id']
             )
-            
+
+            # Cleanup
             self.step_counter += 1
-            print("Step saved. Returning to Live Feed.")
-            self.gotoCreationPage()
+            self.pending_step_data = None
             
+            self.creation_page.showReviewUI(False)
+            
+            self.projector_window.clearProjection() 
+
+            print("Step successfully saved.")
+
         except Exception as e:
-            print(f"Error saving step: {e}")
-            QMessageBox.critical(self, "Error Saving Step", str(e))
+            QMessageBox.critical(self, "Error", f"Could not save step: {e}")
 
     def setupScreens(self):
         gui_screen, proj_screen, is_debug = ScreenSelectorDialog.get_screens()
