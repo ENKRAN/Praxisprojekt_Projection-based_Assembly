@@ -9,8 +9,8 @@ from OpenGL.GL import *
 from OpenGL.GL.NV.path_rendering import *
 
 from legacy.svg_manipulation import convertSVGElementsToBytePaths
-from src.setup import get_calibration_data
-from src.setup import buildExtrinsicMatrix
+from legacy.src.setup import get_calibration_data
+from legacy.src.setup import buildExtrinsicMatrix
 from legacy.apriltag_detection import AprilTagTrackingWorker
 
 class PathRenderingWidget(QOpenGLWidget):
@@ -308,7 +308,7 @@ if __name__ == '__main__':
     fmt.setSamples(8) 
     QSurfaceFormat.setDefaultFormat(fmt)
 
-    svg = "tests/result/baking_snapshot_drawn.svg"
+    svg = "legacy/result/snapshot_color_drawn.svg"
     test_elements = convertSVGElementsToBytePaths(svg)
 
     calibration_data_path = 'data/projector_camera_calibration/calibration.yml'
@@ -316,7 +316,7 @@ if __name__ == '__main__':
 
     T_proj_cam = buildExtrinsicMatrix(R, T)
 
-    TAG_SIZE = 0.038
+    TAG_SIZE = 0.05 # 5 cm Tag Size (adjust if needed)
 
     gl_widget = PathRenderingWidget(test_elements, projector_intrinsics, T_proj_cam, TAG_SIZE)
     apriltag_tracking_thread = AprilTagTrackingWorker(width=1280, height=720, cam_intrinsics=cam_K, cam_dist_coeffs=cam_kc)

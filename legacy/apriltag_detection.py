@@ -5,9 +5,9 @@ from PyQt6.QtCore import QThread, pyqtSignal, Qt
 from PyQt6.QtGui import QImage
 from OneEuroFilter import OneEuroFilter
 
-from src.camera import Camera
-from src.apriltag_detection_old import AprilTagDetector
-from src.visualization import drawAxes, drawTagBorderAndId
+from legacy.src.camera import Camera
+from legacy.src.apriltag_detection_old import AprilTagDetector
+from legacy.src.visualization import drawAxes, drawTagBorderAndId
 
 class AprilTagTrackingWorker(QThread):
     # Signals for the GUI (thread-safe communication)
@@ -99,6 +99,8 @@ class AprilTagTrackingWorker(QThread):
                                 print("Sending snapshot homography...")
                                 self.baking_update_signal.emit(tag.homography, color_img)
                                 self.snapshot_requested = False
+
+                                cv2.imwrite("legacy/snapshot_color.png", color_img)
                             
                             self.pose_update_signal.emit(R_ct, t_final)
                             

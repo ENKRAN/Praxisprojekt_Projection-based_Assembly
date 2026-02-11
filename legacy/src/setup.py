@@ -1,5 +1,5 @@
 from .camera import Camera
-from .apriltag_detection import AprilTagDetector
+from .apriltag_detection_old import AprilTagDetector
 import numpy as np
 from typing import Tuple, Optional, Dict
 import cv2
