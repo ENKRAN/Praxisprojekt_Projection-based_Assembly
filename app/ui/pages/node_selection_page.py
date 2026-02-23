@@ -20,7 +20,7 @@ class NodeSelectionPage(QWidget):
         super().__init__(parent)
         
         # Path configuration
-        self.icon_dir = Path("app/resources/icons") 
+        self.icon_dir = Path("app/resources/icons/flowchart_nodes") 
         self.svg_files = self.get_svg_files()
 
         self.initUI()

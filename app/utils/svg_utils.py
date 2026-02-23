@@ -1,4 +1,4 @@
-import scour
+from scour import scour
 from svgelements import SVG, Path, Shape, Rect
 from app.utils.math_utils import float_to_css, color_to_opengl_float
 from PyQt6.QtSvg import QSvgGenerator

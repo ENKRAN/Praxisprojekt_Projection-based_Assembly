@@ -60,15 +60,15 @@ class MainWindow(QMainWindow):
         if not self.setupScreens():
             sys.exit(0)
         
-        # setup Vision Worker Connections (after screens are setup, before UI is created)
-        self.setup_vision_worker_connections()
-        
         # 5. GUI Stack Setup
         self.stack = QStackedWidget()
         self.setCentralWidget(self.stack)
         
         # Initialize Pages
         self.initPages()
+        
+        # setup Vision Worker Connections (after screens are setup, before UI is created)
+        self.setup_vision_worker_connections()
 
         # Initialize Toolbars (must happen after pages are created)
         self.createDrawingToolbars()
@@ -92,7 +92,8 @@ class MainWindow(QMainWindow):
         self.creation_page.start_live_clicked.connect(self.onStartLive)
         self.creation_page.stop_live_clicked.connect(self.onStopLive)
         self.creation_page.capture_clicked.connect(self.onCapture)
-        self.creation_page.save_step_clicked.connect(self.onStepSaved)
+        self.creation_page.save_step_clicked.connect(self.onConfirmStep)
+        self.creation_page.undo_step_clicked.connect(self.onDiscardStep)
         self.creation_page.quit_clicked.connect(self.gotoStartPage)
         self.stack.addWidget(self.creation_page)
         
@@ -118,10 +119,10 @@ class MainWindow(QMainWindow):
         self.vision_worker.baking_update_signal.connect(self.onSnapshotTaken)
 
         self.vision_worker.image_update_signal.connect(self.camera_view.setImage)
-        self.vision_worker.status_signal.connect(self.updateStatus)
+        self.vision_worker.status_signal.connect(self.creation_page.updateStatus)
         
         # Connect the critical error signal
-        self.vision_worker.error_signal.connect(self.onCameraError)
+        self.vision_worker.error_signal.connect(self.creation_page.onCameraError)
 
     def createDrawingToolbars(self):
         """
@@ -301,8 +302,8 @@ class MainWindow(QMainWindow):
         else:
             self.fill_action.setEnabled(False)
             self.fill_shape_checkbox.setChecked(False) 
-            if self.fill_shape:  # only update if it was true
-                self.fill_shape = False
+            if self.drawing_page.fill_shape:  # only update if it was true
+                self.drawing_page.fill_shape = False
 
     def openColorDialog(self):
         """Opens color picker and updates DrawingPage + Button Style."""
@@ -339,6 +340,7 @@ class MainWindow(QMainWindow):
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Could not create manual:\n{e}")
 
+
     def onSnapshotTaken(self, homography, color_img, tag_id):
         """Called when VisionWorker takes a snapshot."""
         print(f"Snapshot received for Tag {tag_id}. Storing data...")
@@ -361,24 +363,32 @@ class MainWindow(QMainWindow):
         self.current_node_type = node_type
         
         if self.current_snapshot is not None:
+            popup = None
+            popup_io = None
+            popup_io_text = None
+
             if node_type in ["operation", "condition", "subroutine"]:
                 popup = PopupDialog(self, dialog_type="text_input", header=f"{node_type.capitalize()} Description")
                 result = popup.exec()
 
-                if not popup.isPopupResultValid(result, popup):
+                if not popup.isPopupResultValid(result):
                     return
+                
+                self.current_node_data = popup.user_input
             elif node_type == "inputoutput":
                 popup_io = PopupDialog(self, dialog_type="buttons", header="Choose Input/Output Type", button_count=2, button_texts=["input", "output"])
                 result_io = popup_io.exec()
 
-                if not popup_io.isPopupResultValid(result_io, popup_io):
+                if not popup_io.isPopupResultValid(result_io):
                     return
                 
                 popup_io_text = PopupDialog(self, dialog_type="text_input", header=f"{popup_io.user_input.capitalize()} Text")
                 result_io_text = popup_io_text.exec()
 
-                if not popup_io_text.isPopupResultValid(result_io_text, popup_io_text):
+                if not popup_io_text.isPopupResultValid(result_io_text):
                     return
+                
+                self.current_node_data = popup_io_text.user_input
                 
             self.flowchart_manager.addNode(node_type, popup, popup_io_text)
 
@@ -442,7 +452,7 @@ class MainWindow(QMainWindow):
 
         self.projector_window.loadInstruction(temp_svg_path)
 
-        self.creation_page.showReviewUI(True) # TODO: Implement this
+        self.creation_page.showReviewUI(True)
 
         self.gotoCreationPage()
 
@@ -485,6 +495,24 @@ class MainWindow(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Could not save step: {e}")
 
+    def onDiscardStep(self):
+        """
+        Called when user discards the step in CreationPage after reviewing the projection.
+        """
+        print("Discarding current step...")
+        
+        # 1. Delete pending data to reset state (if user goes back to creation page without confirming, it should be like they never took a snapshot or selected a node)
+        self.pending_step_data = None
+        
+        # 2. Reset CreationPage UI to initial state (disable buttons, reset status, etc.)
+        self.creation_page.showReviewUI(False)
+        
+        # 3. Clear Projector (remove the rejected instruction from the projector)
+        self.projector_window.clearProjection()
+        
+        # 4. Go back to Creation Page with live feed active, so user can try again immediately if they want
+        self.onStartLive()
+
     def setupScreens(self):
         gui_screen, proj_screen, is_debug = ScreenSelectorDialog.get_screens()
         
@@ -493,6 +521,9 @@ class MainWindow(QMainWindow):
 
         if is_debug:
             print("Starting in DEBUG MODE (Windowed)")
+            test_image = "app/resources/debug/debug_frame.png" 
+            self.vision_worker.setDebugMode(True, test_image)
+
             self.move(gui_screen.geometry().x() + 50, gui_screen.geometry().y() + 50)
             self.resize(3840, 2160)
             self.show()
@@ -502,6 +533,7 @@ class MainWindow(QMainWindow):
             self.projector_window.show()
         else:
             print("Starting in PRODUCTION MODE (Fullscreen)")
+            self.vision_worker.setDebugMode(False)
             self.setGeometry(gui_screen.geometry())
             self.showFullScreen()
             
@@ -535,9 +567,6 @@ class MainWindow(QMainWindow):
             self.vision_worker.triggerSnapshot()
         else:
              self.creation_page.status_label.setText("Status: Cannot capture - Camera not running")
-
-    def onStepSaved(self):
-        pass
 
     def gotoCreationPage(self):
         self.stack.setCurrentWidget(self.creation_page)

@@ -49,12 +49,44 @@ class DrawingPage(QWidget):
         layout.setSpacing(10)
 
         # 1. Size Slider (Vertical, Left)
-        self.size_slider = QSlider(Qt.Orientation.Vertical)
-        self.size_slider.setRange(1, 50)
+        self.size_slider = QSlider(Qt.Orientation.Vertical, self)
+        self.size_slider.setRange(1, 100)
         self.size_slider.setValue(self.pen_width)
+        self.size_slider.setMinimumSize(80, 300)
+        self.size_slider.setMaximumSize(120, 500) 
         self.size_slider.valueChanged.connect(self.handleBrushSizeChange)
-        self.styleSlider(self.size_slider)
-        layout.addWidget(self.size_slider)
+
+        self.size_slider.setStyleSheet("""
+            QSlider::groove:vertical {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                            stop:0 #B1B1B1, stop:1 #c4c4c4);
+                border: 1px solid #999999;
+                width: 50px;
+                border-radius: 25px;
+                margin: 0 0;
+            }
+
+            QSlider::add-page:vertical,
+            QSlider::sub-page:vertical {
+                background: transparent;
+                border: none;
+            }
+
+            QSlider::handle:vertical {
+                background: #535c8f;
+                width: 50px;
+                height: 50px;
+                margin: -2px 0px;
+                border: 2px solid #a8acbf;
+                border-radius: 25px;
+            }
+
+            QSlider::handle:vertical:hover {
+                background: #838fd6;
+                border-color: #4f5159;
+            }
+        """)
+        layout.addWidget(self.size_slider, stretch=0)
 
         # 2. Drawing View (Center)
         # We start with a default size, will be updated in loadSnapshot
@@ -71,7 +103,7 @@ class DrawingPage(QWidget):
         self.flowchart_widget.setMaximumHeight(400)
 
         # Initialize with empty dark page
-        layout.addWidget(self.flowchart_widget)
+        layout.addWidget(self.flowchart_widget, 0)
         self.flowchart_widget.setHtml('<html><body style="background-color: #2e3440;"></body></html>')
         
         self.setLayout(layout)
@@ -216,18 +248,6 @@ class DrawingPage(QWidget):
             
         except Exception as e:
             print(f"Error saving SVG: {e}")
-
-    def styleSlider(self, slider):
-        """Applies the custom CSS to the slider."""
-        slider.setStyleSheet("""
-            QSlider::groove:vertical {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #B1B1B1, stop:1 #c4c4c4);
-                border: 1px solid #999999; width: 20px; border-radius: 10px;
-            }
-            QSlider::handle:vertical {
-                background: #535c8f; height: 20px; margin: 0 -5px; border-radius: 10px;
-            }
-        """)
 
     def load_svg(self, svg_path):
         abs_path = svg_path.resolve()

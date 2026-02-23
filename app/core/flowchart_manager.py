@@ -3,9 +3,17 @@ from typing import List
 import tempfile
 import subprocess
 from pathlib import Path
+import shutil
 
 class FlowchartManager:    
     def __init__(self):
+        self.diagrams_tool_path = shutil.which("diagrams")
+        if not self.diagrams_tool_path:
+            print("Error: The 'diagrams' tool was not found in the system PATH.")
+            print("Please make sure that Node.js is installed and you have installed '@diagrams/cli' globally (npm install -g @diagrams/cli@latest).")
+            print("You may also need to restart your terminal and VS Code or restart your system for the PATH to be recognized correctly.")
+            return
+        
         # 1. Initialize State
         self.start_node = StartNode("")  # Implicit "Start" text
         self.current_node = self.start_node
@@ -28,7 +36,7 @@ class FlowchartManager:
         self._current_branch_state_yn = None 
         self._is_merging = False
 
-        output_dir = Path("resources/flowchart_dynamic")
+        output_dir = Path("app/resources/flowchart_dynamic")
         if not output_dir.exists():
             output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -63,7 +71,7 @@ class FlowchartManager:
         return node
 
     def addEnd(self) -> EndNode:
-        node = EndNode("End")
+        node = EndNode("")
         self._connectNode(node)
         return node
 
@@ -84,6 +92,14 @@ class FlowchartManager:
         return fc.flowchart()
     
     def addNode(self, node_type: str, popup, popup_io_text):
+        """
+        Unified method to add a node based on type and popup input.
+
+        Args:
+            node_type (str): The type of node to add ("operation", "condition", "inputoutput", "subroutine", "end").
+            popup: The popup instance containing user input for the node text.
+            popup_io_text: Additional popup instance for Input/Output text if needed.
+        """
         match node_type:
             case "operation":
                 self.addOperation(popup.user_input)
@@ -307,7 +323,7 @@ class FlowchartManager:
 
         self._is_merging = False
 
-    def generateFlowchartSVG(self, diagrams_tool_path: str):
+    def generateFlowchartSVG(self):
     
         """
         Generates an SVG file from the current flowchart DSL using the specified diagrams tool.
@@ -329,9 +345,9 @@ class FlowchartManager:
             print(f"Step 2: Flowchart DSL saved to temporary file: {temp_dsl_path} \n")
 
             # 3. Call `seflless/diagrams` CLI tool
-            print(f"Step 3: Converting DSL to SVG with '{diagrams_tool_path} flowchart' CLI tool... \n")
+            print(f"Step 3: Converting DSL to SVG with '{self.diagrams_tool_path} flowchart' CLI tool... \n")
             command = [
-                diagrams_tool_path, # Dynamically found path
+                self.diagrams_tool_path, # Dynamically found path
                 "flowchart",
                 str(temp_dsl_path), # Convert Path to string for the command
                 str(self.output_svg_path)    # Convert Path to string for the command
@@ -344,7 +360,7 @@ class FlowchartManager:
             print(f"Step 4: SVG file successfully created at: {self.output_svg_path} \n")
 
         except subprocess.CalledProcessError as e:
-            print(f"Error executing the '{diagrams_tool_path}' tool:")
+            print(f"Error executing the '{self.diagrams_tool_path}' tool:")
             print(f"Return code: {e.returncode}")
             print(f"STDOUT: {e.stdout}")
             print(f"STDERR: {e.stderr}")
@@ -358,4 +374,4 @@ class FlowchartManager:
                 print(f"Temporary DSL file deleted: {temp_dsl_path}")
 
     def updateFlowchart(self):
-        self.generateFlowchartSVG(self.start_node)
+        self.generateFlowchartSVG()

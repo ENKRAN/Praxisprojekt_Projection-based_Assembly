@@ -116,7 +116,7 @@ class PopupDialog(QDialog):
         if self.user_input:
             self.accept()
 
-    def isPopupResultValid(self, result, popup_text):
-        if result == QDialog.DialogCode.Rejected or not popup_text.user_input:
+    def isPopupResultValid(self, result):
+        if result == QDialog.DialogCode.Rejected or not self.user_input:
             return False
         return True

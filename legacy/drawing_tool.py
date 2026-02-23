@@ -453,7 +453,7 @@ class DrawingTool(QWidget):
 
         self.flowchart_widget = QWebEngineView()
         self.flowchart_widget.setMinimumWidth(200)
-        self.flowchart_widget.setMaximumWidth(400)
+        self.flowchart_widget.setMaximumWidth(1000)
         init_html = """<html>
           <body style="background-color: #2e3440;">
           </body>
@@ -1236,6 +1236,9 @@ class FlowchartPage(QWidget):
 
             if self.main_window.current_flowchart_branch == "main":
                 self.flowchart_done = True
+
+
+
                 print("Flowchart is done!") # TODO: Get back to the Projection page and disable to press the capture photo button by messaging the user that the flowchart is already done (He can only save the manual now)!
             else:
                 self.switchToPreviousBranch()

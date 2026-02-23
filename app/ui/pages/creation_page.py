@@ -47,7 +47,7 @@ class CreationPage(QWidget):
         button_layout = QHBoxLayout()
         button_layout.setSpacing(15)
 
-        btn_style = """
+        btn_style_default = """
             QPushButton {
                 background-color: #414a5c; 
                 color: white; 
@@ -76,9 +76,12 @@ class CreationPage(QWidget):
         self.btn_quit = QPushButton("Quit")
 
         for btn in [self.btn_start, self.btn_stop, self.btn_capture, self.btn_save_step, self.btn_undo, self.btn_save_manual, self.btn_quit]:
-            btn.setStyleSheet(btn_style)
+            btn.setStyleSheet(btn_style_default)
             btn.setMinimumHeight(60)
             button_layout.addWidget(btn)
+
+        self.btn_save_step.setVisible(False) 
+        self.btn_undo.setVisible(False)
 
         layout.addLayout(button_layout)
 
@@ -86,8 +89,8 @@ class CreationPage(QWidget):
 
     def setupConnections(self):
         # Button Actions
-        self.btn_start.clicked.connect(self.start_live_clicked.emit())
-        self.btn_stop.clicked.connect(self.stop_live_clicked.emit())
+        self.btn_start.clicked.connect(self.start_live_clicked.emit)
+        self.btn_stop.clicked.connect(self.stop_live_clicked.emit)
         self.btn_capture.clicked.connect(self.capture_clicked.emit)
         self.btn_save_step.clicked.connect(self.save_step_clicked.emit)
         self.btn_undo.clicked.connect(self.undo_step_clicked.emit)
@@ -140,3 +143,50 @@ class CreationPage(QWidget):
         self.btn_undo.setEnabled(not enabled)
         self.btn_save_manual.setEnabled(not enabled)
         self.btn_quit.setEnabled(enabled)
+
+    def showReviewUI(self, is_review_mode: bool):
+        """
+        Toggles UI between Live Feed mode and Review mode after capturing a photo.
+         - In Review Mode: Show Confirm/Discard buttons, hide camera controls.
+         - In Live Mode: Show camera controls, hide review buttons.
+         - Update status label accordingly.
+         - Style buttons to visually differentiate actions.
+
+        Args:
+            is_review_mode (bool): True to show review UI, False to show live feed UI
+        """
+        if is_review_mode:
+            # === REVIEW MODE (after drawing) ===
+            self.status_label.setText("Review: Check Projection on Object")
+            
+            # Hide Camera buttons, so user focuses on review actions
+            self.btn_start.setVisible(False)
+            self.btn_stop.setVisible(False)
+            self.btn_capture.setVisible(False)
+            
+            # Button 1: Confirm & Save (Grün)
+            self.btn_save_step.setVisible(True)
+            self.btn_save_step.setEnabled(True)
+            self.btn_save_step.setText("Confirm & Save") 
+            self.btn_save_step.setStyleSheet("background-color: #a3be8c; color: white; font-weight: bold; font-size: 16px; padding: 10px; border-radius: 10px;")
+            
+            # Button 2: Discard & Edit (Rot)
+            self.btn_undo.setVisible(True)
+            self.btn_undo.setEnabled(True)
+            self.btn_undo.setText("Discard / Edit")
+            self.btn_undo.setStyleSheet("background-color: #bf616a; color: white; font-weight: bold; font-size: 16px; padding: 10px; border-radius: 10px;")
+
+        else:
+            # === LIVE MODE (camera running) ===
+            self.status_label.setText("Status: Live Feed Ready")
+            
+            self.btn_start.setVisible(True)
+            self.btn_stop.setVisible(True)
+            self.btn_capture.setVisible(True)
+            
+            self.btn_save_step.setVisible(False)
+            self.btn_undo.setVisible(False)
+            
+            # Reset button styles to default for live mode
+            self.btn_save_step.setText("Save Step")
+            self.btn_undo.setText("Undo Step")
