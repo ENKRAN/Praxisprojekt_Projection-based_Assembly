@@ -1,0 +1,160 @@
+{
+    "graph": {
+        "nodes": [
+            {
+                "id": "node_0",
+                "type": "start",
+                "text": "",
+                "step_folder": null
+            },
+            {
+                "id": "node_1",
+                "type": "condition",
+                "text": "cond",
+                "step_folder": "step_001"
+            },
+            {
+                "id": "node_2",
+                "type": "subroutine",
+                "text": "sub",
+                "step_folder": "step_002"
+            },
+            {
+                "id": "node_3",
+                "type": "operation",
+                "text": "op",
+                "step_folder": "step_003"
+            },
+            {
+                "id": "node_4",
+                "type": "condition",
+                "text": "cond",
+                "step_folder": "step_004"
+            },
+            {
+                "id": "node_5",
+                "type": "inputoutput",
+                "text": "Input: in",
+                "step_folder": "step_005"
+            },
+            {
+                "id": "node_6",
+                "type": "end",
+                "text": "",
+                "step_folder": "step_006"
+            },
+            {
+                "id": "node_7",
+                "type": "end",
+                "text": "",
+                "step_folder": "step_007"
+            }
+        ],
+        "edges": [
+            {
+                "from": "node_0",
+                "to": "node_1",
+                "label": "next"
+            },
+            {
+                "from": "node_1",
+                "to": "node_2",
+                "label": "No"
+            },
+            {
+                "from": "node_2",
+                "to": "node_1",
+                "label": "next"
+            },
+            {
+                "from": "node_1",
+                "to": "node_3",
+                "label": "Yes"
+            },
+            {
+                "from": "node_3",
+                "to": "node_4",
+                "label": "next"
+            },
+            {
+                "from": "node_4",
+                "to": "node_5",
+                "label": "No"
+            },
+            {
+                "from": "node_5",
+                "to": "node_6",
+                "label": "next"
+            },
+            {
+                "from": "node_4",
+                "to": "node_7",
+                "label": "Yes"
+            }
+        ]
+    },
+    "actions": [
+        [
+            "add",
+            "condition",
+            "cond",
+            "",
+            "node_1",
+            "step_001"
+        ],
+        [
+            "add",
+            "subroutine",
+            "sub",
+            "",
+            "node_2",
+            "step_002"
+        ],
+        [
+            "merge",
+            "cond",
+            "",
+            ""
+        ],
+        [
+            "add",
+            "operation",
+            "op",
+            "",
+            "node_3",
+            "step_003"
+        ],
+        [
+            "add",
+            "condition",
+            "cond",
+            "",
+            "node_4",
+            "step_004"
+        ],
+        [
+            "add",
+            "inputoutput",
+            "input",
+            "in",
+            "node_5",
+            "step_005"
+        ],
+        [
+            "add",
+            "end",
+            "",
+            "",
+            "node_6",
+            "step_006"
+        ],
+        [
+            "add",
+            "end",
+            "",
+            "",
+            "node_7",
+            "step_007"
+        ]
+    ]
+}

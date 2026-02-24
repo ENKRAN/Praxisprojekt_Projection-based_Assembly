@@ -17,8 +17,16 @@ class FlowchartManager:
         
         # 1. Initialize State
         self.start_node = StartNode("")  # Implicit "Start" text
+        self.start_node.node_name = "node_0"
         self.current_node = self.start_node
         self.flowchart_done = False
+
+        self._node_uid_map = {self.start_node: "node_0"}  # Map to track unique IDs for nodes (for flowchart logic saving)
+
+        self.graph_data = {
+            "nodes": [{"id": "node_0", "type": "start", "text": "", "step_folder": None}],
+            "edges": []
+        }
         
         # 2. Internal Branching Logic
         self._current_branch = "main"
@@ -43,33 +51,39 @@ class FlowchartManager:
 
         self.output_svg_path = Path(f"{output_dir}/current_flowchart.svg")
 
-    # --- Public API (Used by GUI) ---
-
-    def addOperation(self, text: str) -> OperationNode:
+    def addOperation(self, text: str, uid: str) -> OperationNode:
         node = OperationNode(text)
+        node.node_name = uid
+        self._node_uid_map[node] = uid
         return self._connectNode(node)
 
-    def addCondition(self, text: str) -> ConditionNode:
+    def addCondition(self, text: str, uid: str) -> ConditionNode:
         node = ConditionNode(text)
+        node.node_name = uid
+        self._node_uid_map[node] = uid
         return self._connectNode(node)
 
-    def addInputOutput(self, io_type: str, text: str) -> InputOutputNode:
-        """ io_type should be 'input' or 'output' """
+    def addInputOutput(self, io_type: str, text: str, uid: str) -> InputOutputNode:
         if io_type == "input":
             node = InputOutputNode(InputOutputNode.INPUT, text)
         elif io_type == "output":
             node = InputOutputNode(InputOutputNode.OUTPUT, text)
         else:
-            raise ValueError("Invalid io_type. Must be 'input' or 'output'.")
-        
+            raise ValueError("Invalid io_type.")
+        node.node_name = uid # <--- NEU
+        self._node_uid_map[node] = uid
         return self._connectNode(node)
         
-    def addSubroutine(self, text: str) -> SubroutineNode:
+    def addSubroutine(self, text: str, uid: str) -> SubroutineNode:
         node = SubroutineNode(text)
+        node.node_name = uid
+        self._node_uid_map[node] = uid
         return self._connectNode(node)
 
-    def addEnd(self) -> EndNode:
+    def addEnd(self, uid: str) -> EndNode:
         node = EndNode("")
+        node.node_name = uid
+        self._node_uid_map[node] = uid
         return self._connectNode(node)
 
     def getCurrentNodeName(self) -> str:
@@ -88,19 +102,36 @@ class FlowchartManager:
         fc = Flowchart(self.start_node)
         return fc.flowchart()
     
-    def addNode(self, node_type: str, text: str = "", io_text: str = ""):
-        """Unified method to add a node using pure strings."""
+    def addNode(self, node_type: str, text: str = "", io_text: str = "", node_uid: str = "", step_folder: str = ""):
+        """
+        Unified method to add a node based on type and string input.
+        """
+        # 1. Determine display text based on node type and input
+        display_text = text
+        if node_type == "inputoutput":
+            display_text = f"{text.capitalize()}: {io_text}"
+            
+        # 2. Add node to internal graph data for logic saving
+        self.graph_data["nodes"].append({
+            "id": node_uid,
+            "type": node_type,
+            "text": display_text,
+            "step_folder": step_folder
+        })
+
+        # 3. Do the actual node creation and connection in the flowchart structure
         match node_type:
             case "operation":
-                return self.addOperation(text)
+                return self.addOperation(text, node_uid)
             case "condition":
-                return self.addCondition(text)
+                return self.addCondition(text, node_uid)
             case "inputoutput":
-                return self.addInputOutput(text, io_text)
+                # text = 'input' or 'output', io_text = the actual text in the node
+                return self.addInputOutput(text, io_text, node_uid)
             case "subroutine":
-                return self.addSubroutine(text)
+                return self.addSubroutine(text, node_uid)
             case "end":
-                return self.addEnd()
+                return self.addEnd(node_uid)
 
     def getMergeCandidates(self) -> List[ConditionNode]:
         """
@@ -156,8 +187,6 @@ class FlowchartManager:
             bool: True if merging is possible, False otherwise.
         """
         return self._current_branch_state_yn == "No" and not isinstance(self.current_node, ConditionNode)
-
-    # --- Internal Logic (The "Brain") ---
     
     def _connectNode(self, new_node):
         """
@@ -167,6 +196,10 @@ class FlowchartManager:
             new_node: The new node to connect to.
         """
         previous_node = self.current_node
+
+        edge_label = "next"
+        if isinstance(previous_node, ConditionNode):
+            edge_label = self._current_branch_state_yn
 
         # 1. Guard: Cannot connect FROM an EndNode (Legacy parity + Safety)
         if isinstance(previous_node, EndNode):
@@ -225,9 +258,14 @@ class FlowchartManager:
                 self._switchToPreviousBranch()
                 # Pointer is updated inside _switchToPreviousBranch
 
+        self.graph_data["edges"].append({
+            "from": self._node_uid_map.get(previous_node, "unknown"),
+            "to": self._node_uid_map.get(new_node, "unknown"),
+            "label": edge_label
+        })
+
         return True
         
-
     def _connectToCondition(self, condition_node, new_node):
         """
         Helper to connect based on Yes/No state.
@@ -312,8 +350,18 @@ class FlowchartManager:
             previous_node: The node to connect from.
             target_condition_node: The existing ConditionNode to connect to.
         """
-        # Legacy: enforced "right" connection for merges
+        edge_label = "next"
+        if isinstance(previous_node, ConditionNode):
+            edge_label = self._current_branch_state_yn
+
+        # Enforced "right" connection for merges
         previous_node.connect(target_condition_node, "right")
+
+        self.graph_data["edges"].append({
+            "from": self._node_uid_map.get(previous_node, "unknown"),
+            "to": self._node_uid_map.get(target_condition_node, "unknown"),
+            "label": edge_label
+        })
         
         # After connecting, we need to backtrack because this path is closed
         self._switchToPreviousBranch()
@@ -321,12 +369,8 @@ class FlowchartManager:
         self._is_merging = False
 
     def generateFlowchartSVG(self):
-    
         """
         Generates an SVG file from the current flowchart DSL using the specified diagrams tool.
-
-        Args:
-            diagrams_tool_path (str): The path to the 'seflless/diagrams' CLI tool.
         """
         if self.current_node == self.start_node:
             print("Flowchart is empty (only StartNode). Skipping SVG generation to prevent CLI freeze.")

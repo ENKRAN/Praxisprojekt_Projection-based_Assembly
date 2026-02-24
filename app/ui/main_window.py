@@ -1,4 +1,7 @@
 import sys
+import json
+import numpy as np
+import shutil
 
 from PyQt6.QtWidgets import (
     QMainWindow, QStackedWidget, QMessageBox, QDialog, 
@@ -13,18 +16,21 @@ from PyQt6.QtCore import Qt, QSize, QTimer
 from app.core.config import Config
 from app.core.flowchart_manager import FlowchartManager
 from app.core.manual_manager import ManualManager
+from app.core.player_manager import PlayerManager
 
 # Vision / Hardware
 from app.vision.worker import VisionWorker
 from app.rendering.projector_window import ProjectorWindow
 
 # UI Components & Pages
-from app.ui.components.screen_selector import ScreenSelectorDialog
-from app.ui.components.dialogs import PopupDialog
 from app.ui.pages.start_page import StartPage
 from app.ui.pages.creation_page import CreationPage
 from app.ui.pages.node_selection_page import NodeSelectionPage
 from app.ui.pages.drawing_page import DrawingPage
+from app.ui.pages.load_page import LoadPage
+from app.ui.pages.player_page import PlayerPage
+from app.ui.components.screen_selector import ScreenSelectorDialog
+from app.ui.components.dialogs import PopupDialog
 from app.ui.components.drawing.palette import PaletteHorizontal, PALETTES, PaletteGrid
 from app.ui.components.camera_view import CameraView
 
@@ -43,6 +49,7 @@ class MainWindow(QMainWindow):
         # 2. Logic Managers
         self.flowchart_manager = FlowchartManager() 
         self.manual_manager = ManualManager()
+        self.player_manager = PlayerManager()
         
         # Temp Data Storage (RAM) for the current step being created
         self.current_snapshot = None     # The image (NumPy Array)
@@ -58,6 +65,7 @@ class MainWindow(QMainWindow):
         self.vision_worker = VisionWorker()
         self.projector_window = ProjectorWindow()
         self.camera_view = CameraView()  # Shared Camera View for CreationPage
+        self.player_camera_view = CameraView() # Separate Camera View for PlayerPage to avoid conflicts
         
         # Screen Setup via Dialog
         if not self.setupScreens():
@@ -88,33 +96,50 @@ class MainWindow(QMainWindow):
         # Page 0: Start Page
         self.start_page = StartPage()
         self.start_page.create_manual_clicked.connect(self.onRequestCreateManual)
-        self.start_page.load_manual_clicked.connect(self.gotoLoadPage) # TODO: Implement Load Page and connect properly
+        self.start_page.load_manual_clicked.connect(self.gotoLoadPage)
         self.start_page.quit_clicked.connect(self.close)
         self.stack.addWidget(self.start_page)
+
+        # Page 1: Load Page
+        self.load_page = LoadPage()
+        self.load_page.back_clicked.connect(self.gotoStartPage)
+        self.load_page.manual_selected.connect(self.onManualSelectedForPlayback)
+        self.stack.addWidget(self.load_page)
         
-        # Page 1: Creation Page (Live Camera)
+        # Page 2: Creation Page (Live Camera)
         self.creation_page = CreationPage(self.camera_view)
         self.creation_page.start_live_clicked.connect(self.onStartLive)
         self.creation_page.stop_live_clicked.connect(self.onStopLive)
         self.creation_page.capture_clicked.connect(self.onCapture)
         self.creation_page.save_step_clicked.connect(self.onConfirmStep)
         self.creation_page.undo_step_clicked.connect(self.onDiscardStep)
+        self.creation_page.finish_manual_clicked.connect(self.onFinishManual)
         self.creation_page.quit_clicked.connect(self.gotoStartPage)
         self.stack.addWidget(self.creation_page)
         
-        # Page 2: Node Selection Page
+        # Page 3: Node Selection Page
         self.node_selection_page = NodeSelectionPage()
         self.node_selection_page.node_selected.connect(self.onNodeSelected)
         self.node_selection_page.back_clicked.connect(self.gotoCreationPage)
         self.stack.addWidget(self.node_selection_page)
         
-        # Page 3: Drawing Page
+        # Page 4: Drawing Page
         self.drawing_page = DrawingPage()
         self.drawing_page.save_clicked.connect(self.onDrawingFinished)
         self.drawing_page.cancel_clicked.connect(self.gotoCreationPage)
         self.drawing_page.tool_selected.connect(self.onToolSelected)
         self.drawing_page.selection_changed.connect(self.onToolSelectionChanged)
         self.stack.addWidget(self.drawing_page)
+
+        # Page 5: Player Page
+        self.player_page = PlayerPage(self.player_camera_view)
+        self.player_page.quit_clicked.connect(self.quitPlayer)
+        self.player_page.prev_clicked.connect(self.goBackPlayer)
+        self.player_page.next_clicked.connect(lambda: self.advancePlayer("next"))
+        self.player_page.yes_clicked.connect(lambda: self.advancePlayer("Yes"))
+        self.player_page.no_clicked.connect(lambda: self.advancePlayer("No"))
+        self.player_page.finish_clicked.connect(self.quitPlayer)
+        self.stack.addWidget(self.player_page)
 
     def setGlobalStyling(self):
         self.setStyleSheet("""
@@ -163,6 +188,10 @@ class MainWindow(QMainWindow):
         
         # Connect the critical error signal
         self.vision_worker.error_signal.connect(self.creation_page.onCameraError)
+
+        # Also connect Vision -> PlayerPage's Camera View to show live feed during playback (optional, can be disabled if conflicts arise)
+        self.vision_worker.image_update_signal.connect(self.camera_view.setImage)
+        self.vision_worker.image_update_signal.connect(self.player_camera_view.setImage)
 
     def createDrawingToolbars(self):
         """
@@ -375,23 +404,85 @@ class MainWindow(QMainWindow):
             """)
 
     def onRequestCreateManual(self):
-        """Opens a popup to enter the manual name."""
-        dialog = PopupDialog(self, 
-                             dialog_type="text_input", 
-                             header="Create New Manual", 
-                             placeholder_text="e.g. Pump_Assembly_V1")
+        """Asks the user whether to create a new manual or resume a draft."""
+        dialog = PopupDialog(self, dialog_type="buttons", header="What do you want to do?", 
+                             button_count=2, button_texts=["Start New Manual", "Resume Draft"])
         
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            if dialog.user_input == "Start New Manual":
+                self.startNewManualFlow()
+            elif dialog.user_input == "Resume Draft":
+                self.resumeDraftFlow()
+
+    def startNewManualFlow(self):
+        dialog = PopupDialog(self, dialog_type="text_input", header="Create New Manual", placeholder_text="e.g. Pump_Assembly_V1")
         if dialog.exec() == QDialog.DialogCode.Accepted and dialog.user_input:
             title = dialog.user_input
             try:
-                # Create Manual (Tag ID is initially -1/unknown)
                 self.manual_manager.createNewManual(title, tag_id=-1)
-                print(f"Manual '{title}' created successfully.")
                 
-                # Switch to Camera
+                # IMPORTANT: Reset flowchart manager and action logs when starting a new manual
+                self.confirmed_flowchart_actions = []
+                self.pending_flowchart_actions = []
+                self.flowchart_manager = FlowchartManager()
+                self.step_counter = 1
+                
                 self.gotoCreationPage()
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Could not create manual:\n{e}")
+
+    def resumeDraftFlow(self):
+        # 1. List available drafts
+        drafts = self.manual_manager.listManuals(status_filter="draft")
+        if not drafts:
+            QMessageBox.information(self, "No Drafts", "There are currently no unfinished drafts.")
+            return
+        
+        # 2. Show selection dialog
+        titles = [d[1] for d in drafts]
+        dialog = PopupDialog(self, dialog_type="buttons", header="Select Draft to Resume", 
+                             button_count=len(titles), button_texts=titles)
+        
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            selected_title = dialog.user_input
+            selected_id = next(d[0] for d in drafts if d[1] == selected_title)
+            self.loadDraftIntoWorkspace(selected_id)
+
+    def loadDraftIntoWorkspace(self, manual_id):
+        """Loads a draft and replays the flowchart actions."""
+        if not self.manual_manager.loadManualForEditing(manual_id):
+            QMessageBox.critical(self, "Error", "Could not load draft files.")
+            return
+
+        self.confirmed_flowchart_actions = []
+        self.pending_flowchart_actions = []
+        self.flowchart_manager = FlowchartManager()
+
+        # Load action-log and replay actions to reconstruct flowchart state
+        flowchart_json_path = self.manual_manager.current_manual_dir / "flowchart.json"
+        if flowchart_json_path.exists():
+            try:
+                with open(flowchart_json_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    actions = data.get("actions", [])
+                
+                # START TIMERAVEL REPLAY
+                for action in actions:
+                    if action[0] == "add":
+                        self.flowchart_manager.addNode(action[1], action[2], action[3], action[4], action[5])
+                    elif action[0] == "merge":
+                        self.flowchart_manager.mergeWithCondition(action[1])
+                
+                self.confirmed_flowchart_actions = actions
+                self.flowchart_manager.updateFlowchart()
+            except Exception as e:
+                print(f"Error replaying actions: {e}")
+
+        # Set step counter to the next step after the last one in the loaded manual
+        self.step_counter = len(self.manual_manager.current_manual.steps) + 1
+        
+        print(f"Draft loaded! Resuming at step {self.step_counter}")
+        self.gotoCreationPage()
 
     def onSnapshotTaken(self, homography, color_img, tag_id):
         """Called when VisionWorker takes a snapshot."""
@@ -452,17 +543,20 @@ class MainWindow(QMainWindow):
             text1 = popup.user_input if popup else ""
             text2 = popup_io_text.user_input if popup_io_text else ""
             if node_type in ["start", "end"]:
-                text1 = node_type.capitalize()
+                text1 = ""
+
+            node_uid = f"node_{self.step_counter}"
+            step_folder = f"step_{self.step_counter:03d}"
 
             # 2. Add node to flowchart manager and get success status
-            node_added_success = self.flowchart_manager.addNode(node_type, text1, text2)
+            node_added_success = self.flowchart_manager.addNode(node_type, text1, text2, node_uid, step_folder)
 
             if not node_added_success:
                 QMessageBox.warning(self, "Error", "Could not add node to flowchart.")
                 return
             
             # 3. Store the action for later confirmation when user confirms the step in CreationPage (if they discard, we will revert this action in the flowchart manager)
-            self.pending_flowchart_actions.append(("add", node_type, text1, text2))
+            self.pending_flowchart_actions.append(("add", node_type, text1, text2, node_uid, step_folder))
 
             node.playAnimation()
             
@@ -561,17 +655,22 @@ class MainWindow(QMainWindow):
                 tag_id=data['tag_id']
             )
 
+            self.confirmed_flowchart_actions.extend(self.pending_flowchart_actions)
+            self.pending_flowchart_actions.clear()
+
+            self.manual_manager.saveFlowchartData(self.flowchart_manager.graph_data, self.confirmed_flowchart_actions)
+
             # Cleanup
             self.step_counter += 1
             self.pending_step_data = None
-            self.confirmed_flowchart_actions.extend(self.pending_flowchart_actions)
-            self.pending_flowchart_actions.clear()
             
             self.creation_page.showReviewUI(False)
             
             self.projector_window.clearProjection() 
 
             print("Step successfully saved.")
+
+            self.onStartLive()
 
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Could not save step: {e}")
@@ -591,7 +690,8 @@ class MainWindow(QMainWindow):
         self.flowchart_manager = FlowchartManager()
         for action in self.confirmed_flowchart_actions:
             if action[0] == "add":
-                self.flowchart_manager.addNode(action[1], action[2], action[3])
+                # action[1]=type, action[2]=text1, action[3]=text2, action[4]=uid, action[5]=folder
+                self.flowchart_manager.addNode(action[1], action[2], action[3], action[4], action[5])
             elif action[0] == "merge":
                 self.flowchart_manager.mergeWithCondition(action[1])
 
@@ -606,6 +706,31 @@ class MainWindow(QMainWindow):
         
         # Go back to Creation Page with live feed active, so user can try again immediately if they want
         self.onStartLive()
+
+    def onFinishManual(self):
+        """
+        Called when user wants to completely finish the manual.
+        """
+        if not self.flowchart_manager.flowchart_done:
+            QMessageBox.warning(self, "Incomplete", "The flowchart is not finished yet!\nPlease add an 'End' node to the main branch (leftmost) before saving the manual.")
+            return
+
+        src_svg = self.flowchart_manager.output_svg_path
+        dest_svg = self.manual_manager.current_manual_dir / "flowchart.svg"
+        if src_svg.exists():
+            shutil.copy(src_svg, dest_svg)
+        
+        # Final save of flowchart data to ensure everything is up to date before we generate the final manual files.
+        self.manual_manager.updateFlowchartDSL(self.flowchart_manager.getDSL())
+
+        # Set status of manual to published
+        self.manual_manager.finalizeManual()
+        
+        QMessageBox.information(self, "Success", "Manual has been successfully saved and published!")
+        
+        # Zurück zur Startseite und Kamera stoppen
+        self.onStopLive()
+        self.gotoStartPage()
 
     def setupScreens(self):
         gui_screen, proj_screen, is_debug = ScreenSelectorDialog.get_screens()
@@ -669,7 +794,88 @@ class MainWindow(QMainWindow):
         self.stack.setCurrentWidget(self.start_page)
 
     def gotoLoadPage(self):
-        print("Load Page not implemented yet.")
+        """Switches to LoadPage and populates the list of manuals with published manuals from ManualManager."""
+        # Load published manuals from ManualManager
+        published_manuals = self.manual_manager.listManuals(status_filter="published")
+        
+        self.load_page.populateList(published_manuals)
+        self.stack.setCurrentWidget(self.load_page)
+
+    def onManualSelectedForPlayback(self, manual_id: str):
+        """
+        Called when user selects a manual from the LoadPage to start playback in PlayerPage.
+        """
+        if not self.player_manager.loadManual(manual_id):
+            QMessageBox.critical(self, "Error", "Could not load manual files.")
+            return
+            
+        # 1. Switch to Player Page
+        self.stack.setCurrentWidget(self.player_page)
+        
+        # 2. Show flowchart SVG in QWebEngineView on the PlayerPage (if exists)
+        flowchart_svg_path = self.player_manager.manual_dir / "flowchart.svg"
+        self.player_page.loadFlowchartSVG(str(flowchart_svg_path))
+        
+        # 3. Start live feed and load the first instruction in the projector
+        self.onStartLive()
+        self.loadCurrentPlayerNode()
+
+    def advancePlayer(self, choice: str):
+        """
+        Called when user clicks 'Next', 'Yes', or 'No' in PlayerPage to advance to the next step based on the choice.
+        """
+        if self.player_manager.advance(choice):
+            self.loadCurrentPlayerNode()
+        else:
+            QMessageBox.warning(self, "End of Path", "No further steps found for this path.")
+
+    def goBackPlayer(self):
+        """
+        Called when user clicks 'Previous' in PlayerPage to go back to the previous step.
+        """
+        if self.player_manager.goBack():
+            self.loadCurrentPlayerNode()
+        else:
+            QMessageBox.information(self, "Start of Assembly", "You are already at the very first step.")
+
+    def loadCurrentPlayerNode(self):
+        """
+        Loads the current node's instruction into the projector and updates the PlayerPage UI with node info.
+        """
+        node_info = self.player_manager.getCurrentNodeInfo()
+        self.player_page.updateUI(node_info)
+
+        self.player_page.highlightNode(node_info)
+        
+        if node_info.get("is_finished"):
+            self.projector_window.clearProjection()
+            return
+            
+        _, svg_path = self.player_manager.getPaths()
+        
+        # Update projector with the current instruction's SVG (if exists)
+        if svg_path:
+            self.projector_window.loadInstruction(svg_path)
+            
+            tracking_data = node_info.get("tracking_data", {})
+            matrix_list = tracking_data.get("homography_matrix")
+            tag_id = tracking_data.get("tag_id", 0)
+            
+            if matrix_list:
+                homography = np.array(matrix_list, dtype=np.float32)
+                self.projector_window.gl_widget.setBakingMatrix(homography, None, tag_id)
+            else:
+                self.projector_window.clearProjection()
+        else:
+            self.projector_window.clearProjection()
+
+    def quitPlayer(self):
+        """
+        Called when user wants to quit the PlayerPage and return to the StartPage.
+        """
+        self.onStopLive()
+        self.projector_window.clearProjection()
+        self.gotoStartPage()
 
     def closeEvent(self, event):
         self.vision_worker.stop()

@@ -31,6 +31,7 @@ class ManualData:
     title: str              # Human readable title
     created_at: str
     tag_id: int             # The reference tag ID for this manual
+    status: str = "draft"
     
     steps: List[StepData] = field(default_factory=list)
     flowchart_dsl: str = "" 

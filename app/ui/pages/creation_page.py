@@ -10,7 +10,7 @@ class CreationPage(QWidget):
     capture_clicked = pyqtSignal()
     save_step_clicked = pyqtSignal()
     undo_step_clicked = pyqtSignal()
-    save_manual_clicked = pyqtSignal()
+    finish_manual_clicked = pyqtSignal()
     quit_clicked = pyqtSignal()
 
     def __init__(self, camera_view, parent=None):
@@ -72,10 +72,10 @@ class CreationPage(QWidget):
         self.btn_capture = QPushButton("Capture Photo")
         self.btn_save_step = QPushButton("Save Step")
         self.btn_undo = QPushButton("Undo Step")
-        self.btn_save_manual = QPushButton("Save Manual")
+        self.btn_finish_manual = QPushButton("Finish Manual")
         self.btn_quit = QPushButton("Quit")
 
-        for btn in [self.btn_start, self.btn_stop, self.btn_capture, self.btn_save_step, self.btn_undo, self.btn_save_manual, self.btn_quit]:
+        for btn in [self.btn_start, self.btn_stop, self.btn_capture, self.btn_save_step, self.btn_undo, self.btn_finish_manual, self.btn_quit]:
             btn.setStyleSheet(btn_style_default)
             btn.setMinimumHeight(60)
             button_layout.addWidget(btn)
@@ -94,7 +94,7 @@ class CreationPage(QWidget):
         self.btn_capture.clicked.connect(self.capture_clicked.emit)
         self.btn_save_step.clicked.connect(self.save_step_clicked.emit)
         self.btn_undo.clicked.connect(self.undo_step_clicked.emit)
-        self.btn_save_manual.clicked.connect(self.save_manual_clicked.emit)
+        self.btn_finish_manual.clicked.connect(self.finish_manual_clicked.emit)
         self.btn_quit.clicked.connect(self.onQuit)
         
     def onQuit(self):
@@ -132,7 +132,7 @@ class CreationPage(QWidget):
         self.btn_capture.setEnabled(running)
         self.btn_save_step.setEnabled(running)
         self.btn_undo.setEnabled(running)
-        self.btn_save_manual.setEnabled(running)
+        self.btn_finish_manual.setEnabled(running)
 
     def setInitialButtonsState(self, enabled: bool):
         """Initial state for buttons when page loads."""
@@ -141,7 +141,7 @@ class CreationPage(QWidget):
         self.btn_capture.setEnabled(not enabled)
         self.btn_save_step.setEnabled(not enabled)
         self.btn_undo.setEnabled(not enabled)
-        self.btn_save_manual.setEnabled(not enabled)
+        self.btn_finish_manual.setEnabled(not enabled)
         self.btn_quit.setEnabled(enabled)
 
     def showReviewUI(self, is_review_mode: bool):

@@ -122,8 +122,19 @@ class ManualManager:
             json_path = self.current_manual_dir / "manual_config.json"
             self.current_manual.to_json(str(json_path))
 
-    def listManuals(self) -> list:
-        """Returns list of (id, title) tuples."""
+    def saveFlowchartData(self, graph_data: dict, action_log: list):
+        """Saves the logical flowchart structure AND the action log for resuming."""
+        if self.current_manual_dir:
+            json_path = self.current_manual_dir / "flowchart.json"
+            data_to_save = {
+                "graph": graph_data,
+                "actions": action_log
+            }
+            with open(json_path, 'w', encoding='utf-8') as f:
+                json.dump(data_to_save, f, indent=4)
+
+    def listManuals(self, status_filter: str = None) -> list:
+        """Returns list of (id, title) tuples, optionally filtered by status."""
         manuals = []
         for d in self.BASE_DIR.iterdir():
             if d.is_dir():
@@ -132,7 +143,48 @@ class ManualManager:
                     try:
                         with open(config_path, 'r') as f:
                             data = json.load(f)
-                            manuals.append((data['id'], data['title']))
-                    except:
-                        pass
+                            # Fallback "draft", if status is missing (for backward compatibility)
+                            manual_status = data.get("status", "draft") 
+                            if status_filter is None or manual_status == status_filter:
+                                manuals.append((data['id'], data['title']))
+                    except Exception as e:
+                        print(f"Error reading config {config_path}: {e}")
         return manuals
+
+    def loadManualForEditing(self, manual_id: str) -> bool:
+        """Sets up the manager to resume an existing draft."""
+        manual_dir = self.BASE_DIR / manual_id
+        config_path = manual_dir / "manual_config.json"
+        
+        if not config_path.exists():
+            return False
+            
+        try:
+            with open(config_path, 'r') as f:
+                data = json.load(f)
+            
+            # Reconstruct ManualData object
+            steps_data = data.get("steps", [])
+            steps_objects = [StepData(**s) for s in steps_data]
+            
+            self.current_manual = ManualData(
+                id=data["id"],
+                title=data["title"],
+                created_at=data["created_at"],
+                tag_id=data.get("tag_id", -1),
+                steps=steps_objects,
+                flowchart_dsl=data.get("flowchart_dsl", ""),
+                status=data.get("status", "draft")
+            )
+            self.current_manual_dir = manual_dir
+            return True
+        except Exception as e:
+            print(f"Error loading manual {manual_id}: {e}")
+            return False
+
+    def finalizeManual(self):
+        """Marks the manual as published."""
+        if self.current_manual:
+            self.current_manual.status = "published"
+            self.saveManifest()
+            print(f"Manual {self.current_manual.id} finalized and published!")
