@@ -1,4 +1,5 @@
 import sys
+
 from PyQt6.QtWidgets import (
     QMainWindow, QStackedWidget, QMessageBox, QDialog, 
     QToolBar, QCheckBox, 
@@ -50,6 +51,8 @@ class MainWindow(QMainWindow):
         self.current_tag_id = -1         # ID of the tag in the snapshot
         self.step_counter = 1            # Counter for step IDs
         self.pending_step_data = None
+        self.confirmed_flowchart_actions = []
+        self.pending_flowchart_actions = []
 
         # 3. Setup Hardware & Windows
         self.vision_worker = VisionWorker()
@@ -443,13 +446,23 @@ class MainWindow(QMainWindow):
                 if not popup_io_text.isPopupResultValid(result_io_text):
                     return
                 
-                self.current_node_data = popup_io_text.user_input            
+                self.current_node_data = popup_io_text.user_input  
                 
-            node_added_success = self.flowchart_manager.addNode(node_type, popup, popup_io_text)
+            # 1. Extract text from popups
+            text1 = popup.user_input if popup else ""
+            text2 = popup_io_text.user_input if popup_io_text else ""
+            if node_type in ["start", "end"]:
+                text1 = node_type.capitalize()
+
+            # 2. Add node to flowchart manager and get success status
+            node_added_success = self.flowchart_manager.addNode(node_type, text1, text2)
 
             if not node_added_success:
-                QMessageBox.warning(self, "Error", "Could not add node to flowchart. Please try again.")
+                QMessageBox.warning(self, "Error", "Could not add node to flowchart.")
                 return
+            
+            # 3. Store the action for later confirmation when user confirms the step in CreationPage (if they discard, we will revert this action in the flowchart manager)
+            self.pending_flowchart_actions.append(("add", node_type, text1, text2))
 
             node.playAnimation()
             
@@ -484,6 +497,9 @@ class MainWindow(QMainWindow):
 
         if not merge_success:
             QMessageBox.warning(self, "Merge Failed", "Could not merge branches. Please try again.")
+            return
+        
+        self.pending_flowchart_actions.append(("merge", selected_node, "", ""))
 
         self.toggleMergeButton()
 
@@ -548,6 +564,8 @@ class MainWindow(QMainWindow):
             # Cleanup
             self.step_counter += 1
             self.pending_step_data = None
+            self.confirmed_flowchart_actions.extend(self.pending_flowchart_actions)
+            self.pending_flowchart_actions.clear()
             
             self.creation_page.showReviewUI(False)
             
@@ -564,16 +582,29 @@ class MainWindow(QMainWindow):
         """
         print("Discarding current step...")
         
-        # 1. Delete pending data to reset state (if user goes back to creation page without confirming, it should be like they never took a snapshot or selected a node)
+        # Delete pending data to reset state (if user goes back to creation page without confirming, it should be like they never took a snapshot or selected a node)
         self.pending_step_data = None
+
+        self.pending_flowchart_actions.clear()
         
-        # 2. Reset CreationPage UI to initial state (disable buttons, reset status, etc.)
+        # Restart the flowchart manager to the last confirmed state (before the pending actions)
+        self.flowchart_manager = FlowchartManager()
+        for action in self.confirmed_flowchart_actions:
+            if action[0] == "add":
+                self.flowchart_manager.addNode(action[1], action[2], action[3])
+            elif action[0] == "merge":
+                self.flowchart_manager.mergeWithCondition(action[1])
+
+        # Reset the flowchart to its last confirmed state (before pending changes) and update the SVG        
+        self.flowchart_manager.updateFlowchart()
+        
+        # Reset CreationPage UI to initial state (disable buttons, reset status, etc.)
         self.creation_page.showReviewUI(False)
         
-        # 3. Clear Projector (remove the rejected instruction from the projector)
+        # Clear Projector (remove the rejected instruction from the projector)
         self.projector_window.clearProjection()
         
-        # 4. Go back to Creation Page with live feed active, so user can try again immediately if they want
+        # Go back to Creation Page with live feed active, so user can try again immediately if they want
         self.onStartLive()
 
     def setupScreens(self):

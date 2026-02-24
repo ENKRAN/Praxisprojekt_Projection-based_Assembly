@@ -88,28 +88,17 @@ class FlowchartManager:
         fc = Flowchart(self.start_node)
         return fc.flowchart()
     
-    def addNode(self, node_type: str, popup, popup_io_text):
-        """
-        Unified method to add a node based on type and popup input.
-
-        Args:
-            node_type (str): The type of node to add ("operation", "condition", "inputoutput", "subroutine", "end").
-            popup: The popup instance containing user input for the node text.
-            popup_io_text: Additional popup instance for Input/Output text if needed.
-        """
+    def addNode(self, node_type: str, text: str = "", io_text: str = ""):
+        """Unified method to add a node using pure strings."""
         match node_type:
             case "operation":
-                return self.addOperation(popup.user_input)
-                
+                return self.addOperation(text)
             case "condition":
-                return self.addCondition(popup.user_input)
-
+                return self.addCondition(text)
             case "inputoutput":
-                return self.addInputOutput(popup.user_input, popup_io_text.user_input)
-
+                return self.addInputOutput(text, io_text)
             case "subroutine":
-                return self.addSubroutine(popup.user_input)
-
+                return self.addSubroutine(text)
             case "end":
                 return self.addEnd()
 
@@ -339,6 +328,13 @@ class FlowchartManager:
         Args:
             diagrams_tool_path (str): The path to the 'seflless/diagrams' CLI tool.
         """
+        if self.current_node == self.start_node:
+            print("Flowchart is empty (only StartNode). Skipping SVG generation to prevent CLI freeze.")
+            # Create a dummy SVG to prevent broken image in the GUI and indicate that the flowchart is empty
+            with open(self.output_svg_path, 'w', encoding='utf-8') as f:
+                f.write('<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"></svg>')
+            return
+
         flowchart_dsl = self.getDSL()
         print("Flowchart DSL generated: \n----------------------------------------------------------------------")
         print(flowchart_dsl)
@@ -361,7 +357,7 @@ class FlowchartManager:
                 str(self.output_svg_path)    # Convert Path to string for the command
             ]
             
-            subprocess.run(command, check=True, capture_output=True, text=True)
+            subprocess.run(command, check=True, capture_output=True, text=True, timeout=10)
 
             print(f"Command executed: {' '.join(command)}")
 
@@ -413,7 +409,11 @@ class FlowchartManager:
                 
             except Exception as e:
                 print(f"Error while recoloring the SVG: {e}")
-
+        except subprocess.TimeoutExpired:
+            print("CRITICAL ERROR: The 'diagrams' CLI tool took too long and was killed! Your GUI was saved from freezing.")
+            # Dummy SVG to prevent broken image in the GUI and indicate an error occurred
+            with open(self.output_svg_path, 'w', encoding='utf-8') as f:
+                f.write('<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><text x="0" y="10" fill="red">Flowchart Render Error</text></svg>')
         except subprocess.CalledProcessError as e:
             print(f"Error executing the '{self.diagrams_tool_path}' tool:")
             print(f"Return code: {e.returncode}")
