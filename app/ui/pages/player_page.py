@@ -127,14 +127,14 @@ class PlayerPage(QWidget):
             self.control_stack.setCurrentWidget(self.nav_widget)
 
     def loadFlowchartSVG(self, svg_path: str):
-        """Liest das SVG ein und injiziert es direkt in das HTML, um es skalieren und manipulieren zu können."""
+        """
+        Loads the SVG file and embeds it into the QWebEngineView with custom styling to match the dark theme.
+        """
         abs_path = Path(svg_path).resolve()
         if abs_path.exists():
             with open(abs_path, 'r', encoding='utf-8') as f:
                 svg_content = f.read()
 
-            # Wir packen das SVG direkt in den HTML-Body! 
-            # Mit 'transform: scale(1.8)' machen wir es fast doppelt so groß.
             html = f"""
             <html>
               <head>
@@ -149,7 +149,7 @@ class PlayerPage(QWidget):
                       overflow: auto;
                   }}
                   .svg-container {{
-                      transform: scale(1.8); /* <--- HIER DIE GRÖSSE ANPASSEN */
+                      transform: scale(1.8);
                       transform-origin: center center;
                   }}
                 </style>
@@ -166,12 +166,16 @@ class PlayerPage(QWidget):
             self.flowchart_view.setHtml('<html><body style="background-color: #2e3440; color: white;"><h2>Flowchart SVG not found.</h2></body></html>')
 
     def highlightNode(self, node_info: dict):
-        """Speichert die Node-Infos und versucht das Highlighting auszuführen."""
+        """
+        Saves the current node information and triggers the JavaScript function to highlight the corresponding SVG node.
+        """
         self.current_node_info = node_info
         self._applyHighlight()
 
     def _applyHighlight(self):
-        """Führt das JavaScript aus und sucht die SVG-Knoten über ihre eindeutige ID."""
+        """
+        Applies a glow effect to the current node in the SVG flowchart by executing JavaScript in the QWebEngineView.
+        """
         if not self.current_node_info:
             return
             
@@ -181,7 +185,6 @@ class PlayerPage(QWidget):
             
         js_code = f"""
         (function() {{
-            // 1. Alles zurücksetzen (außer Marker/Pfeile)
             document.querySelectorAll('rect, polygon, path').forEach(function(el) {{
                 var id = el.getAttribute('id') || '';
                 if (el.getAttribute('fill') !== 'none' && !id.includes('marker') && !el.closest('defs')) {{
@@ -192,19 +195,15 @@ class PlayerPage(QWidget):
                 }}
             }});
             
-            // 2. Den exakten Knoten über seine ID finden
             var targetId = "{node_id}";
             var mainShape = document.getElementById(targetId);
             
             if (mainShape) {{
-                // Haupt-Knoten einfärben (Dezentes Orange/Gelb)
                 mainShape.setAttribute('fill', '#d08770'); 
                 mainShape.setAttribute('stroke', '#ebcb8b'); 
                 mainShape.setAttribute('stroke-width', '4'); // Etwas dünnerer Rand
-                // DEZENTER GLOW: Weniger Blur (5px) und halbe Deckkraft (0.5)
                 mainShape.style.filter = 'drop-shadow(0px 0px 5px rgba(235, 203, 139, 0.5))';
                 
-                // 3. Subroutine-Fix: ALLE benachbarten Formen bedingungslos mitfärben
                 var sibling = mainShape.nextElementSibling;
                 while (sibling && sibling.tagName !== 'text') {{
                     if (sibling.tagName === 'rect' || sibling.tagName === 'path' || sibling.tagName === 'polygon') {{

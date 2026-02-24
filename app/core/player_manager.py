@@ -7,7 +7,7 @@ class PlayerManager:
         self.manual_config = None
         self.flowchart_data = None
         
-        # Runtime state
+        # Runtime states
         self.current_node_id = None
         self.current_step_folder = None
         self.is_finished = False

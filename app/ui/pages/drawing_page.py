@@ -256,14 +256,15 @@ class DrawingPage(QWidget):
             print(f"Error saving SVG: {e}")
 
     def load_svg(self, svg_path):
-        """Lädt das SVG, versteckt Scrollbalken und aktiviert natives Touch-Panning & Pinch-to-Zoom."""
+        """
+        Loads an SVG file into the flowchart/help view on the right.
+        """
         abs_path = svg_path.resolve()
         html = f"""
         <html>
           <head>
             <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
             <style>
-              /* Hässliche Scrollbalken ausblenden */
               ::-webkit-scrollbar {{
                   display: none;
               }}
@@ -272,7 +273,6 @@ class DrawingPage(QWidget):
                   margin: 0;
                   padding: 20px;
                   overflow: auto; 
-                  /* Übergibt die Kontrolle komplett an das native Chromium-Touch-System */
                   touch-action: pan-x pan-y pinch-zoom; 
               }}
               .svg-container {{
