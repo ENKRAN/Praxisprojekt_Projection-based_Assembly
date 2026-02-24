@@ -101,8 +101,8 @@ class DrawingPage(QWidget):
         
         # 3. Flowchart/Help View (Right)
         self.flowchart_widget = QWebEngineView()
-        self.flowchart_widget.setMaximumWidth(200)
-        self.flowchart_widget.setMaximumHeight(1000)
+        # self.flowchart_widget.setMaximumWidth(200)
+        # self.flowchart_widget.setMaximumHeight(1000)
 
         # Initialize with empty dark page
         layout.addWidget(self.flowchart_widget, 0)
@@ -256,11 +256,35 @@ class DrawingPage(QWidget):
             print(f"Error saving SVG: {e}")
 
     def load_svg(self, svg_path):
+        """Lädt das SVG, versteckt Scrollbalken und aktiviert natives Touch-Panning & Pinch-to-Zoom."""
         abs_path = svg_path.resolve()
         html = f"""
         <html>
-          <body style="background-color: #2e3440;">
-            <embed src="{abs_path}" type="image/svg+xml" style="width:100%; height:100%"/>
+          <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+            <style>
+              /* Hässliche Scrollbalken ausblenden */
+              ::-webkit-scrollbar {{
+                  display: none;
+              }}
+              body {{
+                  background-color: #2e3440;
+                  margin: 0;
+                  padding: 20px;
+                  overflow: auto; 
+                  /* Übergibt die Kontrolle komplett an das native Chromium-Touch-System */
+                  touch-action: pan-x pan-y pinch-zoom; 
+              }}
+              .svg-container {{
+                  transform: scale(1.3); /* Startgröße */
+                  transform-origin: top left;
+              }}
+            </style>
+          </head>
+          <body>
+            <div class="svg-container">
+                <embed src="{abs_path}" type="image/svg+xml" style="max-width: none;" />
+            </div>
           </body>
         </html>
         """
