@@ -1,6 +1,6 @@
 # Projection-Based Augmented Reality Assembly Assistance
 
-This project is a **research prototype** developed as part of a bachelor's thesis. It introduces a **projection-based augmented reality assembly assistance system**, combining **computer vision** and **projection technology** to streamline the creation and execution of assembly instructions.
+This research **demonstrator** was initially developed as part of my **bachelor’s thesis** and has since been further extended and refined by me during my current work as a **research assistant (HiWi)**. The system presents a **projection-based augmented reality assembly assistance approach**, integrating **computer vision** and **projection technology** to support the generation and execution of assembly instructions.
 
 By using **AprilTags**, the system dynamically tracks objects in real-time, aligning projected instructions precisely to the assembly surface. The goal is to develop a **modular, flexible, and standardized** framework for projection-based AR guidance.
 
