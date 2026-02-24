@@ -24,6 +24,7 @@ class DrawingPage(QWidget):
     save_clicked = pyqtSignal(str) 
     cancel_clicked = pyqtSignal()
     tool_selected = pyqtSignal(str)
+    selection_changed = pyqtSignal(int)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -93,6 +94,7 @@ class DrawingPage(QWidget):
         self.scene = InteractiveScene(0, 0, 1280, 720, parent=self)
         self.view = ZoomableView(self.scene, self)
         
+        self.scene.selectionChanged.connect(self.onSelectionChanged)
        
         self.view.setFixedSize(1280, 720)
         layout.addWidget(self.view, stretch=1)
@@ -107,6 +109,10 @@ class DrawingPage(QWidget):
         self.flowchart_widget.setHtml('<html><body style="background-color: #2e3440;"></body></html>')
         
         self.setLayout(layout)
+
+    def onSelectionChanged(self):
+        num_selected = len(self.scene.selectedItems())
+        self.selection_changed.emit(num_selected)
 
     def loadSnapshot(self, cv_image: np.ndarray):
         """

@@ -80,6 +80,40 @@ class MainWindow(QMainWindow):
         self.updateToolbarVisibility(self.stack.currentIndex())
 
     def initPages(self):
+        self.setGlobalStyling()
+
+        # Page 0: Start Page
+        self.start_page = StartPage()
+        self.start_page.create_manual_clicked.connect(self.onRequestCreateManual)
+        self.start_page.load_manual_clicked.connect(self.gotoLoadPage) # TODO: Implement Load Page and connect properly
+        self.start_page.quit_clicked.connect(self.close)
+        self.stack.addWidget(self.start_page)
+        
+        # Page 1: Creation Page (Live Camera)
+        self.creation_page = CreationPage(self.camera_view)
+        self.creation_page.start_live_clicked.connect(self.onStartLive)
+        self.creation_page.stop_live_clicked.connect(self.onStopLive)
+        self.creation_page.capture_clicked.connect(self.onCapture)
+        self.creation_page.save_step_clicked.connect(self.onConfirmStep)
+        self.creation_page.undo_step_clicked.connect(self.onDiscardStep)
+        self.creation_page.quit_clicked.connect(self.gotoStartPage)
+        self.stack.addWidget(self.creation_page)
+        
+        # Page 2: Node Selection Page
+        self.node_selection_page = NodeSelectionPage()
+        self.node_selection_page.node_selected.connect(self.onNodeSelected)
+        self.node_selection_page.back_clicked.connect(self.gotoCreationPage)
+        self.stack.addWidget(self.node_selection_page)
+        
+        # Page 3: Drawing Page
+        self.drawing_page = DrawingPage()
+        self.drawing_page.save_clicked.connect(self.onDrawingFinished)
+        self.drawing_page.cancel_clicked.connect(self.gotoCreationPage)
+        self.drawing_page.tool_selected.connect(self.onToolSelected)
+        self.drawing_page.selection_changed.connect(self.onToolSelectionChanged)
+        self.stack.addWidget(self.drawing_page)
+
+    def setGlobalStyling(self):
         self.setStyleSheet("""
             QMainWindow {
                 background-color: #2e3440;
@@ -113,36 +147,6 @@ class MainWindow(QMainWindow):
                 border-radius: 8px;
             }
         """)
-
-        # Page 0: Start Page
-        self.start_page = StartPage()
-        self.start_page.create_manual_clicked.connect(self.onRequestCreateManual)
-        self.start_page.load_manual_clicked.connect(self.gotoLoadPage) # TODO: Implement Load Page and connect properly
-        self.start_page.quit_clicked.connect(self.close)
-        self.stack.addWidget(self.start_page)
-        
-        # Page 1: Creation Page (Live Camera)
-        self.creation_page = CreationPage(self.camera_view)
-        self.creation_page.start_live_clicked.connect(self.onStartLive)
-        self.creation_page.stop_live_clicked.connect(self.onStopLive)
-        self.creation_page.capture_clicked.connect(self.onCapture)
-        self.creation_page.save_step_clicked.connect(self.onConfirmStep)
-        self.creation_page.undo_step_clicked.connect(self.onDiscardStep)
-        self.creation_page.quit_clicked.connect(self.gotoStartPage)
-        self.stack.addWidget(self.creation_page)
-        
-        # Page 2: Node Selection Page
-        self.node_selection_page = NodeSelectionPage()
-        self.node_selection_page.node_selected.connect(self.onNodeSelected)
-        self.node_selection_page.back_clicked.connect(self.gotoCreationPage)
-        self.stack.addWidget(self.node_selection_page)
-        
-        # Page 3: Drawing Page
-        self.drawing_page = DrawingPage()
-        self.drawing_page.save_clicked.connect(self.onDrawingFinished)
-        self.drawing_page.cancel_clicked.connect(self.gotoCreationPage)
-        self.drawing_page.tool_selected.connect(self.onToolSelected)
-        self.stack.addWidget(self.drawing_page)
 
     def setup_vision_worker_connections(self):
         # 4. Connect Vision -> Projector
@@ -287,16 +291,16 @@ class MainWindow(QMainWindow):
         vertical_layout = QVBoxLayout(vertical_layout_widget)
 
         fixed_branch_label = QLabel("Current Branch: ")
-        fixed_branch_label.setStyleSheet("color: white; font-size: 12px;")  # TODO: REMEMBER TO SET BACK TO 42PX
+        fixed_branch_label.setStyleSheet("color: white; font-size: 42px;")  # TODO: REMEMBER TO SET BACK TO 42PX
         self.dynamic_branch_label = QLabel(self.flowchart_manager._current_branch)
-        self.dynamic_branch_label.setStyleSheet("color: white; font-size: 12px; margin-right: 20px;") # TODO: REMEMBER TO SET BACK TO 42PX
+        self.dynamic_branch_label.setStyleSheet("color: white; font-size: 42px; margin-right: 20px;") # TODO: REMEMBER TO SET BACK TO 42PX
         spacer = QWidget()
         spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
 
         fixed_node_label = QLabel("Current Node: ")
-        fixed_node_label.setStyleSheet("color: white; font-size: 12px;")  # TODO: REMEMBER TO SET BACK TO 42PX
+        fixed_node_label.setStyleSheet("color: white; font-size: 42px;")  # TODO: REMEMBER TO SET BACK TO 42PX
         self.dynamic_node_label = QLabel(self.flowchart_manager.current_node.node_name)
-        self.dynamic_node_label.setStyleSheet("color: white; font-size: 12px; margin-right: 20px;") # TODO: REMEMBER TO SET_BACK TO 42PX
+        self.dynamic_node_label.setStyleSheet("color: white; font-size: 42px; margin-right: 20px;") # TODO: REMEMBER TO SET_BACK TO 42PX
 
         vertical_layout.addWidget(fixed_branch_label)
         vertical_layout.addWidget(self.dynamic_branch_label)
@@ -344,6 +348,12 @@ class MainWindow(QMainWindow):
             self.fill_shape_checkbox.setChecked(False) 
             if self.drawing_page.fill_shape:  # only update if it was true
                 self.drawing_page.fill_shape = False
+
+    def onToolSelectionChanged(self, num_selected):
+        """
+        Updates the visibility of the delete action based on the number of selected items.
+        """
+        self.delete_action.setVisible(num_selected >= 1)
 
     def openColorDialog(self):
         """Opens color picker and updates DrawingPage + Button Style."""
