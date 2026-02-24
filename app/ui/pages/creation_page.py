@@ -29,7 +29,7 @@ class CreationPage(QWidget):
         self.status_label.setFixedHeight(50)
         self.status_label.setFrameStyle(QFrame.Shape.Panel | QFrame.Shadow.Sunken)
         self.status_label.setFont(QFont("Arial", 16))
-        self.status_label.setStyleSheet("color: white; background-color: #2e3440; padding: 5px;")
+        self.status_label.setStyleSheet("color: white; background-color: #3b4252; padding: 5px;")
         layout.addWidget(self.status_label)
 
         # --- 2. Center: Live Camera Feed ---
@@ -49,16 +49,16 @@ class CreationPage(QWidget):
 
         btn_style_default = """
             QPushButton {
-                background-color: #414a5c; 
+                background-color: #434c5e; 
                 color: white; 
                 border: 2px solid #d8dee9;
-                border-radius: 10px;
+                border-radius: 15px;
                 padding: 10px;
                 font-size: 16px;
                 font-weight: bold;
             }
             QPushButton:pressed {
-                background-color: #3b4252;
+                background-color: #2e3440;
             }
             QPushButton:disabled {
                 background-color: #2e3440;  /* Very dark grey/blue */

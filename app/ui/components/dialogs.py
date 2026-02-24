@@ -28,7 +28,6 @@ class PopupDialog(QDialog):
         # Shadow Widget
         self.shadow_widget = QWidget(self)
         self.shadow_widget.setObjectName("shadow_widget")
-        self.shadow_widget.setStyleSheet("background-color: #2e3440; border-radius: 15px; border: 1px solid #4c566a;")
         
         shadow = QGraphicsDropShadowEffect(self)
         shadow.setBlurRadius(20)

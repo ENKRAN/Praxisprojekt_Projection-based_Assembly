@@ -11,7 +11,7 @@ class ClickableSvgWidget(QWidget):
         self.svg_path = svg_path
         self.renderer = QSvgRenderer(svg_path)
         self.renderer.setAspectRatioMode(Qt.AspectRatioMode.KeepAspectRatio)
-        self.setMinimumSize(200, 200)  # Angepasst an Grid
+        self.setMinimumSize(400, 400)  # Angepasst an Grid
         self.setMaximumSize(600, 600)
         self.node_name = node_name
         
@@ -38,7 +38,6 @@ class ClickableSvgWidget(QWidget):
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
-            self.playAnimation()
             self.clicked.emit(self.node_name, self)
         super().mousePressEvent(event)
 

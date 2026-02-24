@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout, QLabel, QSizePolicy, QSpinBox
 )
 from PyQt6.QtGui import QIcon, QColor, QFont, QAction
-from PyQt6.QtCore import Qt, QSize
+from PyQt6.QtCore import Qt, QSize, QTimer
 
 # Core / Configuration
 from app.core.config import Config
@@ -80,6 +80,40 @@ class MainWindow(QMainWindow):
         self.updateToolbarVisibility(self.stack.currentIndex())
 
     def initPages(self):
+        self.setStyleSheet("""
+            QMainWindow {
+                background-color: #2e3440;
+            }
+            QToolBar {
+                background-color: #3b4252;
+            }
+            QWidget#shadow_widget {
+                background-color: #3b4252;
+                border-radius: 15px;
+            }
+            QPushButton {
+                background-color: #434c5e; 
+                color: white; 
+                border: 2px solid #d8dee9;
+                border-radius: 15px;
+            }
+            QPushButton:pressed {
+                background-color: #2e3440;
+            }
+            QMessageBox {
+                background-color: #2e3440; 
+            }
+            QMessageBox QLabel {
+                color: #eceff4;
+                font-size: 14px;
+            }
+            QMessageBox QPushButton {
+                min-width: 80px;
+                padding: 5px;
+                border-radius: 8px;
+            }
+        """)
+
         # Page 0: Start Page
         self.start_page = StartPage()
         self.start_page.create_manual_clicked.connect(self.onRequestCreateManual)
@@ -117,7 +151,6 @@ class MainWindow(QMainWindow):
         
         # Connect Vision -> MainWindow (Catch Snapshot)
         self.vision_worker.baking_update_signal.connect(self.onSnapshotTaken)
-
         self.vision_worker.image_update_signal.connect(self.camera_view.setImage)
         self.vision_worker.status_signal.connect(self.creation_page.updateStatus)
         
@@ -279,10 +312,17 @@ class MainWindow(QMainWindow):
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.save_button_toolbar)
 
     def updateToolbarVisibility(self, index):
-        """Shows toolbars only if current page is DrawingPage."""
+        """
+        Shows toolbars only if current page is DrawingPage.
+        Also toggles the visibility of the Merge Branch button based on flowchart state.
+
+        Args:
+            index (int): The index of the currently visible page in the stack.
+        """
         current_widget = self.stack.widget(index)
         is_drawing = (current_widget == self.drawing_page)
         self.setToolbarsVisible(is_drawing)
+        self.toggleMergeButton()
 
     def setToolbarsVisible(self, visible: bool):
         self.tools_toolbar.setVisible(visible)
@@ -340,7 +380,6 @@ class MainWindow(QMainWindow):
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Could not create manual:\n{e}")
 
-
     def onSnapshotTaken(self, homography, color_img, tag_id):
         """Called when VisionWorker takes a snapshot."""
         print(f"Snapshot received for Tag {tag_id}. Storing data...")
@@ -359,12 +398,18 @@ class MainWindow(QMainWindow):
         Called when the user selects an icon on the NodeSelectionPage.
         Transitions to DrawingPage.
         """
+        # Guard: Is flowchart already done?
+        if self.flowchart_manager.flowchart_done:
+            print("Warning: Flowchart is already done.")
+            QMessageBox.critical(self, "Flowchart Completed", "The flowchart is already completed. No more nodes can be added.")
+            self.gotoCreationPage()
+            return
+        
         print(f"Node selected: {node_type}")
         self.current_node_type = node_type
         
         if self.current_snapshot is not None:
             popup = None
-            popup_io = None
             popup_io_text = None
 
             if node_type in ["operation", "condition", "subroutine"]:
@@ -376,21 +421,25 @@ class MainWindow(QMainWindow):
                 
                 self.current_node_data = popup.user_input
             elif node_type == "inputoutput":
-                popup_io = PopupDialog(self, dialog_type="buttons", header="Choose Input/Output Type", button_count=2, button_texts=["input", "output"])
-                result_io = popup_io.exec()
+                popup = PopupDialog(self, dialog_type="buttons", header="Choose Input/Output Type", button_count=2, button_texts=["input", "output"])
+                result_io = popup.exec()
 
-                if not popup_io.isPopupResultValid(result_io):
+                if not popup.isPopupResultValid(result_io):
                     return
                 
-                popup_io_text = PopupDialog(self, dialog_type="text_input", header=f"{popup_io.user_input.capitalize()} Text")
+                popup_io_text = PopupDialog(self, dialog_type="text_input", header=f"{popup.user_input.capitalize()} Text")
                 result_io_text = popup_io_text.exec()
 
                 if not popup_io_text.isPopupResultValid(result_io_text):
                     return
                 
-                self.current_node_data = popup_io_text.user_input
+                self.current_node_data = popup_io_text.user_input            
                 
-            self.flowchart_manager.addNode(node_type, popup, popup_io_text)
+            node_added_success = self.flowchart_manager.addNode(node_type, popup, popup_io_text)
+
+            if not node_added_success:
+                QMessageBox.warning(self, "Error", "Could not add node to flowchart. Please try again.")
+                return
 
             node.playAnimation()
             
@@ -404,7 +453,7 @@ class MainWindow(QMainWindow):
             self.drawing_page.loadSnapshot(self.current_snapshot)
             
             # 2. Switch View (Toolbars will appear automatically via updateToolbarVisibility)
-            self.stack.setCurrentWidget(self.drawing_page)
+            QTimer.singleShot(1000, lambda: self.stack.setCurrentWidget(self.drawing_page))  # Slight delay to ensure snapshot is loaded first
         else:
             QMessageBox.warning(self, "Error", "No snapshot available!")
             self.gotoCreationPage()
@@ -412,10 +461,10 @@ class MainWindow(QMainWindow):
     def onMergeButtonClicked(self):
         merge_canditates = self.flowchart_manager.getMergeCandidates()
 
-        popup_merge = PopupDialog(self, dialog_type="buttons", header="To which Condition Node do you want to connect to? (Branches will be merged)", button_count=len(merge_canditates), button_texts=list(merge_canditates))
+        popup_merge = PopupDialog(self, dialog_type="buttons", header="To which Condition Node do you want to connect to? (Branches will be merged)", button_count=len(merge_canditates), button_texts=[node.node_text for node in merge_canditates])
         result_merge = popup_merge.exec()
 
-        if not self.isPopupResultValid(result_merge, popup_merge):
+        if not popup_merge.isPopupResultValid(result_merge):
             return
         
         selected_node = popup_merge.user_input
@@ -428,8 +477,12 @@ class MainWindow(QMainWindow):
 
         self.toggleMergeButton()
 
+        self.flowchart_manager.updateFlowchart()
+        self.drawing_page.load_svg(self.flowchart_manager.output_svg_path)
+
     def toggleMergeButton(self):
-        if self.flowchart_manager._current_branch_state_yn == "No":
+        merge_possible = self.flowchart_manager.checkMergePossibility()
+        if merge_possible:
             self.merge_branch_action.setVisible(True)
         else:
             self.merge_branch_action.setVisible(False)

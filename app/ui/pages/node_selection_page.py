@@ -33,32 +33,23 @@ class NodeSelectionPage(QWidget):
         self.grid_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.grid_layout.setSpacing(20)
 
-        # Create Icons
-        self.create_svg_grid()
-        self.main_layout.addLayout(self.grid_layout)
-
         # --- Bottom Layout for Back Button ---
         self.button_layout = QHBoxLayout()
         
         btn_back = QPushButton("Cancel")
         btn_back.setFont(QFont("Arial", 20))
         btn_back.setMinimumSize(300, 100)
-        btn_back.setStyleSheet("""
-            QPushButton {
-                background-color: #bf616a;
-                color: white; 
-                border: 2px solid #d8dee9;
-                border-radius: 15px;
-            }
-            QPushButton:pressed { background-color: #a3be8c; }
-        """)
         btn_back.clicked.connect(self.back_clicked.emit)
 
-        self.button_layout.addStretch()
         self.button_layout.addWidget(btn_back)
-        self.button_layout.addStretch()
-        
+        self.button_layout.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self.button_layout.setContentsMargins(0, 0, 200, 100)
+
+        self.main_layout.addLayout(self.grid_layout)
         self.main_layout.addLayout(self.button_layout)
+
+        # Create Icons
+        self.create_svg_grid()
 
     def get_svg_files(self):
         """Loads SVGs or creates dummies if missing (Legacy Logic)."""
@@ -90,9 +81,6 @@ class NodeSelectionPage(QWidget):
         """Populates the grid with ClickableSvgWidgets."""
         row = 0
         col = 0
-        
-        # Hardcoded order/names mapping if you want specific files to map to specific logic
-        # OR dynamic based on filename (Legacy way: split("_", 1)[0])
         
         for svg_path in self.svg_files:
             # Legacy logic to determine type from filename (e.g. "operation_icon.svg" -> "operation")

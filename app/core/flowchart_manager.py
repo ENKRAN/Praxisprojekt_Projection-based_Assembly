@@ -4,6 +4,7 @@ import tempfile
 import subprocess
 from pathlib import Path
 import shutil
+import re
 
 class FlowchartManager:    
     def __init__(self):
@@ -46,13 +47,11 @@ class FlowchartManager:
 
     def addOperation(self, text: str) -> OperationNode:
         node = OperationNode(text)
-        self._connectNode(node)
-        return node
+        return self._connectNode(node)
 
     def addCondition(self, text: str) -> ConditionNode:
         node = ConditionNode(text)
-        self._connectNode(node)
-        return node
+        return self._connectNode(node)
 
     def addInputOutput(self, io_type: str, text: str) -> InputOutputNode:
         """ io_type should be 'input' or 'output' """
@@ -62,18 +61,16 @@ class FlowchartManager:
             node = InputOutputNode(InputOutputNode.OUTPUT, text)
         else:
             raise ValueError("Invalid io_type. Must be 'input' or 'output'.")
-        self._connectNode(node)
-        return node
+        
+        return self._connectNode(node)
         
     def addSubroutine(self, text: str) -> SubroutineNode:
         node = SubroutineNode(text)
-        self._connectNode(node)
-        return node
+        return self._connectNode(node)
 
     def addEnd(self) -> EndNode:
         node = EndNode("")
-        self._connectNode(node)
-        return node
+        return self._connectNode(node)
 
     def getCurrentNodeName(self) -> str:
         return self.current_node.node_name
@@ -102,19 +99,19 @@ class FlowchartManager:
         """
         match node_type:
             case "operation":
-                self.addOperation(popup.user_input)
+                return self.addOperation(popup.user_input)
                 
             case "condition":
-                self.addCondition(popup.user_input)
+                return self.addCondition(popup.user_input)
 
             case "inputoutput":
-                self.addInputOutput(popup.user_input, popup_io_text.user_input)
+                return self.addInputOutput(popup.user_input, popup_io_text.user_input)
 
             case "subroutine":
-                self.addSubroutine(popup.user_input)
+                return self.addSubroutine(popup.user_input)
 
             case "end":
-                self.addEnd()
+                return self.addEnd()
 
     def getMergeCandidates(self) -> List[ConditionNode]:
         """
@@ -154,13 +151,22 @@ class FlowchartManager:
                     break
         
         if target_node:
+            print("Merging with node:", target_node)
             self._is_merging = True
             # Temporarily treat logic as if adding a node, but connecting to existing one
             previous_node = self.current_node
             self._connectPreviousToExistingCondition(previous_node, target_node)
-            # TODO: Remember to toggle the merge button and update the Flowchart (generate a new one)
             return True
         return False
+    
+    def checkMergePossibility(self) -> bool:
+        """
+        Checks if merging is currently possible based on the flowchart state.
+
+        Returns:
+            bool: True if merging is possible, False otherwise.
+        """
+        return self._current_branch_state_yn == "No" and not isinstance(self.current_node, ConditionNode)
 
     # --- Internal Logic (The "Brain") ---
     
@@ -172,18 +178,13 @@ class FlowchartManager:
             new_node: The new node to connect to.
         """
         previous_node = self.current_node
-        
-        # 1. Guard: Is flowchart already done?
-        if self.flowchart_done:
-            print("Warning: Flowchart is already done.")
-            return
 
-        # 2. Guard: Cannot connect FROM an EndNode (Legacy parity + Safety)
+        # 1. Guard: Cannot connect FROM an EndNode (Legacy parity + Safety)
         if isinstance(previous_node, EndNode):
             print("Error: Cannot add a node after an EndNode. Please check branch logic.")
-            return
+            return False
 
-        # 3. Logic for standard nodes (Op, IO, Sub)
+        # 2. Logic for standard nodes (Op, IO, Sub)
         if isinstance(new_node, (OperationNode, InputOutputNode, SubroutineNode)):
             if not isinstance(previous_node, ConditionNode):
                 previous_node.connect(new_node)
@@ -193,7 +194,7 @@ class FlowchartManager:
             # Update pointer
             self.current_node = new_node
 
-        # 4. Logic for Conditions (Branching)
+        # 3. Logic for Conditions (Branching)
         elif isinstance(new_node, ConditionNode):
             
             # LOGIC FIX: Check if previous is NOT a ConditionNode first (Legacy Parity)
@@ -217,8 +218,12 @@ class FlowchartManager:
             self._registerNewBranch(new_node)
             self.current_node = new_node
 
-        # 5. Logic for End Nodes
-        elif isinstance(new_node, EndNode) and not isinstance(previous_node, StartNode):
+        # 4. Logic for End Nodes
+        elif isinstance(new_node, EndNode):
+            if isinstance(previous_node, StartNode):
+                print("Error: Cannot connect StartNode directly to EndNode. Please add intermediate nodes.")
+                return False
+            
             if isinstance(previous_node, ConditionNode):
                 self._connectToCondition(previous_node, new_node)
             else:
@@ -230,6 +235,9 @@ class FlowchartManager:
             else:
                 self._switchToPreviousBranch()
                 # Pointer is updated inside _switchToPreviousBranch
+
+        return True
+        
 
     def _connectToCondition(self, condition_node, new_node):
         """
@@ -358,6 +366,53 @@ class FlowchartManager:
             print(f"Command executed: {' '.join(command)}")
 
             print(f"Step 4: SVG file successfully created at: {self.output_svg_path} \n")
+
+            print("Step 5: Adjusting SVG colors for dark mode...")
+            try:
+                # 1. Read the generated SVG file
+                with open(self.output_svg_path, 'r', encoding='utf-8') as svg_file:
+                    svg_content = svg_file.read()
+
+                # 2. Fix for the specific marker block (Diamond nodes) which has hardcoded black fill in the marker definition
+                svg_content = svg_content.replace(
+                    'id="raphael-marker-block"', 
+                    'id="raphael-marker-block" fill="#d8dee9"'
+                )
+
+                # 3. Robust regex-based color replacement for the main elements:
+                
+                # Edges and node borders (Black -> Nord Light Grey)
+                svg_content = re.sub(
+                    r'stroke=["\'](?:#000000|#000|black)["\']', 
+                    'stroke="#d8dee9"', 
+                    svg_content, 
+                    flags=re.IGNORECASE
+                )
+                
+                # Text (Black -> Nord White) 
+                svg_content = re.sub(
+                    r'fill=["\'](?:#000000|#000|black)["\']', 
+                    'fill="#eceff4"', 
+                    svg_content, 
+                    flags=re.IGNORECASE
+                )
+
+                # Node background (White -> Nord Dark Grey)
+                svg_content = re.sub(
+                    r'fill=["\'](?:#ffffff|#fff|white)["\']', 
+                    'fill="#4c566a"', 
+                    svg_content, 
+                    flags=re.IGNORECASE
+                )
+
+                # 4. Overwrite the file with the new dark mode content
+                with open(self.output_svg_path, 'w', encoding='utf-8') as svg_file:
+                    svg_file.write(svg_content)
+                    
+                print("Step 5: Colors successfully adjusted! \n")
+                
+            except Exception as e:
+                print(f"Error while recoloring the SVG: {e}")
 
         except subprocess.CalledProcessError as e:
             print(f"Error executing the '{self.diagrams_tool_path}' tool:")

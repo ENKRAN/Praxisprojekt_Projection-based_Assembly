@@ -100,7 +100,7 @@ class DrawingPage(QWidget):
         # 3. Flowchart/Help View (Right)
         self.flowchart_widget = QWebEngineView()
         self.flowchart_widget.setMaximumWidth(200)
-        self.flowchart_widget.setMaximumHeight(400)
+        self.flowchart_widget.setMaximumHeight(1000)
 
         # Initialize with empty dark page
         layout.addWidget(self.flowchart_widget, 0)
