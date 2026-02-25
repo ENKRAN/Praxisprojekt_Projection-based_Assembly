@@ -1,4 +1,6 @@
 from scour import scour
+import io
+
 from svgelements import SVG, Path, Shape, Rect
 from app.utils.math_utils import float_to_css, color_to_opengl_float
 from PyQt6.QtSvg import QSvgGenerator
@@ -63,6 +65,70 @@ def convertSVGElementsToBytePaths(file_path):
             
         except Exception as e:
             print(f"Error processing an element: {e}")
+            continue
+
+    return converted_elements
+
+import io # Add this at the top of your file if not already there
+
+def convertSVGElementsToBytePathsFromString(svg_string: str):
+    """
+    Converts SVG elements from a raw string directly to byte-encoded path strings 
+    with their properties (bypassing disk I/O).
+
+    Args:
+        svg_string (str): Raw SVG XML string.
+    Returns:
+        list: A list of dictionaries containing byte-encoded path strings and their properties.
+    """
+    # Treat the string as a file stream for the parser
+    stream = io.StringIO(svg_string)
+    svg = SVG.parse(stream)
+    
+    converted_elements = []
+
+    for element in svg.elements():
+        if not isinstance(element, (Path, Shape)):
+            continue
+            
+        if hasattr(element, 'visibility') and element.visibility == 'hidden':
+            continue
+        
+        # Ignore full-screen background rects
+        if isinstance(element, Rect):
+            raw_attrs = element.values
+            if 'x' not in raw_attrs and 'y' not in raw_attrs:
+                if element.width == 1280 and element.height == 720:
+                    continue
+
+        try:
+            # 1. Create Path object from element
+            path_obj = Path(element)
+            
+            # 2. Apply transformations to get absolute coordinates
+            path_obj.reify()
+
+            # 3. Get the 'd' string representation in absolute coordinates
+            path_d_string = path_obj.d(relative=False)
+
+            fill_color = element.fill
+            stroke_color = element.stroke
+
+            fill_val = color_to_opengl_float(fill_color)
+            stroke_val = color_to_opengl_float(stroke_color)
+
+            item = {
+                'svg_path_string': path_d_string.encode('utf-8'),
+                'fill_color': fill_val, 
+                'stroke_color': stroke_val,
+                'stroke_width': round(element.stroke_width, 2) if element.stroke_width else 0.0,
+                'is_filled': fill_val is not None
+            }
+            
+            converted_elements.append(item)
+            
+        except Exception as e:
+            print(f"Error processing an element from string: {e}")
             continue
 
     return converted_elements

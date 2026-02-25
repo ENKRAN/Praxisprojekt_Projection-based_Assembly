@@ -6,6 +6,7 @@ class StartPage(QWidget):
     # Signals to communicate with MainWindow
     create_manual_clicked = pyqtSignal()
     load_manual_clicked = pyqtSignal()
+    remote_assistance_clicked = pyqtSignal()
     quit_clicked = pyqtSignal()
 
     def __init__(self, parent=None):
@@ -30,21 +31,27 @@ class StartPage(QWidget):
         bottom_layout.addStretch()
         btn_create = QPushButton("Create Manual")
         btn_create.setFont(QFont("Arial", 20))
-        btn_create.setFixedSize(300, 100)
+        btn_create.setFixedSize(400, 100)
         btn_create.clicked.connect(self.create_manual_clicked.emit)
 
         btn_load = QPushButton("Load Manual")
         btn_load.setFont(QFont("Arial", 20))
-        btn_load.setFixedSize(300, 100)
+        btn_load.setFixedSize(400, 100)
         btn_load.clicked.connect(self.load_manual_clicked.emit)
+
+        btn_remote = QPushButton("Remote Assistance Mode")
+        btn_remote.setFont(QFont("Arial", 20))
+        btn_remote.setFixedSize(400, 100)
+        btn_remote.clicked.connect(self.remote_assistance_clicked.emit)
 
         btn_quit = QPushButton("Quit")
         btn_quit.setFont(QFont("Arial", 20))
-        btn_quit.setFixedSize(300, 100)
+        btn_quit.setFixedSize(400, 100)
         btn_quit.clicked.connect(self.quit_clicked.emit)
 
         bottom_layout.addWidget(btn_create, alignment=Qt.AlignmentFlag.AlignHCenter)
         bottom_layout.addWidget(btn_load, alignment=Qt.AlignmentFlag.AlignHCenter)
+        bottom_layout.addWidget(btn_remote, alignment=Qt.AlignmentFlag.AlignHCenter)
         bottom_layout.addWidget(btn_quit, alignment=Qt.AlignmentFlag.AlignHCenter)
         bottom_layout.addStretch()
 

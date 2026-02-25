@@ -6,7 +6,7 @@ from OpenGL.GL import *
 from OpenGL.GL.NV.path_rendering import *
 
 # Make sure you moved svg_manipulation.py to app/utils/svg_loader.py
-from app.utils.svg_utils import convertSVGElementsToBytePaths
+from app.utils.svg_utils import convertSVGElementsToBytePaths, convertSVGElementsToBytePathsFromString
 from app.utils.math_utils import computeSVGToTagMatrix, buildExtrinsicMatrix
 from app.core.config import Config
 
@@ -77,6 +77,46 @@ class PathRenderingWidget(QOpenGLWidget):
 
         # Parse SVG using existing logic
         self.svg_elements = convertSVGElementsToBytePaths(svg_path)
+        num_paths = len(self.svg_elements)
+
+        if num_paths > 0:
+            base_id = glGenPathsNV(num_paths)
+            self.path_objs = [base_id + i for i in range(num_paths)]
+
+            for path_id, element in zip(self.path_objs, self.svg_elements):
+                svg_bytes = element['svg_path_string']
+                glPathStringNV(path_id, GL_PATH_FORMAT_SVG_NV, len(svg_bytes), svg_bytes)
+
+                # Set path parameters
+                glPathParameterfNV(path_id, GL_PATH_STROKE_WIDTH_NV, element['stroke_width'])
+                glPathParameteriNV(path_id, GL_PATH_JOIN_STYLE_NV, GL_ROUND_NV)
+                glPathParameteriNV(path_id, GL_PATH_END_CAPS_NV, GL_ROUND_NV)
+        
+        self.doneCurrent()
+        self.update()
+
+    def loadSvgFromString(self, svg_string: str):
+        """
+        Loads a new SVG string directly into OpenGL paths without reading from disk.
+        
+        Args:
+            svg_string (str): Raw SVG XML string.
+        """
+        self.makeCurrent() # Ensure context is active
+        
+        # Clean up old paths from memory
+        if self.path_objs:
+            glDeletePathsNV(self.path_objs[0], len(self.path_objs))
+            self.path_objs = []
+
+        if not svg_string:
+            self.svg_elements = []
+            self.is_baked = False
+            self.update()
+            return
+
+        # Parse SVG dynamically
+        self.svg_elements = convertSVGElementsToBytePathsFromString(svg_string)
         num_paths = len(self.svg_elements)
 
         if num_paths > 0:
@@ -203,6 +243,10 @@ class ProjectorWindow(QMainWindow):
     def loadInstruction(self, svg_path):
         """Public API to load an instruction."""
         self.gl_widget.loadSvg(svg_path)
+
+    def loadInstructionFromString(self, svg_string: str):
+        """Public API to load an instruction dynamically from a string."""
+        self.gl_widget.loadSvgFromString(svg_string)
         
     def clearProjection(self):
         """Public API to clear the screen."""

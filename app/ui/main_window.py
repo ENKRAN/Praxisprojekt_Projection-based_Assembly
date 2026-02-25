@@ -17,6 +17,7 @@ from app.core.config import Config
 from app.core.flowchart_manager import FlowchartManager
 from app.core.manual_manager import ManualManager
 from app.core.player_manager import PlayerManager
+from app.core.remote_server import RemoteSVGServer
 
 # Vision / Hardware
 from app.vision.worker import VisionWorker
@@ -29,6 +30,7 @@ from app.ui.pages.node_selection_page import NodeSelectionPage
 from app.ui.pages.drawing_page import DrawingPage
 from app.ui.pages.load_page import LoadPage
 from app.ui.pages.player_page import PlayerPage
+from app.ui.pages.remote_page import RemotePage
 from app.ui.components.screen_selector import ScreenSelectorDialog
 from app.ui.components.dialogs import PopupDialog
 from app.ui.components.drawing.palette import PaletteHorizontal, PALETTES, PaletteGrid
@@ -50,6 +52,14 @@ class MainWindow(QMainWindow):
         self.flowchart_manager = FlowchartManager() 
         self.manual_manager = ManualManager()
         self.player_manager = PlayerManager()
+
+        # --- Remote Assistance Setup ---
+        self.current_live_tag_id = None
+
+        self.remote_server = RemoteSVGServer()
+        self.remote_server.client_connected.connect(self.onRemoteClientConnected)
+        self.remote_server.client_disconnected.connect(self.onRemoteClientDisconnected)
+        self.remote_server.svg_received.connect(self.onRemoteSvgReceived)
         
         # Temp Data Storage (RAM) for the current step being created
         self.current_snapshot = None     # The image (NumPy Array)
@@ -64,8 +74,9 @@ class MainWindow(QMainWindow):
         # 3. Setup Hardware & Windows
         self.vision_worker = VisionWorker()
         self.projector_window = ProjectorWindow()
-        self.camera_view = CameraView()  # Shared Camera View for CreationPage
+        self.camera_view = CameraView()  # Camera View for CreationPage
         self.player_camera_view = CameraView() # Separate Camera View for PlayerPage to avoid conflicts
+        self.remote_camera_view = CameraView() # Separate Camera View for RemotePage to avoid conflicts
         
         # Screen Setup via Dialog
         if not self.setupScreens():
@@ -97,6 +108,7 @@ class MainWindow(QMainWindow):
         self.start_page = StartPage()
         self.start_page.create_manual_clicked.connect(self.onRequestCreateManual)
         self.start_page.load_manual_clicked.connect(self.gotoLoadPage)
+        self.start_page.remote_assistance_clicked.connect(self.gotoRemotePage)
         self.start_page.quit_clicked.connect(self.close)
         self.stack.addWidget(self.start_page)
 
@@ -140,6 +152,12 @@ class MainWindow(QMainWindow):
         self.player_page.no_clicked.connect(lambda: self.advancePlayer("No"))
         self.player_page.finish_clicked.connect(self.quitPlayer)
         self.stack.addWidget(self.player_page)
+
+        # --- Page 6: Remote Assistance Page ---        
+        self.remote_page = RemotePage(self.remote_camera_view)
+        self.remote_page.quit_clicked.connect(self.quitRemoteMode)
+        self.remote_page.snapshot_clicked.connect(self.vision_worker.triggerSnapshot)
+        self.stack.addWidget(self.remote_page)
 
     def setGlobalStyling(self):
         self.setStyleSheet("""
@@ -189,9 +207,13 @@ class MainWindow(QMainWindow):
         # Connect the critical error signal
         self.vision_worker.error_signal.connect(self.creation_page.onCameraError)
 
-        # Also connect Vision -> PlayerPage's Camera View to show live feed during playback (optional, can be disabled if conflicts arise)
+        # Also connect Vision -> PlayerPage's Camera View to show live feed during playback
         self.vision_worker.image_update_signal.connect(self.camera_view.setImage)
         self.vision_worker.image_update_signal.connect(self.player_camera_view.setImage)
+
+        # Connect Vision -> RemotePage's Camera View to show live feed during remote assistance
+        self.vision_worker.image_update_signal.connect(self.remote_camera_view.setImage)
+        self.vision_worker.pose_update_signal.connect(self.updateLiveTagId)
 
     def createDrawingToolbars(self):
         """
@@ -881,3 +903,61 @@ class MainWindow(QMainWindow):
         self.vision_worker.stop()
         self.projector_window.close()
         event.accept()
+
+    # --- Remote Assistance Page Methods ---
+
+    def updateLiveTagId(self, r_matrix, t_vector, tag_id: int):
+        """
+        Called whenever VisionWorker detects a tag pose update during live feed.
+
+        Args:
+            r_matrix (np.ndarray): The rotation matrix of the detected tag.
+            t_vector (np.ndarray): The translation vector of the detected tag.
+            tag_id (int): The ID of the detected tag.
+        """
+        self.current_live_tag_id = tag_id
+
+    def gotoRemotePage(self):
+        """
+        Called when user wants to enter Remote Assistance Mode from the StartPage.
+        """
+        self.stack.setCurrentWidget(self.remote_page)
+        self.onStartLive()
+        self.remote_server.startServer(port=9001, host_ip="10.42.0.23")
+        print("[MainWindow] Entered Remote Assistance Mode.")
+
+    def quitRemoteMode(self):
+        """Exits the Remote Mode, stops camera and server."""
+        self.onStopLive()
+        self.remote_server.stopServer()
+        
+        # Clean up the projector
+        self.projector_window.clearProjection() 
+        self.projector_window.gl_widget.is_baked = False # Reset the baking matrix
+        
+        self.gotoStartPage()
+
+    def onRemoteClientConnected(self):
+        """
+        Updates the UI to show that a remote client has connected and can start sending SVG instructions.
+        """
+        self.remote_page.setConnectionStatus(True)
+
+    def onRemoteClientDisconnected(self):
+        """
+        Updates the UI to show that the remote client has disconnected and no SVG instructions can be received until a new client connects.
+        """
+        self.remote_page.setConnectionStatus(False)
+
+    def onRemoteSvgReceived(self, svg_string: str):
+        """Processes the incoming SVG from the tablet."""
+        
+        # 1. Safety check: Has the user taken a snapshot yet?
+        if not self.projector_window.gl_widget.is_baked:
+            print("[Remote] Warning: Tag is not baked yet! Please take a snapshot first.")
+            return # <--- The crucial fix: We stop execution right here!
+            
+        # 2. Load the string directly into the GPU VRAM via our new function
+        self.projector_window.loadInstructionFromString(svg_string)
+        
+        print(f"[Remote] SVG ({len(svg_string)} bytes) sent to projector.")
