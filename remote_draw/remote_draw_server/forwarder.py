@@ -13,7 +13,12 @@ def forward_loop(state: SharedState, cfg: AppConfig) -> None:
     ws = None
 
     def connect():
-        return websocket.create_connection(target, timeout=5)
+        return websocket.create_connection(
+            target,
+            timeout=5,
+            origin="http://127.0.0.1",
+            header={"Sec-WebSocket-Extensions": ""},  # disable permessage-deflate (not supported by QWebSocketServer)
+        )
 
     while True:
         time.sleep(cfg.forward_interval_sec)

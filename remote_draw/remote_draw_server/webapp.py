@@ -300,6 +300,13 @@ def html_page() -> str:
     path = null;
     shapeEl = null;
     sendSvgUpdate();
+
+    const elementsToFade = Array.from(svgEl.children);
+    
+    elementsToFade.forEach(el => {
+        el.style.transition = "opacity 1s ease-out"; 
+        el.style.opacity = "0";
+    });
   }
   svgEl.addEventListener('pointerup', endStroke);
   svgEl.addEventListener('pointercancel', endStroke);

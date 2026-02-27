@@ -78,6 +78,7 @@ class PathRenderingWidget(QOpenGLWidget):
         # Parse SVG using existing logic
         self.svg_elements = convertSVGElementsToBytePaths(svg_path)
         num_paths = len(self.svg_elements)
+        print(f"Loaded SVG with {num_paths} paths.")
 
         if num_paths > 0:
             base_id = glGenPathsNV(num_paths)
@@ -242,6 +243,7 @@ class ProjectorWindow(QMainWindow):
         
     def loadInstruction(self, svg_path):
         """Public API to load an instruction."""
+        print(f"Loading instruction from: {svg_path}")
         self.gl_widget.loadSvg(svg_path)
 
     def loadInstructionFromString(self, svg_string: str):

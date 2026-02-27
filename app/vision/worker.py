@@ -3,7 +3,7 @@ import numpy as np
 from PyQt6.QtCore import QThread, pyqtSignal
 from PyQt6.QtGui import QImage
 
-from app.hardware.camera import CameraService
+from app.hardware.shared_camera_client import SharedCameraClient
 from app.vision.detector import AprilTagDetector
 from app.vision.pose_estimator import PoseEstimator
 from app.vision.visualization import drawAxes, drawTagBorderAndId
@@ -94,7 +94,7 @@ class VisionWorker(QThread):
             try:
                 self.status_signal.emit("Status: Connecting to Camera...")
                 
-                with CameraService(width=self.width, height=self.height, fps=30) as cam:
+                with SharedCameraClient() as cam:
                     consecutive_failures = 0
                     self.status_signal.emit("Status: Live Feed Running")
                     

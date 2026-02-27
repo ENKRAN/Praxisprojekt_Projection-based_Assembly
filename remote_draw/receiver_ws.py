@@ -15,4 +15,4 @@ def ws_handler(ws):
         print("svg-vector:", svg_vector)
 
 if __name__ == "__main__":
-    app.run(host="10.42.0.23", port=9001, threaded=True, debug=False, use_reloader=False)
+    app.run(host="127.0.0.1", port=9001, threaded=True, debug=False, use_reloader=False)

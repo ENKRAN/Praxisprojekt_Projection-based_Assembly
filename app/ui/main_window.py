@@ -514,6 +514,12 @@ class MainWindow(QMainWindow):
         self.current_snapshot = color_img.copy()
         self.current_tag_id = tag_id
 
+        # Only navigate to NodeSelectionPage when triggered from the CreationPage.
+        # On RemotePage the snapshot is used for projection baking only — no page switch.
+        if self.stack.currentWidget() == self.remote_page:
+            print("[Snapshot] Remote mode — skipping navigation to NodeSelectionPage.")
+            return
+
         self.onStopLive()
         
         # Proceed to selection page
@@ -923,7 +929,7 @@ class MainWindow(QMainWindow):
         """
         self.stack.setCurrentWidget(self.remote_page)
         self.onStartLive()
-        self.remote_server.startServer(port=9001, host_ip="10.42.0.23")
+        self.remote_server.startServer(port=9001, host_ip="127.0.0.1")
         print("[MainWindow] Entered Remote Assistance Mode.")
 
     def quitRemoteMode(self):

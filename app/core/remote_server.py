@@ -19,6 +19,8 @@ class RemoteSVGServer(QObject):
         # Just setup the server, but don't start listening yet. We'll call startServer() from MainWindow when we enter Remote Mode.
         self.server = QWebSocketServer("Remote AR Server", QWebSocketServer.SslMode.NonSecureMode, self)
         self.server.newConnection.connect(self.onNewConnection)
+        self.server.acceptError.connect(lambda err: print(f"[RemoteServer] Accept error: {err} — {self.server.errorString()}"))
+        self.server.serverError.connect(lambda err: print(f"[RemoteServer] Server error: {err} — {self.server.errorString()}"))
 
     def startServer(self, port: int = 9001, host_ip: str = ""):
         """
@@ -36,7 +38,7 @@ class RemoteSVGServer(QObject):
                 else:
                     print(f"[RemoteServer] Successfully started listening on {host_ip}:{port}.")
             else:
-                print(f"[RemoteServer] Error: Could not start server on port {port}.")
+                print(f"[RemoteServer] Error: {self.server.errorString()}")  # Qt-Fehlertext ausgeben
 
     def stopServer(self):
         """

@@ -2,8 +2,12 @@ import time
 import cv2
 
 from .config import AppConfig
-from .camera_realsense import RealSenseCamera
 from .remote_server import RemoteServer
+
+# SharedCameraClient reads from the shared memory written by run_camera_server.py
+import sys, os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+from app.hardware.shared_camera_client import SharedCameraClient
 
 def main():
     cfg = AppConfig()
@@ -11,9 +15,9 @@ def main():
     server = RemoteServer(cfg)
     server.start()
 
-    cam = RealSenseCamera(cfg.width, cfg.height, cfg.fps)
+    cam = SharedCameraClient()
     cam.start()
-    print("Camera RealSense started")
+    print("SharedCameraClient connected to camera server")
 
     try:
         while True:
