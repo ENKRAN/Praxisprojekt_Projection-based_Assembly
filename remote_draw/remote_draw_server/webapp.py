@@ -6,6 +6,7 @@ from flask_sock import Sock
 from .state import SharedState
 from .config import AppConfig
 from .mjpeg import mjpeg_generator
+from .svg_utils import wrap_svg_like_pyqt, pretty_xml
 
 def create_app(state: SharedState, cfg: AppConfig) -> Flask:
     app = Flask(__name__)
@@ -30,14 +31,16 @@ def create_app(state: SharedState, cfg: AppConfig) -> Flask:
                 break
             try:
                 data = json.loads(msg)
-                if data.get("type") in ("svg_update", "svg_commit"):
-                    svg = data.get("svg", "")
-                    if isinstance(svg, str) and svg.strip():
-                        with state.lock:
-                            state.latest_svg = svg
-                            state.dirty_svg = True
-                            state.forward_dirty = True
-                            state.last_change_ts = time.time()
+                svg = data.get("svg", "")
+                if isinstance(svg, str) and svg.strip():
+                    full_svg = wrap_svg_like_pyqt(svg, cfg.width, cfg.height)
+                    full_svg_pretty = pretty_xml(full_svg)
+
+                    with state.lock:
+                        state.latest_svg = full_svg_pretty
+                        state.dirty_svg = True
+                        state.forward_dirty = True
+                        state.last_change_ts = time.time()
             except Exception:
                 pass
 
@@ -180,8 +183,14 @@ def html_page() -> str:
 
   function sendSvgUpdate() {
     if (!ws || ws.readyState !== 1) return;
-    ws.send(JSON.stringify({type:"svg_update", camera_frame_size:[W,H], svg: svgEl.outerHTML}));
+
+    ws.send(JSON.stringify({
+      type: "svg_update",
+      camera_frame_size: [W, H],
+      svg: svgEl.outerHTML
+    }));
   }
+
 
   let t = null;
   function sendThrottled() {
@@ -291,23 +300,6 @@ def html_page() -> str:
     path = null;
     shapeEl = null;
     sendSvgUpdate();
-
-    /*
-    const elementsToFade = Array.from(svgEl.children);
-    
-    elementsToFade.forEach(el => {
-        el.style.transition = "opacity 1.5s ease-out"; 
-        el.style.opacity = "0";
-        
-        setTimeout(() => {
-            if (el.parentNode === svgEl) {
-                el.remove();
-            }
-        }, 1500);
-    });
-    
-    stack.length = 0;
-    */
   }
   svgEl.addEventListener('pointerup', endStroke);
   svgEl.addEventListener('pointercancel', endStroke);

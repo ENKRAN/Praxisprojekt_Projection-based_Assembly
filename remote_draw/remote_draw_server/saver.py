@@ -3,7 +3,7 @@ import time
 
 from .state import SharedState
 from .config import AppConfig
-from .svg_utils import pretty_xml, extract_last_element_svg
+from .svg_utils import pretty_xml
 
 def atomic_write_text(path: str, text: str) -> None:
     tmp_path = path + ".tmp"
@@ -14,7 +14,6 @@ def atomic_write_text(path: str, text: str) -> None:
 def saver_loop(state: SharedState, cfg: AppConfig) -> None:
     os.makedirs(cfg.save_dir, exist_ok=True)
     all_svg_path = os.path.join(cfg.save_dir, cfg.all_svg_filename)
-    last_svg_path = os.path.join(cfg.save_dir, cfg.last_svg_filename)
 
     while True:
         time.sleep(cfg.save_interval_sec)
@@ -33,10 +32,6 @@ def saver_loop(state: SharedState, cfg: AppConfig) -> None:
             formatted_all = pretty_xml(svg)
             if formatted_all:
                 atomic_write_text(all_svg_path, formatted_all)
-
-            last_svg_doc = extract_last_element_svg(svg)
-            if last_svg_doc:
-                atomic_write_text(last_svg_path, pretty_xml(last_svg_doc))
 
             with state.lock:
                 state.dirty_svg = False

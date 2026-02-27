@@ -3,7 +3,6 @@ import websocket
 
 from .state import SharedState
 from .config import AppConfig
-from .svg_utils import extract_last_vector_element_xml
 
 def forward_loop(state: SharedState, cfg: AppConfig) -> None:
     target = (cfg.forward_ws_url or "").strip()
@@ -30,13 +29,7 @@ def forward_loop(state: SharedState, cfg: AppConfig) -> None:
         if (time.time() - last_change) < cfg.debounce_sec:
             continue
 
-        last_vec = extract_last_vector_element_xml(full_svg)
-        if not last_vec:
-            with state.lock:
-                state.forward_dirty = False
-            continue
-
-        if last_vec == last_sent:
+        if full_svg == last_sent:
             with state.lock:
                 state.forward_dirty = False
             continue
@@ -51,9 +44,9 @@ def forward_loop(state: SharedState, cfg: AppConfig) -> None:
             continue
 
         try:
-            ws.send(last_vec)
+            ws.send(full_svg)
             with state.lock:
-                state.last_forward_sent = last_vec
+                state.last_forward_sent = full_svg
                 state.forward_dirty = False
         except Exception as e:
             print("[Forwarder] send failed:", e)

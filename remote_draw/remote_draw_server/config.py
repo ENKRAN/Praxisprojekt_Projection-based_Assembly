@@ -11,11 +11,10 @@ class AppConfig:
     height: int = 720
     fps: int = 30
 
-    forward_ws_url: str = "ws://10.42.0.23:9001/ws"
+    forward_ws_url: str = "ws://127.0.0.1:9001/ws"
     forward_interval_sec: float = 0.20
     debounce_sec: float = 0.15
 
-    save_dir: str = "data/remote_drawings"
+    save_dir: str = "./data/remote_drawings"
     all_svg_filename: str = "all.svg"
-    last_svg_filename: str = "last.svg"
     save_interval_sec: float = 0.20

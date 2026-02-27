@@ -956,7 +956,9 @@ class MainWindow(QMainWindow):
         if not self.projector_window.gl_widget.is_baked:
             print("[Remote] Warning: Tag is not baked yet! Please take a snapshot first.")
             return # <--- The crucial fix: We stop execution right here!
-            
+
+        print(f"[Remote] SVG received: {svg_string} \n -----------------------------")    
+        
         # 2. Load the string directly into the GPU VRAM via our new function
         self.projector_window.loadInstructionFromString(svg_string)
         
