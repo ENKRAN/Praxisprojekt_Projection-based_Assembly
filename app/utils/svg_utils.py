@@ -1,5 +1,9 @@
-from scour import scour
 import io
+import json
+import time
+from pathlib import Path
+
+from scour import scour
 
 from svgelements import SVG, Path, Shape, Rect
 from app.utils.math_utils import float_to_css, color_to_opengl_float
@@ -8,6 +12,25 @@ from PyQt6.QtCore import QSize, QRect
 from PyQt6.QtWidgets import QGraphicsTextItem, QGraphicsPathItem
 from PyQt6.QtGui import QPainter, QPainterPath, QFontMetrics, QPen, QBrush
 from PyQt6.QtCore import Qt
+
+# #region agent log
+def _agent_debug_log(location: str, message: str, data: dict, hypothesis_id: str) -> None:
+    try:
+        log_path = Path(__file__).resolve().parents[2] / "debug-a32f16.log"
+        payload = {
+            "sessionId": "a32f16",
+            "runId": "pre-fix",
+            "hypothesisId": hypothesis_id,
+            "location": location,
+            "message": message,
+            "data": data,
+            "timestamp": int(time.time() * 1000),
+        }
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(payload, default=str) + "\n")
+    except Exception:
+        pass
+# #endregion
 
 
 def convertSVGElementsToBytePaths(file_path):
@@ -68,8 +91,6 @@ def convertSVGElementsToBytePaths(file_path):
             continue
 
     return converted_elements
-
-import io # Add this at the top of your file if not already there
 
 def convertSVGElementsToBytePathsFromString(svg_string: str):
     """
@@ -179,7 +200,20 @@ def generateSVGfromDrawing(save_path, background, background_item, scene):
     gen.setFileName(str(save_path))
     gen.setSize(QSize(background.width(), background.height()))                       
     scene_rect = scene.sceneRect()
-    gen.setViewBox(QRect(int(scene_rect.x()), int(scene_rect.y()), int(scene_rect.width()), int(scene_rect.height())))    
+    vb = QRect(int(scene_rect.x()), int(scene_rect.y()), int(scene_rect.width()), int(scene_rect.height()))
+    gen.setViewBox(vb)
+    # #region agent log
+    _agent_debug_log(
+        "svg_utils.py:generateSVGfromDrawing",
+        "SVG export coordinate frame",
+        {
+            "scene_rect": [float(scene_rect.x()), float(scene_rect.y()), float(scene_rect.width()), float(scene_rect.height())],
+            "viewBox": [vb.x(), vb.y(), vb.width(), vb.height()],
+            "gen_size": [background.width(), background.height()],
+        },
+        "H3",
+    )
+    # #endregion
     gen.setTitle("Vektor-Editor Export")
     gen.setDescription("SVG export from PyQt6 QGraphicsScene")
 

@@ -1,5 +1,28 @@
+import json
+import time
+from pathlib import Path
+
 import numpy as np
 from svgelements import Color
+
+# #region agent log
+def _agent_debug_log(location: str, message: str, data: dict, hypothesis_id: str) -> None:
+    try:
+        log_path = Path(__file__).resolve().parents[2] / "debug-a32f16.log"
+        payload = {
+            "sessionId": "a32f16",
+            "runId": "pre-fix",
+            "hypothesisId": hypothesis_id,
+            "location": location,
+            "message": message,
+            "data": data,
+            "timestamp": int(time.time() * 1000),
+        }
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(payload, default=str) + "\n")
+    except Exception:
+        pass
+# #endregion
 
 def computeSVGToTagMatrix(homography: np.ndarray, tag_size_meters: float) -> np.ndarray:
         """
@@ -12,7 +35,23 @@ def computeSVGToTagMatrix(homography: np.ndarray, tag_size_meters: float) -> np.
             A 4x4 transformation matrix mapping SVG coordinates to the physical tag plane.
         """
         # 1. Access the raw homography (Ideal Tag [-1,1] -> Pixel)
-        H_lib = homography
+        H_lib = np.asarray(homography, dtype=np.float64)
+        # #region agent log
+        try:
+            det_h = float(np.linalg.det(H_lib))
+        except Exception:
+            det_h = None
+        _agent_debug_log(
+            "math_utils.py:computeSVGToTagMatrix",
+            "baking inputs",
+            {
+                "tag_size_meters": float(tag_size_meters),
+                "det_H": det_h,
+                "H_fro": float(np.linalg.norm(H_lib, ord="fro")),
+            },
+            "H1",
+        )
+        # #endregion
         
         # 2. Invert (Pixel -> Ideal Tag [-1,1])
         try:
@@ -55,6 +94,25 @@ def computeSVGToTagMatrix(homography: np.ndarray, tag_size_meters: float) -> np.
         M_baking[3, 0] = H_phys_inv[2, 0]
         M_baking[3, 1] = H_phys_inv[2, 1]
         M_baking[3, 3] = H_phys_inv[2, 2]
+        
+        # #region agent log
+        _agent_debug_log(
+            "math_utils.py:computeSVGToTagMatrix",
+            "M_svg_to_tag upper 2x2 and perspective row",
+            {
+                "M00": float(M_baking[0, 0]),
+                "M01": float(M_baking[0, 1]),
+                "M10": float(M_baking[1, 0]),
+                "M11": float(M_baking[1, 1]),
+                "M03": float(M_baking[0, 3]),
+                "M13": float(M_baking[1, 3]),
+                "M30": float(M_baking[3, 0]),
+                "M31": float(M_baking[3, 1]),
+                "M33": float(M_baking[3, 3]),
+            },
+            "H5",
+        )
+        # #endregion
         
         return M_baking
 

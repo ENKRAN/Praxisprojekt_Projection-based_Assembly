@@ -1,3 +1,7 @@
+import json
+import time
+from pathlib import Path
+
 import numpy as np
 from PyQt6.QtWidgets import QMainWindow
 from PyQt6.QtOpenGLWidgets import QOpenGLWidget
@@ -9,6 +13,25 @@ from OpenGL.GL.NV.path_rendering import *
 from app.utils.svg_utils import convertSVGElementsToBytePaths, convertSVGElementsToBytePathsFromString
 from app.utils.math_utils import computeSVGToTagMatrix, buildExtrinsicMatrix
 from app.core.config import Config
+
+# #region agent log
+def _agent_debug_log(location: str, message: str, data: dict, hypothesis_id: str) -> None:
+    try:
+        log_path = Path(__file__).resolve().parents[2] / "debug-a32f16.log"
+        payload = {
+            "sessionId": "a32f16",
+            "runId": "pre-fix",
+            "hypothesisId": hypothesis_id,
+            "location": location,
+            "message": message,
+            "data": data,
+            "timestamp": int(time.time() * 1000),
+        }
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(payload, default=str) + "\n")
+    except Exception:
+        pass
+# #endregion
 
 class PathRenderingWidget(QOpenGLWidget):
     def __init__(self, parent=None):
@@ -175,6 +198,17 @@ class PathRenderingWidget(QOpenGLWidget):
             color_img (np.ndarray): Color image (not used here but could be for debugging)
         """
         print("Projector: Baking Matrix updated.")
+        # #region agent log
+        _agent_debug_log(
+            "projector_window.py:setBakingMatrix",
+            "projector tag_size used for baking",
+            {
+                "projector_tag_size": float(self.tag_size),
+                "tag_id": int(tag_id),
+            },
+            "H1",
+        )
+        # #endregion
         self.M_svg_to_tag = computeSVGToTagMatrix(homography, self.tag_size)
         self.is_baked = True
         self.update()

@@ -1,3 +1,7 @@
+import json
+import time
+from pathlib import Path
+
 import cv2
 import numpy as np
 from PyQt6.QtCore import QThread, pyqtSignal
@@ -8,6 +12,33 @@ from app.vision.detector import AprilTagDetector
 from app.vision.pose_estimator import PoseEstimator
 from app.vision.visualization import drawAxes, drawTagBorderAndId
 from app.core.config import Config
+
+# #region agent log
+def _agent_debug_log(location: str, message: str, data: dict, hypothesis_id: str) -> None:
+    try:
+        log_path = Path(__file__).resolve().parents[2] / "debug-a32f16.log"
+        payload = {
+            "sessionId": "a32f16",
+            "runId": "pre-fix",
+            "hypothesisId": hypothesis_id,
+            "location": location,
+            "message": message,
+            "data": data,
+            "timestamp": int(time.time() * 1000),
+        }
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(payload, default=str) + "\n")
+    except Exception:
+        pass
+
+
+def _apply_homography_pixel(H: np.ndarray, x: float, y: float) -> tuple[float, float]:
+    v = H @ np.array([x, y, 1.0], dtype=np.float64)
+    w = float(v[2])
+    if abs(w) < 1e-12:
+        return float("nan"), float("nan")
+    return float(v[0] / w), float(v[1] / w)
+# #endregion
 
 class VisionWorker(QThread):
     # Signals
@@ -142,6 +173,49 @@ class VisionWorker(QThread):
             # Snapshot Logic
             if self.snapshot_requested:
                 print(f"VisionWorker: Snapshot taken for Tag {best_tag.tag_id}")
+                # #region agent log
+                H = np.asarray(best_tag.homography, dtype=np.float64)
+                ideal_ccw = [(-1.0, 1.0), (1.0, 1.0), (1.0, -1.0), (-1.0, -1.0)]
+                pred = np.array(
+                    [_apply_homography_pixel(H, x, y) for x, y in ideal_ccw],
+                    dtype=np.float64,
+                )
+                meas = np.asarray(best_tag.corners, dtype=np.float64)
+                pred_edges = sorted(
+                    float(np.linalg.norm(pred[i] - pred[(i + 1) % 4])) for i in range(4)
+                )
+                meas_edges = sorted(
+                    float(np.linalg.norm(meas[i] - meas[(i + 1) % 4])) for i in range(4)
+                )
+                ratios = [p / m for p, m in zip(pred_edges, meas_edges) if m > 1e-6]
+                _agent_debug_log(
+                    "worker.py:snapshot",
+                    "frame, detector tag_size, homography vs corner edges",
+                    {
+                        "color_shape_hw": [int(color_img.shape[0]), int(color_img.shape[1])],
+                        "matches_worker_wh": bool(
+                            color_img.shape[1] == self.width and color_img.shape[0] == self.height
+                        ),
+                        "detector_tag_size": float(self.detector.tag_size),
+                        "tag_id": int(best_tag.tag_id),
+                        "pred_edge_lengths_px": pred_edges,
+                        "meas_edge_lengths_px": meas_edges,
+                        "pred_meas_edge_ratio_sorted_mean": float(np.mean(ratios)) if ratios else None,
+                    },
+                    "H4",
+                )
+                _agent_debug_log(
+                    "worker.py:snapshot",
+                    "resolution check for SVG vs homography pixel space",
+                    {
+                        "frame_w": int(color_img.shape[1]),
+                        "frame_h": int(color_img.shape[0]),
+                        "expected_svg_space_w": int(self.width),
+                        "expected_svg_space_h": int(self.height),
+                    },
+                    "H2",
+                )
+                # #endregion
                 # Pass Tag ID to the baking signal!
                 self.baking_update_signal.emit(best_tag.homography, color_img, best_tag.tag_id)
                 self.snapshot_requested = False
