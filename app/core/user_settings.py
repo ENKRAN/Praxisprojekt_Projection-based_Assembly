@@ -6,7 +6,7 @@ from typing import Dict, Any
 class UserSettings:
     # Path to the config file
     SETTINGS_PATH = Path("data/user_config.json")
-    DEFAULT_TAG_SIZE = 0.038
+    DEFAULT_TAG_SIZE = 0.073
 
     @classmethod
     def load(cls) -> Dict[str, Any]:

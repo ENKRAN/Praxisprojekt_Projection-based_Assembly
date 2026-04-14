@@ -102,7 +102,8 @@ class ScreenSelectorDialog(QDialog):
         new_settings = {
             "gui_screen_name": self.selected_gui_screen.name(),
             "proj_screen_name": self.selected_proj_screen.name(),
-            "debug_mode": self.is_debug
+            "debug_mode": self.is_debug,
+            "tag_size": UserSettings.get_tag_size()
         }
         UserSettings.save(new_settings)
         

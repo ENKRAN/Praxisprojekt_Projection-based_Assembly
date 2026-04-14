@@ -4,14 +4,13 @@ import numpy as np
 import shutil
 
 from PyQt6.QtWidgets import (
-    QMainWindow, QStackedWidget, QMessageBox, QDialog, 
-    QToolBar, QCheckBox, 
+    QMainWindow, QStackedWidget, QMessageBox, QDialog,
+    QToolBar, QCheckBox,
     QWidgetAction, QPushButton, QColorDialog, QWidget,
     QVBoxLayout, QLabel, QSizePolicy, QSpinBox
 )
 from PyQt6.QtGui import QIcon, QColor, QFont, QAction
 from PyQt6.QtCore import Qt, QSize, QTimer
-
 # Core / Configuration
 from app.core.config import Config
 from app.core.flowchart_manager import FlowchartManager
@@ -85,7 +84,7 @@ class MainWindow(QMainWindow):
         # 5. GUI Stack Setup
         self.stack = QStackedWidget()
         self.setCentralWidget(self.stack)
-        
+
         # Initialize Pages
         self.initPages()
         
@@ -656,6 +655,9 @@ class MainWindow(QMainWindow):
         self.creation_page.showReviewUI(True)
 
         self.gotoCreationPage()
+        
+        # Resume live tracking so the projection updates dynamically on the tag
+        self.onStartLive()
 
     def onConfirmStep(self):
         """

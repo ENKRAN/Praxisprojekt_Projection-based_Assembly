@@ -153,8 +153,10 @@ class PathRenderingWidget(QOpenGLWidget):
         glMatrixMode(GL_PROJECTION)
         glLoadIdentity()
         
-        fx = self.projector_intrinsics[0, 0]
-        fy = self.projector_intrinsics[1, 1]
+        zoom = 0.5
+        
+        fx = self.projector_intrinsics[0, 0] * zoom
+        fy = self.projector_intrinsics[1, 1] * zoom
         cx = self.projector_intrinsics[0, 2]
         cy = self.projector_intrinsics[1, 2]
         

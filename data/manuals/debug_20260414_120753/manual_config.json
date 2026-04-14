@@ -1,0 +1,62 @@
+{
+    "id": "debug_20260414_120753",
+    "title": "debug",
+    "created_at": "2026-04-14T12:07:53.982348",
+    "tag_id": -1,
+    "status": "draft",
+    "steps": [
+        {
+            "step_id": 1,
+            "node_uid": "node_1",
+            "node_type": "operation",
+            "description": "o",
+            "snapshot_file": "steps/step_001/snapshot.png",
+            "drawing_file": "steps/step_001/drawing.svg",
+            "homography_matrix": [
+                [
+                    -11.680435788063846,
+                    3.969062768681397,
+                    696.5779564671465
+                ],
+                [
+                    -0.7289090784264545,
+                    -13.593427809710079,
+                    428.6286613487678
+                ],
+                [
+                    0.003635437416912354,
+                    0.002582024747878553,
+                    1.0
+                ]
+            ],
+            "tag_id": 0
+        },
+        {
+            "step_id": 2,
+            "node_uid": "node_2",
+            "node_type": "operation",
+            "description": "k",
+            "snapshot_file": "steps/step_002/snapshot.png",
+            "drawing_file": "steps/step_002/drawing.svg",
+            "homography_matrix": [
+                [
+                    5.084888158469201,
+                    -14.246882890049049,
+                    669.8190879703376
+                ],
+                [
+                    14.229475989704781,
+                    4.831048678782397,
+                    438.9543292792431
+                ],
+                [
+                    0.00024166658199844298,
+                    -0.00043380859415240804,
+                    1.0
+                ]
+            ],
+            "tag_id": 0
+        }
+    ],
+    "flowchart_dsl": ""
+}
