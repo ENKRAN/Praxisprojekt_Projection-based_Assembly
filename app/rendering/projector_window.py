@@ -9,6 +9,7 @@ from OpenGL.GL.NV.path_rendering import *
 from app.utils.svg_utils import convertSVGElementsToBytePaths, convertSVGElementsToBytePathsFromString
 from app.utils.math_utils import computeSVGToTagMatrix, buildExtrinsicMatrix
 from app.core.config import Config
+from app.core.user_settings import UserSettings
 
 class PathRenderingWidget(QOpenGLWidget):
     def __init__(self, parent=None):
@@ -29,10 +30,14 @@ class PathRenderingWidget(QOpenGLWidget):
         self.path_objs = [] 
         self.svg_elements = []
         self.is_baked = False
-        self.tag_size = 0.038 # Default, can be updated via setter
+        self.tag_size = UserSettings.get_tag_size()
 
         self.current_tag_pose = np.eye(4, dtype=np.float32)
         self.M_svg_to_tag = np.eye(4, dtype=np.float32) 
+
+    def setTagSize(self, size: float):
+        self.tag_size = size
+        print(f"Projector: Tag size updated to {self.tag_size}")
 
     def initializeGL(self):
         """Initializes OpenGL context and checks for NV_path_rendering support."""
@@ -253,3 +258,7 @@ class ProjectorWindow(QMainWindow):
     def clearProjection(self):
         """Public API to clear the screen."""
         self.gl_widget.loadSvg(None)
+
+    def setTagSize(self, size: float):
+        """Public API to update the tag size."""
+        self.gl_widget.setTagSize(size)

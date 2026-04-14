@@ -8,6 +8,7 @@ from app.vision.detector import AprilTagDetector
 from app.vision.pose_estimator import PoseEstimator
 from app.vision.visualization import drawAxes, drawTagBorderAndId
 from app.core.config import Config
+from app.core.user_settings import UserSettings
 
 class VisionWorker(QThread):
     # Signals
@@ -37,7 +38,8 @@ class VisionWorker(QThread):
         # Init Logic
         self.width = 1280
         self.height = 720
-        self.detector = AprilTagDetector(camera_intrinsics=self.cam_k)
+        self.tag_size = UserSettings.get_tag_size()
+        self.detector = AprilTagDetector(camera_intrinsics=self.cam_k, tag_size=self.tag_size)
         self.estimator = PoseEstimator(width=self.width, height=self.height)
 
     def setDebugMode(self, is_debug: bool, image_path: str = ""):
