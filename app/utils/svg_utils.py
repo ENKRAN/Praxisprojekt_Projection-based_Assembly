@@ -104,12 +104,19 @@ def convertSVGElementsToBytePathsFromString(svg_string: str):
         try:
             # 1. Create Path object from element
             path_obj = Path(element)
-            
+
             # 2. Apply transformations to get absolute coordinates
             path_obj.reify()
 
             # 3. Get the 'd' string representation in absolute coordinates
             path_d_string = path_obj.d(relative=False)
+
+            # DIAGNOSTIC: print first point of each path to verify coordinate range
+            if len(converted_elements) == 0:
+                first_point = path_obj.first_point
+                if first_point is not None:
+                    print(f"[DIAG SVG] First path first_point: ({first_point.x:.2f}, {first_point.y:.2f}) — expected in 0-1280 x 0-720 range")
+                print(f"[DIAG SVG] First path d-string (first 80 chars): {path_d_string[:80]}")
 
             fill_color = element.fill
             stroke_color = element.stroke
@@ -119,14 +126,14 @@ def convertSVGElementsToBytePathsFromString(svg_string: str):
 
             item = {
                 'svg_path_string': path_d_string.encode('utf-8'),
-                'fill_color': fill_val, 
+                'fill_color': fill_val,
                 'stroke_color': stroke_val,
                 'stroke_width': round(element.stroke_width, 2) if element.stroke_width else 0.0,
                 'is_filled': fill_val is not None
             }
-            
+
             converted_elements.append(item)
-            
+
         except Exception as e:
             print(f"Error processing an element from string: {e}")
             continue

@@ -153,10 +153,8 @@ class PathRenderingWidget(QOpenGLWidget):
         glMatrixMode(GL_PROJECTION)
         glLoadIdentity()
         
-        zoom = 0.5
-        
-        fx = self.projector_intrinsics[0, 0] * zoom
-        fy = self.projector_intrinsics[1, 1] * zoom
+        fx = self.projector_intrinsics[0, 0]
+        fy = self.projector_intrinsics[1, 1]
         cx = self.projector_intrinsics[0, 2]
         cy = self.projector_intrinsics[1, 2]
         
@@ -176,13 +174,30 @@ class PathRenderingWidget(QOpenGLWidget):
     def setBakingMatrix(self, homography, color_img, tag_id):
         """
         Called when Snapshot is taken. Computes the fixed relation SVG <-> Tag.
-        
+
         Args:
             homography (np.ndarray): 3x3 homography matrix from tag to projector image
             color_img (np.ndarray): Color image (not used here but could be for debugging)
         """
         print("Projector: Baking Matrix updated.")
         self.M_svg_to_tag = computeSVGToTagMatrix(homography, self.tag_size)
+
+        # DIAGNOSTIC: verify physical positions of key SVG pixels
+        H = homography
+        # Tag center in camera pixels (from H @ [0,0,1])
+        c = H @ np.array([0.0, 0.0, 1.0])
+        tag_cx, tag_cy = c[0] / c[2], c[1] / c[2]
+        # Tag corner (+1,+1) in camera pixels
+        corner = H @ np.array([1.0, 1.0, 1.0])
+        corner_px = corner[0] / corner[2], corner[1] / corner[2]
+        print(f"[DIAG BAKE] tag_size={self.tag_size}m, scale_factor={self.tag_size/2:.4f}m")
+        print(f"[DIAG BAKE] Tag center pixel: ({tag_cx:.1f}, {tag_cy:.1f})")
+        print(f"[DIAG BAKE] Tag (+1,+1) corner pixel: ({corner_px[0]:.1f}, {corner_px[1]:.1f})")
+        for label, (u, v) in [("tag_center", (tag_cx, tag_cy)), ("tag_corner(+1,+1)", corner_px)]:
+            p = self.M_svg_to_tag @ np.array([u, v, 0.0, 1.0])
+            px, py = p[0] / p[3] * 1000, p[1] / p[3] * 1000
+            print(f"[DIAG BAKE]   SVG pixel ({u:.1f},{v:.1f}) -> physical ({px:.1f}mm, {py:.1f}mm) — expected tag_corner=(±{self.tag_size/2*1000:.1f}mm)")
+
         self.is_baked = True
         self.update()
 
