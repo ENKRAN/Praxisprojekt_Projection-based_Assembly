@@ -1,199 +1,220 @@
 # Projection-Based Augmented Reality Assembly Assistance
 
-This research **demonstrator** was initially developed as part of my **bachelor's thesis** and has since been further extended and refined during my work as a **research assistant (HiWi)**. The system presents a **projection-based augmented reality assembly assistance approach**, integrating **computer vision** and **projection technology** to support the generation and execution of assembly instructions.
+This research **demonstrator** was developed as part of a **bachelor's thesis** and further extended during work as a **research assistant (HiWi)**. The system presents a **projection-based augmented reality assembly assistance approach**, integrating **computer vision** and **projection technology** to support the creation and execution of assembly instructions.
 
-By using **AprilTags**, the system dynamically tracks objects in real-time, aligning projected instructions precisely to the assembly surface. The goal is to develop a **modular, flexible, and standardized** framework for projection-based AR guidance.
+By using **AprilTags**, the system dynamically tracks objects in real-time, aligning projected instructions precisely to the assembly surface. Additionally, it features an **AI-assisted guidance mode** that generates step-by-step instructions from a camera image and a natural-language prompt via a remote AI PC.
+
+<div style="text-align: center;">
+    <img src="docs/images/Montagestation.jpg" alt="Assembly Station" width="550"/>
+</div>
 
 ## Table of Contents
 
-- [Project Description](#project-description)
 - [Features](#features)
 - [Prerequisites](#prerequisites)
-- [Quick Installation](#quick-installation)
+- [Installation](#installation)
 - [Quick Start](#quick-start)
+- [Running the Application](#running-the-application)
 - [Project Structure](#project-structure)
 - [Architecture Overview](#architecture-overview)
 - [Known Issues](#known-issues)
 
 ---
 
-## Project Description
-
-This project explores why no **standardized** solution exists for **projection-based AR assembly guidance** that covers both **instruction creation and execution**. The developed system provides a **flexible, modular, and user-friendly** solution.
-
-Using an **Intel RealSense D435 camera**, the system detects AprilTags in real-time, allowing:
-- **Automated instruction alignment**
-- **Projection of real-time assembly guidance**
-- **Intuitive manual creation through a graphical user interface (GUI)**
-
-Here is a picture of the complete prototype:
-
-<div style="text-align: center;">
-    <img src="docs/images/Montagestation.jpg" alt="Assembly Station" width="550"/>
-</div>
-
----
-
 ## Features
 
 - **AprilTag-Based Object Tracking**  
-  Detects AprilTags and estimates object pose using an **Intel RealSense D435** depth camera.
-- **Modular Software Architecture**  
-  Clean separation of concerns across `core`, `hardware`, `rendering`, `ui`, `utils`, and `vision` modules for **easy expansion**.
-- **Real-Time Projection & Transformation**  
-  Dynamically adjusts projections based on AprilTag movement using **GPU-accelerated OpenGL rendering** (`NV_path_rendering`).
-- **Graphical User Interface (GUI)**  
-  User-friendly **PyQt6** interface for creating and executing assembly manuals.
-- **Integrated SVG Drawing Tool**  
-  Built-in drawing tool for sketching assembly instructions directly onto captured workspace images. Supports brushes, rectangles, circles, arrows, and text.
-- **Flowchart-Based Manual Structure**  
-  Instructions are organized as branching flowcharts, supporting conditional assembly steps (Yes/No branches, merging, subroutines).
-- **Homography-Based Step Alignment**  
-  Each manual step stores a homography matrix linking the drawn instruction to the physical AprilTag plane, enabling precise real-world projection.
-- **Persistent Manual Storage**  
-  Manuals are saved as structured JSON files alongside snapshot images and SVG drawings for later review and re-execution.
+  Detects AprilTags and estimates 6-DOF object pose using an Intel RealSense D435 depth camera with depth-fusion smoothing and OneEuroFilter stabilization.
+
+- **Manual Creation**  
+  Capture workspace snapshots, annotate them with a built-in SVG drawing tool (brush, shapes, arrows, text), and organize steps into branching flowcharts with Yes/No decisions, subroutines, and merging branches.
+
+- **Manual Playback**  
+  Load published manuals and project each step's instruction SVG onto the physical workspace in real time, dynamically following the AprilTag's position.
+
+- **Remote Assistance Mode**  
+  A remote expert connects via WebSocket and sends SVG overlays that are projected onto the workspace live.
+
+- **AI-Assisted Step-by-Step Guidance**  
+  Send a camera image and a natural-language prompt to a remote AI PC via SSH. The AI generates a complete multi-step assembly manual and returns one step at a time (description + SVG overlay). A fresh camera frame is sent on each Next/Previous navigation so the AI sees the current state of the workspace. The SVG is projected as a flat screen overlay — no AprilTag required.
+
+- **GPU-Accelerated Rendering**  
+  SVG instructions are rendered via OpenGL `NV_path_rendering` (NVIDIA-only), supporting both 3D tag-tracked projection and flat 2D overlay mode.
+
+- **Two-Process Architecture**  
+  The camera server runs as a separate process writing frames to shared memory, allowing the main GUI and other tools to consume frames without hardware conflicts.
 
 ---
 
 ## Prerequisites
 
-- **Operating System:** Windows 10 or higher  
-- **Python:** Version 3.11.0  
-- **Hardware:**  
-  - Intel RealSense D435 camera  
-  - Samsung Freestyle 2nd Gen Projector  
-  - iiyama TV Monitor  
-  - AprilTags (printed)  
-- **GPU:** NVIDIA GPU with support for `NV_path_rendering` (required for OpenGL-based projection rendering)
+- **OS:** Windows 10 or higher
+- **Python:** 3.11
+- **GPU:** NVIDIA GPU with `NV_path_rendering` support
+- **Hardware:**
+  - Intel RealSense D435 camera
+  - Samsung Freestyle 2nd Gen projector (or any secondary display)
+  - AprilTags (printed, default size 7.3 cm)
+- **Calibration file:** `data/projector_camera_calibration/calibration.yml`  
+  Generated with [ProCamCalib](https://github.com/BingyaoHuang/single-shot-pro-cam-calib)
 
-Refer to `user_guide.md` for a **detailed setup guide**.
+For AI-assisted guidance additionally:
+- A remote Linux PC reachable via SSH (e.g. over Tailscale)
+- SSH key-based authentication configured
+- The `run_segment.py` script deployed on the AI PC (see `ai_pc_prompt.txt`)
 
 ---
 
-## Quick Installation
+## Installation
 
-1. **Clone the Repository**:
+```bash
+git clone https://github.com/ENKRAN/Praxisprojekt_Projection-based_Assembly.git
+cd Praxisprojekt_Projection-based_Assembly
+pip install -r requirements.txt
+```
 
-   ```bash
-   git clone https://github.com/ENKRAN/Praxisprojekt_Projection-based_Assembly.git
-   cd Praxisprojekt_Projection-based_Assembly
-   ```
+Place your calibration file at:
+```
+data/projector_camera_calibration/calibration.yml
+```
 
-2. **Install Dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
+For SSH/AI configuration, edit `data/user_config.json`:
+```json
+{
+    "tag_size": 0.073,
+    "ssh_host": "100.x.x.x",
+    "ssh_user": "ai_user",
+    "ssh_key_path": "~/.ssh/id_rsa",
+    "remote_script_path": "/home/ai_user/segment/run_segment.py",
+    "remote_work_dir": "/tmp/ar_ai_work"
+}
+```
 
-3. **Install Intel RealSense SDK**: Follow the detailed guide in `user_guide.md` to complete the RealSense SDK installation and optional calibration steps.
-
-4. **Projector-Camera Calibration**:  
-   Calibrate the projector-camera system using [ProCamCalib](https://github.com/BingyaoHuang/single-shot-pro-cam-calib) and place the resulting `calibration.yml` in:
-   ```
-   data/projector_camera_calibration/calibration.yml
-   ```
+See `user_guide.md` for a full setup walkthrough including RealSense SDK installation and calibration.
 
 ---
 
 ## Quick Start
 
-1. **Set Up Hardware**:  
-   Connect the Intel RealSense D435 camera and projector as described in `user_guide.md`.
+Two processes must be started **in order**:
 
-2. **Run the Program**:
-   ```bash
-   python main.py
-   ```
+```bash
+# 1. Start the camera server (owns the RealSense hardware)
+python run_camera_server.py
 
-3. **Creating Your First Manual**:
-   - Open the application and navigate to the **"Create Manual"** section.
-   - Start the **live camera feed** to view the workspace.
-   - **Capture** a workspace snapshot when the AprilTag is detected.
-   - Use the integrated **drawing tool** to annotate the captured image with assembly instructions.
-   - Save the step — the system will automatically compute the **homography** and store the data.
-   - Repeat for each step and organize them into a **flowchart**.
-   - Save the completed manual.
+# 2. Launch the main GUI (in a second terminal)
+python main.py
+```
 
-4. **Executing a Manual**:
-   - Load an existing manual from the **"Load Manual"** section.
-   - Start the live feed and begin execution.
-   - The system will **project each step's instructions** onto the workspace in real time, dynamically adjusting to the AprilTag's position.
+The screen selector dialog appears on startup — choose which display is the GUI and which is the projector. Enable **Debug Mode** to run without physical hardware using a static test image.
 
-For a **detailed user guide**, see `user_guide.md`.
+---
+
+## Running the Application
+
+### Create a Manual
+1. Click **Create Manual** → **Start New Manual**, enter a title.
+2. Click **Start Live** and point the camera at an AprilTag.
+3. Click **Capture** — the system detects the tag and records the homography.
+4. Select a node type (Operation, Decision, etc.) and enter a description.
+5. Annotate the snapshot with the drawing tool and click **Save**.
+6. Repeat for each step. Click **Finish Manual** to publish.
+
+### Load and Execute a Manual
+1. Click **Load Manual**, select a published manual, click **Start Assembly**.
+2. The first step is projected onto the workspace automatically.
+3. Navigate with **Previous / Next** (or **Yes / No** for decision nodes).
+
+### Remote Assistance Mode
+1. Click **Remote Assistance Mode**.
+2. Point the camera at the AprilTag and click **Snapshot** to bake the projection position.
+3. A remote expert connects via WebSocket (port 9001) and draws SVG overlays.
+
+### AI Object Segmentation
+1. Configure SSH settings in `data/user_config.json`.
+2. Click **AI Object Segmentation** on the home screen.
+3. Enter a prompt (e.g. *"guide me through assembling the pump"*) and click **Generate Manual**.
+4. Step 1 is returned and projected immediately.
+5. Use **Next →** / **← Previous** to walk through steps — a fresh frame is sent each time.
+6. Click **New Generation** to start over with a new prompt.
 
 ---
 
 ## Project Structure
 
-```plaintext
+```
 .
-├── main.py                             # Application entry point
-├── requirements.txt                    # Python dependencies
-├── app/
-│   ├── core/
-│   │   ├── domain.py                   # Data classes (StepData, ManualData, etc.)
-│   │   ├── config.py                   # Application configuration
-│   │   ├── manual_manager.py           # Manual creation, step saving, persistence
-│   │   ├── flowchart_manager.py        # Flowchart logic and branch management
-│   │   └── player_manager.py           # Manual playback and step sequencing
-│   ├── hardware/
-│   │   └── camera.py                   # Intel RealSense D435 camera abstraction
-│   ├── rendering/
-│   │   └── projector_window.py         # OpenGL-based projector rendering widget
-│   ├── resources/                      # Icons, SVGs, and other static assets
-│   ├── ui/
-│   │   ├── main_window.py              # Central orchestrator: wires all modules together
-│   │   ├── components/                 # Reusable UI widgets (camera view, drawing tools, dialogs)
-│   │   └── pages/                      # Application pages (start, creation, drawing, player, etc.)
-│   ├── utils/
-│   │   ├── svg_utils.py                # SVG generation and optimization
-│   │   └── math_utils.py              # Coordinate and color math helpers
-│   └── vision/
-│       ├── detector.py                 # AprilTag detection
-│       ├── pose_estimator.py           # 6-DOF pose estimation
-│       ├── visualization.py            # Debug overlays (axes, tag borders)
-│       └── worker.py                   # Background thread for continuous vision processing
-└── data/
-    ├── user_config.json                # User configuration
-    ├── manuals/                        # Stored assembly manuals (JSON + images + SVGs)
-    └── projector_camera_calibration/   # Calibration data (calibration.yml)
+├── main.py                          # GUI entry point
+├── run_camera_server.py             # Camera server entry point (run first)
+├── requirements.txt
+├── ai_pc_prompt.txt                 # Prompt for setting up the AI PC script
+├── data/
+│   ├── user_config.json             # Runtime settings (tag size, SSH config, screens)
+│   ├── manuals/                     # Stored manuals (JSON + snapshots + SVGs)
+│   └── projector_camera_calibration/
+│       └── calibration.yml          # Required: projector-camera calibration
+└── app/
+    ├── core/
+    │   ├── domain.py                # Data classes: StepData, ManualData
+    │   ├── config.py                # Calibration loading
+    │   ├── user_settings.py         # user_config.json access
+    │   ├── manual_manager.py        # Manual creation and persistence
+    │   ├── flowchart_manager.py     # Flowchart logic and SVG generation
+    │   ├── player_manager.py        # Manual playback and step sequencing
+    │   ├── remote_server.py         # WebSocket server for remote assistance
+    │   └── ai_ssh_client.py         # SSH workers for AI PC communication
+    ├── hardware/
+    │   ├── camera_server.py         # RealSense server (writes to shared memory)
+    │   └── shared_camera_client.py  # Shared memory reader used by GUI process
+    ├── rendering/
+    │   └── projector_window.py      # OpenGL NV_path_rendering + ProjectorWindow
+    ├── ui/
+    │   ├── main_window.py           # Central orchestrator
+    │   ├── components/              # CameraView, drawing tools, dialogs, palette
+    │   └── pages/
+    │       ├── start_page.py
+    │       ├── creation_page.py
+    │       ├── node_selection_page.py
+    │       ├── drawing_page.py
+    │       ├── load_page.py
+    │       ├── player_page.py
+    │       ├── remote_page.py
+    │       └── ai_generation_page.py
+    ├── utils/
+    │   ├── svg_utils.py             # SVG parsing, generation, optimization
+    │   └── math_utils.py            # Homography, extrinsic matrix, color helpers
+    └── vision/
+        ├── detector.py              # AprilTag detection (pupil-apriltags)
+        ├── pose_estimator.py        # 6-DOF pose with depth fusion + OneEuroFilter
+        ├── visualization.py         # Debug overlays
+        └── worker.py                # VisionWorker QThread
 ```
 
 ---
 
 ## Architecture Overview
 
-The application follows a **modular architecture**: each module encapsulates one well-defined concern, and `ui/main_window.py` acts as the central orchestrator that wires them together at runtime.
-
 | Module | Responsibility |
 |---|---|
-| **`core`** | Domain data models, manual/flowchart/player management, configuration |
-| **`hardware`** | Camera abstraction (Intel RealSense D435) |
-| **`vision`** | AprilTag detection and pose estimation — consumes `hardware` and `core` |
-| **`rendering`** | GPU-based SVG projection via OpenGL (`NV_path_rendering`) |
-| **`ui`** | PyQt6 GUI, page navigation — orchestrates all other modules |
-| **`utils`** | Shared helpers: SVG generation/optimization, math utilities |
+| `core` | Domain models, manual/flowchart/player management, config, SSH AI client |
+| `hardware` | RealSense camera server + shared memory client |
+| `vision` | AprilTag detection, 6-DOF pose estimation, background QThread |
+| `rendering` | GPU SVG projection — 3D tag-tracked and flat 2D overlay modes |
+| `ui` | PyQt6 pages + central orchestrator (`main_window.py`) |
+| `utils` | SVG and math helpers |
+
+**Process model:** `run_camera_server.py` owns the RealSense hardware and writes frames to named shared memory (`cam_color`, `cam_depth`, `cam_meta`). The main GUI reads via `SharedCameraClient`.
+
+**Rendering modes:**
+- *Tag-tracked*: SVG projected through the full 3D chain (Projector → Camera → Tag → SVG plane) using a baked homography from AprilTag detection.
+- *Flat overlay*: SVG rendered with orthographic projection directly onto the projector screen — used by AI generation mode, no AprilTag required.
 
 ---
 
 ## Known Issues
 
-- **Projection Misalignment**  
-  Ensure proper **calibration** using the ProCamCalib software:  
-  [GitHub - ProCamCalib](https://github.com/BingyaoHuang/single-shot-pro-cam-calib).
-
-- **GPU Requirement**  
-  The OpenGL renderer relies on `NV_path_rendering`, which requires an **NVIDIA GPU**. The application will not render correctly on unsupported GPUs.
-
-- **Resolution Mismatch**  
-  Ensure that the **camera and projector resolutions match** (default: 1280×720) for optimal alignment.
-
-- **Performance Limitations**  
-  - A large number of SVG elements or complex drawings may reduce frame rate.  
-  - Consider simplifying drawings for better real-time performance.
-
-- **Lighting Conditions**  
-  - **Bright ambient light** may interfere with AprilTag detection.  
-  - Ensure a **consistent, diffuse lighting environment** for best results.
-
-- **Windows Only**  
-  The application currently targets **Windows 10+** due to dependencies on the Intel RealSense SDK and specific OpenGL extensions.
+- **NVIDIA GPU required** — `NV_path_rendering` is NVIDIA-only. The app will not render projections on other GPUs.
+- **Windows only** — depends on the Intel RealSense SDK for Windows.
+- **Bright ambient light** may interfere with AprilTag detection. Use diffuse, consistent lighting.
+- **Projection misalignment** — re-run ProCamCalib calibration if projections are off.
+- **AI generation requires SSH** — ensure the AI PC is reachable and `run_segment.py` is deployed before using AI mode.
