@@ -51,10 +51,19 @@ pip install -r requirements.txt
 
 ### Intel RealSense SDK
 
-1. Download the **Intel RealSense SDK 2.0** from:  
-   https://github.com/IntelRealSense/librealsense/releases
+**Windows:**
+1. Download the **Intel RealSense SDK 2.0** from https://github.com/IntelRealSense/librealsense/releases
 2. Run the Windows installer (`.exe`).
-3. Verify the camera is detected by opening **Intel RealSense Viewer** and confirming a live depth + color stream appears.
+3. Verify the camera is detected by opening **Intel RealSense Viewer**.
+
+**Linux (future port):**
+```bash
+# Install udev rules so the camera is accessible without root
+sudo apt-get install librealsense2-dkms librealsense2-utils
+# Then install the Python binding
+pip install pyrealsense2
+```
+Verify with `realsense-viewer` or a short Python script calling `rs.pipeline().start()`.
 
 ### NVIDIA driver
 
@@ -274,7 +283,8 @@ The projector renders the received SVG with `glOrtho(0, 1280, 720, 0)` — origi
 
 ### "NV_path_rendering not supported"
 - Update your NVIDIA driver.
-- Verify you are running on the NVIDIA GPU (not integrated Intel graphics). Set the app to use the discrete GPU in NVIDIA Control Panel → Manage 3D Settings → Program Settings.
+- **Windows:** Verify you are running on the NVIDIA GPU (not integrated Intel graphics) via NVIDIA Control Panel → Manage 3D Settings → Program Settings.
+- **Linux:** Ensure the NVIDIA proprietary driver is active (`nvidia-smi` should return GPU info). Run with `__NV_PRIME_RENDER_OFFLOAD=1` if on a hybrid Intel/NVIDIA laptop.
 
 ### Projection is misaligned
 - Re-run the ProCamCalib calibration — misalignment is almost always a calibration issue.

@@ -218,3 +218,4 @@ The screen selector dialog appears on startup — choose which display is the GU
 - **Bright ambient light** may interfere with AprilTag detection. Use diffuse, consistent lighting.
 - **Projection misalignment** — re-run ProCamCalib calibration if projections are off.
 - **AI generation requires SSH** — ensure the AI PC is reachable and `run_segment.py` is deployed before using AI mode.
+- **Developed and tested on Windows** — the codebase contains no Windows-specific APIs (`winreg`, Win32, etc.). All core dependencies (`pyrealsense2`, `PyQt6`, `NV_path_rendering` on NVIDIA, `paramiko`, `screeninfo`, the `diagrams` CLI) are available on Linux. A Linux port is planned; expect minor setup differences (RealSense udev rules, display/screen name format) but no architectural blockers.
