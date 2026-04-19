@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(grep \"\\\\.py$\")"
+      "Bash(grep \"\\\\.py$\")",
+      "Bash(python *)"
     ]
   }
 }

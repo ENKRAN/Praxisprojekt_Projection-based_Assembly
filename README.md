@@ -61,7 +61,6 @@ By using **AprilTags**, the system dynamically tracks objects in real-time, alig
 For AI-assisted guidance additionally:
 - A remote Linux PC reachable via SSH (e.g. over Tailscale)
 - SSH key-based authentication configured
-- The `run_segment.py` script deployed on the AI PC (see `ai_pc_prompt.txt`)
 
 ---
 
@@ -214,8 +213,7 @@ The screen selector dialog appears on startup — choose which display is the GU
 ## Known Issues
 
 - **NVIDIA GPU required** — `NV_path_rendering` is NVIDIA-only. The app will not render projections on other GPUs.
-- **Windows only** — depends on the Intel RealSense SDK for Windows.
 - **Bright ambient light** may interfere with AprilTag detection. Use diffuse, consistent lighting.
 - **Projection misalignment** — re-run ProCamCalib calibration if projections are off.
-- **AI generation requires SSH** — ensure the AI PC is reachable and `run_segment.py` is deployed before using AI mode.
+- **AI generation requires SSH** — ensure the AI PC is reachable before using AI mode.
 - **Developed and tested on Windows** — the codebase contains no Windows-specific APIs (`winreg`, Win32, etc.). All core dependencies (`pyrealsense2`, `PyQt6`, `NV_path_rendering` on NVIDIA, `paramiko`, `screeninfo`, the `diagrams` CLI) are available on Linux. A Linux port is planned; expect minor setup differences (RealSense udev rules, display/screen name format) but no architectural blockers.

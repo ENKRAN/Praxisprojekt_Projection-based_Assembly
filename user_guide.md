@@ -29,9 +29,9 @@ This guide covers everything needed to install, configure, and operate the syste
 | AprilTags | Printed on matte paper, default size **7.3 cm** side length |
 
 ### Physical arrangement
-1. Mount the RealSense D435 directly on top of or next to the projector lens so both point at the same workspace surface.
+1. Mount the RealSense D435 directly next to the projector lens so both point at the same workspace surface.
 2. Place one AprilTag (tag36h11 family, ID 0 by default) flat on the workspace within the camera's field of view.
-3. Connect the camera via USB 3.0. Connect the projector via HDMI or DisplayPort — Windows must recognize it as a secondary display.
+3. Connect the camera via USB 3.0. Connect the projector via HDMI or DisplayPort — Must be recognizable as a secondary display.
 
 ---
 
