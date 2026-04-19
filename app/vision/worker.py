@@ -26,6 +26,7 @@ class VisionWorker(QThread):
         super().__init__()
         self.is_running = True
         self.snapshot_requested = False
+        self._latest_color_frame = None
 
         self.is_debug = False
         self.debug_image_path = ""
@@ -127,7 +128,13 @@ class VisionWorker(QThread):
                 else:
                     break
 
+    def get_latest_frame(self):
+        """Returns a copy of the most recently processed color frame, or None."""
+        f = self._latest_color_frame
+        return f.copy() if f is not None else None
+
     def _process_frame(self, color_img, depth_img, depth_scale):
+        self._latest_color_frame = color_img
         # 1. Detect Tags
         gray = cv2.cvtColor(color_img, cv2.COLOR_BGR2GRAY)
         tags = self.detector.detect(gray)

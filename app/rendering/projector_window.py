@@ -27,13 +27,18 @@ class PathRenderingWidget(QOpenGLWidget):
         self.T_proj_cam[1, 3] /= 1000.0
         self.T_proj_cam[2, 3] /= 1000.0
 
-        self.path_objs = [] 
+        self.path_objs = []
         self.svg_elements = []
         self.is_baked = False
         self.tag_size = UserSettings.get_tag_size()
 
         self.current_tag_pose = np.eye(4, dtype=np.float32)
-        self.M_svg_to_tag = np.eye(4, dtype=np.float32) 
+        self.M_svg_to_tag = np.eye(4, dtype=np.float32)
+
+        # Flat 2D overlay mode (no AprilTag, orthographic projection)
+        self._flat_mode = False
+        self._viewport_w = 1280
+        self._viewport_h = 720
 
     def setTagSize(self, size: float):
         self.tag_size = size
@@ -77,6 +82,7 @@ class PathRenderingWidget(QOpenGLWidget):
         if not svg_path:
             self.svg_elements = []
             self.is_baked = False
+            self._flat_mode = False
             self.update()
             return
 
@@ -149,6 +155,8 @@ class PathRenderingWidget(QOpenGLWidget):
             w (int): Width of the viewport.
             h (int): Height of the viewport.
         """
+        self._viewport_w = w
+        self._viewport_h = h
         glViewport(0, 0, w, h)
         glMatrixMode(GL_PROJECTION)
         glLoadIdentity()
@@ -216,6 +224,16 @@ class PathRenderingWidget(QOpenGLWidget):
         if self.is_baked:
             self.update()
     
+    def setFlatMode(self, enabled: bool):
+        """
+        Switch to/from 2D flat overlay mode (no AprilTag, orthographic projection).
+        When enabled the SVG is rendered as a screen-space overlay using the
+        coordinate system of the uploaded image (origin top-left, x right, y down).
+        """
+        self._flat_mode = enabled
+        self.is_baked = enabled  # allow paintGL to render
+        self.update()
+
     def paintGL(self):
         """Render loop."""
         glClearStencil(0)
@@ -226,13 +244,21 @@ class PathRenderingWidget(QOpenGLWidget):
         if not self.is_baked or not self.path_objs:
             return
 
-        glLoadIdentity()
-        glScale(1.0, -1.0, -1.0) # Flip Y and Z for OpenGL coordinate system
-        
-        # Chain transformations: Projector -> Camera -> Tag -> SVG
-        glMultMatrixf(self.T_proj_cam.T)
-        glMultMatrixf(self.current_tag_pose.T)
-        glMultMatrixf(self.M_svg_to_tag.T)
+        if self._flat_mode:
+            # 2D orthographic: SVG pixel coords map directly to screen
+            glMatrixMode(GL_PROJECTION)
+            glLoadIdentity()
+            glOrtho(0, self._viewport_w, self._viewport_h, 0, -1, 1)
+            glMatrixMode(GL_MODELVIEW)
+            glLoadIdentity()
+        else:
+            glLoadIdentity()
+            glScale(1.0, -1.0, -1.0)  # Flip Y and Z for OpenGL coordinate system
+
+            # Chain transformations: Projector -> Camera -> Tag -> SVG
+            glMultMatrixf(self.T_proj_cam.T)
+            glMultMatrixf(self.current_tag_pose.T)
+            glMultMatrixf(self.M_svg_to_tag.T)
 
         # Rendering Loop using NV_path_rendering stencil & cover
         for path_obj, element in zip(self.path_objs, self.svg_elements):     
@@ -271,7 +297,12 @@ class ProjectorWindow(QMainWindow):
     def loadInstructionFromString(self, svg_string: str):
         """Public API to load an instruction dynamically from a string."""
         self.gl_widget.loadSvgFromString(svg_string)
-        
+
+    def loadInstructionFlat(self, svg_string: str):
+        """Load SVG as a flat 2D screen overlay (no AprilTag / homography needed)."""
+        self.gl_widget.loadSvgFromString(svg_string)
+        self.gl_widget.setFlatMode(True)
+
     def clearProjection(self):
         """Public API to clear the screen."""
         self.gl_widget.loadSvg(None)

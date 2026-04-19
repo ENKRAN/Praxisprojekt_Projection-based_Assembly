@@ -30,6 +30,8 @@ from app.ui.pages.drawing_page import DrawingPage
 from app.ui.pages.load_page import LoadPage
 from app.ui.pages.player_page import PlayerPage
 from app.ui.pages.remote_page import RemotePage
+from app.ui.pages.ai_generation_page import AIGenerationPage
+from app.core.ai_ssh_client import AIGenerationWorker, AIStepNavigationWorker
 from app.ui.components.screen_selector import ScreenSelectorDialog
 from app.ui.components.dialogs import PopupDialog
 from app.ui.components.drawing.palette import PaletteHorizontal, PALETTES, PaletteGrid
@@ -76,6 +78,9 @@ class MainWindow(QMainWindow):
         self.camera_view = CameraView()  # Camera View for CreationPage
         self.player_camera_view = CameraView() # Separate Camera View for PlayerPage to avoid conflicts
         self.remote_camera_view = CameraView() # Separate Camera View for RemotePage to avoid conflicts
+        self.ai_camera_view = CameraView()     # Separate Camera View for AIGenerationPage
+        self.ai_worker = None       # AIGenerationWorker or AIStepNavigationWorker
+        self._ai_step_num = 0       # 1-based counter displayed to the user
         
         # Screen Setup via Dialog
         if not self.setupScreens():
@@ -108,6 +113,7 @@ class MainWindow(QMainWindow):
         self.start_page.create_manual_clicked.connect(self.onRequestCreateManual)
         self.start_page.load_manual_clicked.connect(self.gotoLoadPage)
         self.start_page.remote_assistance_clicked.connect(self.gotoRemotePage)
+        self.start_page.ai_generation_clicked.connect(self.gotoAIGenerationPage)
         self.start_page.quit_clicked.connect(self.close)
         self.stack.addWidget(self.start_page)
 
@@ -152,11 +158,20 @@ class MainWindow(QMainWindow):
         self.player_page.finish_clicked.connect(self.quitPlayer)
         self.stack.addWidget(self.player_page)
 
-        # --- Page 6: Remote Assistance Page ---        
+        # --- Page 6: Remote Assistance Page ---
         self.remote_page = RemotePage(self.remote_camera_view)
         self.remote_page.quit_clicked.connect(self.quitRemoteMode)
         self.remote_page.snapshot_clicked.connect(self.vision_worker.triggerSnapshot)
         self.stack.addWidget(self.remote_page)
+
+        # --- Page 7: AI Generation Page ---
+        self.ai_generation_page = AIGenerationPage(self.ai_camera_view)
+        self.ai_generation_page.generate_clicked.connect(self.onAIGenerateRequested)
+        self.ai_generation_page.next_step_clicked.connect(self.onAINextStep)
+        self.ai_generation_page.prev_step_clicked.connect(self.onAIPrevStep)
+        self.ai_generation_page.new_generation_clicked.connect(self.onAINewGeneration)
+        self.ai_generation_page.back_clicked.connect(self.onAIBack)
+        self.stack.addWidget(self.ai_generation_page)
 
     def setGlobalStyling(self):
         self.setStyleSheet("""
@@ -212,6 +227,8 @@ class MainWindow(QMainWindow):
 
         # Connect Vision -> RemotePage's Camera View to show live feed during remote assistance
         self.vision_worker.image_update_signal.connect(self.remote_camera_view.setImage)
+        # Connect Vision -> AIGenerationPage's Camera View
+        self.vision_worker.image_update_signal.connect(self.ai_camera_view.setImage)
         self.vision_worker.pose_update_signal.connect(self.updateLiveTagId)
 
     def createDrawingToolbars(self):
@@ -971,3 +988,98 @@ class MainWindow(QMainWindow):
         self.projector_window.loadInstructionFromString(svg_string)
         
         print(f"[Remote] SVG ({len(svg_string)} bytes) sent to projector.")
+
+    # --- AI Generation Page Methods ---
+
+    def gotoAIGenerationPage(self):
+        if not self.vision_worker.isRunning():
+            self.vision_worker.start()
+        self.ai_generation_page.showInputMode()
+        self.stack.setCurrentWidget(self.ai_generation_page)
+
+    def _aiWorkerRunning(self) -> bool:
+        return self.ai_worker is not None and self.ai_worker.isRunning()
+
+    def _startAIWorker(self, worker):
+        """Wire common signals and start any AI worker."""
+        self.ai_worker = worker
+        worker.status_update.connect(
+            lambda msg: self.ai_generation_page.updateStatus(msg, "normal")
+        )
+        worker.step_ready.connect(self.onAIStepReady)
+        worker.error_occurred.connect(self.onAIError)
+        worker.start()
+
+    def onAIGenerateRequested(self, prompt: str):
+        if self._aiWorkerRunning():
+            self.ai_generation_page.updateStatus(
+                "Generation already in progress. Please wait.", "warning"
+            )
+            return
+
+        frame = self.vision_worker.get_latest_frame()
+        if frame is None:
+            self.ai_generation_page.updateStatus(
+                "No camera frame yet. Wait for the live feed to start.", "error"
+            )
+            return
+
+        self._ai_step_num = 0
+        self.ai_generation_page.setGenerateEnabled(False)
+        worker = AIGenerationWorker(frame=frame, prompt=prompt)
+        worker.finished.connect(lambda: self.ai_generation_page.setGenerateEnabled(True))
+        self._startAIWorker(worker)
+
+    def onAINextStep(self):
+        if self._aiWorkerRunning():
+            return
+        frame = self.vision_worker.get_latest_frame()
+        if frame is None:
+            self.ai_generation_page.updateStatus("No camera frame available.", "error")
+            return
+        self.ai_generation_page.setNavEnabled(False)
+        worker = AIStepNavigationWorker(action="next", frame=frame)
+        worker.finished.connect(lambda: self.ai_generation_page.setNavEnabled(True))
+        self._startAIWorker(worker)
+
+    def onAIPrevStep(self):
+        if self._aiWorkerRunning():
+            return
+        frame = self.vision_worker.get_latest_frame()
+        if frame is None:
+            self.ai_generation_page.updateStatus("No camera frame available.", "error")
+            return
+        self.ai_generation_page.setNavEnabled(False)
+        worker = AIStepNavigationWorker(action="prev", frame=frame)
+        worker.finished.connect(lambda: self.ai_generation_page.setNavEnabled(True))
+        self._startAIWorker(worker)
+
+    def onAIStepReady(self, step_data: dict):
+        self._ai_step_num += 1
+        description = step_data["description"]
+        svg_string = step_data["svg"]
+        is_last = step_data.get("is_last", False)
+
+        print(f"[AI] Step {self._ai_step_num} received ({len(svg_string)} chars).")
+        self.projector_window.loadInstructionFlat(svg_string)
+        self.ai_generation_page.showPlaybackMode(description, self._ai_step_num, is_last)
+        self.ai_generation_page.updateStatus(
+            f"Step {self._ai_step_num} projected.", "success"
+        )
+
+    def onAIError(self, error_message: str):
+        print(f"[AI] Error: {error_message}")
+        self.ai_generation_page.updateStatus(f"Error: {error_message}", "error")
+
+    def onAINewGeneration(self):
+        """Reset to input mode and clear the projector."""
+        self._ai_step_num = 0
+        self.projector_window.clearProjection()
+        self.projector_window.gl_widget._flat_mode = False
+        self.ai_generation_page.showInputMode()
+
+    def onAIBack(self):
+        """Leave AI page, clear projection, return to start."""
+        self.projector_window.clearProjection()
+        self.projector_window.gl_widget._flat_mode = False
+        self.gotoStartPage()

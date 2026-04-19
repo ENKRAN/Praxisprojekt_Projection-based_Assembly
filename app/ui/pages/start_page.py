@@ -7,6 +7,7 @@ class StartPage(QWidget):
     create_manual_clicked = pyqtSignal()
     load_manual_clicked = pyqtSignal()
     remote_assistance_clicked = pyqtSignal()
+    ai_generation_clicked = pyqtSignal()
     quit_clicked = pyqtSignal()
 
     def __init__(self, parent=None):
@@ -44,6 +45,11 @@ class StartPage(QWidget):
         btn_remote.setFixedSize(400, 100)
         btn_remote.clicked.connect(self.remote_assistance_clicked.emit)
 
+        btn_ai = QPushButton("AI Object Segmentation")
+        btn_ai.setFont(QFont("Arial", 20))
+        btn_ai.setFixedSize(400, 100)
+        btn_ai.clicked.connect(self.ai_generation_clicked.emit)
+
         btn_quit = QPushButton("Quit")
         btn_quit.setFont(QFont("Arial", 20))
         btn_quit.setFixedSize(400, 100)
@@ -52,6 +58,7 @@ class StartPage(QWidget):
         bottom_layout.addWidget(btn_create, alignment=Qt.AlignmentFlag.AlignHCenter)
         bottom_layout.addWidget(btn_load, alignment=Qt.AlignmentFlag.AlignHCenter)
         bottom_layout.addWidget(btn_remote, alignment=Qt.AlignmentFlag.AlignHCenter)
+        bottom_layout.addWidget(btn_ai, alignment=Qt.AlignmentFlag.AlignHCenter)
         bottom_layout.addWidget(btn_quit, alignment=Qt.AlignmentFlag.AlignHCenter)
         bottom_layout.addStretch()
 

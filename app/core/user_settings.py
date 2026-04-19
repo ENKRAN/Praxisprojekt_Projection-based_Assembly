@@ -30,6 +30,26 @@ class UserSettings:
         return float(settings.get("tag_size", cls.DEFAULT_TAG_SIZE))
 
     @classmethod
+    def get_ssh_host(cls) -> str:
+        return str(cls.load().get("ssh_host", ""))
+
+    @classmethod
+    def get_ssh_user(cls) -> str:
+        return str(cls.load().get("ssh_user", ""))
+
+    @classmethod
+    def get_ssh_key_path(cls) -> str:
+        return str(cls.load().get("ssh_key_path", ""))
+
+    @classmethod
+    def get_remote_script_path(cls) -> str:
+        return str(cls.load().get("remote_script_path", ""))
+
+    @classmethod
+    def get_remote_work_dir(cls) -> str:
+        return str(cls.load().get("remote_work_dir", "/tmp/ar_ai_work"))
+
+    @classmethod
     def save(cls, data: Dict[str, Any]):
         """Saves the dictionary to the JSON file."""
         try:
