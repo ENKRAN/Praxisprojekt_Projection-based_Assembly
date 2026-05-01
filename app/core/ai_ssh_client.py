@@ -93,14 +93,21 @@ class AIGenerationWorker(QThread):
             if not ok:
                 self.error_occurred.emit("Failed to encode camera frame as JPEG.")
                 return
+            # Save a local debug copy to verify what is being sent
+            import pathlib
+            debug_jpg = pathlib.Path("data/debug_sent_frame.jpg")
+            debug_jpg.parent.mkdir(parents=True, exist_ok=True)
+            debug_jpg.write_bytes(buf.tobytes())
+            print(f"[AI] Sent frame saved to {debug_jpg} ({len(buf)} bytes).")
             with sftp.open(remote_img, "wb") as f:
                 f.write(buf.tobytes())
 
             self.status_update.emit("Generating manual on AI PC — please wait...")
             script = UserSettings.get_remote_script_path()
+            python = UserSettings.get_remote_python_path()
             safe_prompt = self._prompt.replace('"', '\\"')
             cmd = (
-                f'python3 "{script}" '
+                f'"{python}" "{script}" '
                 f'--image "{remote_img}" '
                 f'--prompt "{safe_prompt}" '
                 f'--out "{remote_out}"'
@@ -195,8 +202,9 @@ class AIStepNavigationWorker(QThread):
 
             self.status_update.emit(f"Requesting {label} step from AI PC...")
             script = UserSettings.get_remote_script_path()
+            python = UserSettings.get_remote_python_path()
             cmd = (
-                f'python3 "{script}" '
+                f'"{python}" "{script}" '
                 f'--action {self._action} '
                 f'--image "{remote_img}" '
                 f'--out "{remote_out}"'

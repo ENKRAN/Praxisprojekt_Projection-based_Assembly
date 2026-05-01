@@ -79,8 +79,10 @@ class MainWindow(QMainWindow):
         self.player_camera_view = CameraView() # Separate Camera View for PlayerPage to avoid conflicts
         self.remote_camera_view = CameraView() # Separate Camera View for RemotePage to avoid conflicts
         self.ai_camera_view = CameraView()     # Separate Camera View for AIGenerationPage
-        self.ai_worker = None       # AIGenerationWorker or AIStepNavigationWorker
-        self._ai_step_num = 0       # 1-based counter displayed to the user
+        self.ai_worker = None           # AIGenerationWorker or AIStepNavigationWorker
+        self._ai_step_num = 0           # 1-based counter displayed to the user
+        self._ai_pending_action = "generate"  # "generate" | "next" | "prev"
+        self._ai_is_last = False        # tracks is_last from the most recent step
         
         # Screen Setup via Dialog
         if not self.setupScreens():
@@ -787,7 +789,7 @@ class MainWindow(QMainWindow):
 
         if is_debug:
             print("Starting in DEBUG MODE (Windowed)")
-            test_image = "app/resources/debug/debug_frame.png" 
+            test_image = "image.png"
             self.vision_worker.setDebugMode(True, test_image)
 
             self.move(gui_screen.geometry().x() + 50, gui_screen.geometry().y() + 50)
@@ -1025,6 +1027,7 @@ class MainWindow(QMainWindow):
             return
 
         self._ai_step_num = 0
+        self._ai_pending_action = "generate"
         self.ai_generation_page.setGenerateEnabled(False)
         worker = AIGenerationWorker(frame=frame, prompt=prompt)
         worker.finished.connect(lambda: self.ai_generation_page.setGenerateEnabled(True))
@@ -1037,9 +1040,10 @@ class MainWindow(QMainWindow):
         if frame is None:
             self.ai_generation_page.updateStatus("No camera frame available.", "error")
             return
+        self._ai_pending_action = "next"
         self.ai_generation_page.setNavEnabled(False)
         worker = AIStepNavigationWorker(action="next", frame=frame)
-        worker.finished.connect(lambda: self.ai_generation_page.setNavEnabled(True))
+        worker.finished.connect(self._onAINavFinished)
         self._startAIWorker(worker)
 
     def onAIPrevStep(self):
@@ -1049,18 +1053,40 @@ class MainWindow(QMainWindow):
         if frame is None:
             self.ai_generation_page.updateStatus("No camera frame available.", "error")
             return
+        self._ai_pending_action = "prev"
         self.ai_generation_page.setNavEnabled(False)
         worker = AIStepNavigationWorker(action="prev", frame=frame)
-        worker.finished.connect(lambda: self.ai_generation_page.setNavEnabled(True))
+        worker.finished.connect(self._onAINavFinished)
         self._startAIWorker(worker)
 
+    def _onAINavFinished(self):
+        """Re-enable nav buttons after a navigation worker finishes, respecting is_last."""
+        self.ai_generation_page.btn_prev.setEnabled(self._ai_step_num > 1)
+        self.ai_generation_page.btn_next.setEnabled(not self._ai_is_last)
+
     def onAIStepReady(self, step_data: dict):
-        self._ai_step_num += 1
+        if self._ai_pending_action == "next":
+            self._ai_step_num += 1
+        elif self._ai_pending_action == "prev":
+            self._ai_step_num = max(1, self._ai_step_num - 1)
+        else:  # "generate"
+            self._ai_step_num = 1
         description = step_data["description"]
         svg_string = step_data["svg"]
         is_last = step_data.get("is_last", False)
+        self._ai_is_last = is_last
 
-        print(f"[AI] Step {self._ai_step_num} received ({len(svg_string)} chars).")
+        # Save SVG to disk for inspection
+        try:
+            import pathlib
+            svg_path = pathlib.Path("data/debug_last_svg.svg")
+            svg_path.parent.mkdir(parents=True, exist_ok=True)
+            svg_path.write_text(svg_string, encoding="utf-8")
+            print(f"[AI] SVG saved to {svg_path} for inspection.")
+        except Exception as exc:
+            print(f"[AI] Could not save SVG debug file: {exc}")
+
+        print(f"[AI] Step {self._ai_step_num} received ({len(svg_string)} chars), is_last={is_last}.")
         self.projector_window.loadInstructionFlat(svg_string)
         self.ai_generation_page.showPlaybackMode(description, self._ai_step_num, is_last)
         self.ai_generation_page.updateStatus(

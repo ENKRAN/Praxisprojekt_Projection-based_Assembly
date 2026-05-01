@@ -50,6 +50,10 @@ class UserSettings:
         return str(cls.load().get("remote_work_dir", "/tmp/ar_ai_work"))
 
     @classmethod
+    def get_remote_python_path(cls) -> str:
+        return str(cls.load().get("remote_python_path", "python3"))
+
+    @classmethod
     def save(cls, data: Dict[str, Any]):
         """Saves the dictionary to the JSON file."""
         try:

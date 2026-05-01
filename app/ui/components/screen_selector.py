@@ -99,12 +99,11 @@ class ScreenSelectorDialog(QDialog):
         self.selected_proj_screen = self.screens[proj_idx]
         
         # --- SAVE SETTINGS ---
-        new_settings = {
-            "gui_screen_name": self.selected_gui_screen.name(),
-            "proj_screen_name": self.selected_proj_screen.name(),
-            "debug_mode": self.is_debug,
-            "tag_size": UserSettings.get_tag_size()
-        }
+        # Load existing config first so unknown keys (e.g. SSH settings) are preserved
+        new_settings = UserSettings.load()
+        new_settings["gui_screen_name"] = self.selected_gui_screen.name()
+        new_settings["proj_screen_name"] = self.selected_proj_screen.name()
+        new_settings["debug_mode"] = self.is_debug
         UserSettings.save(new_settings)
         
         self.accept()

@@ -39,6 +39,7 @@ class PathRenderingWidget(QOpenGLWidget):
         self._flat_mode = False
         self._viewport_w = 1280
         self._viewport_h = 720
+        self._nv_supported = False  # set True in initializeGL if extension found
 
     def setTagSize(self, size: float):
         self.tag_size = size
@@ -47,9 +48,11 @@ class PathRenderingWidget(QOpenGLWidget):
     def initializeGL(self):
         """Initializes OpenGL context and checks for NV_path_rendering support."""
         if not self.checkSupport():
-            print("CRITICAL ERROR: NV_path_rendering not supported on this GPU.")
+            print("CRITICAL ERROR: NV_path_rendering not supported on this GPU. Projection will not work.")
+            self._nv_supported = False
             return
 
+        self._nv_supported = True
         glClearColor(0.0, 0.0, 0.0, 1.0) # Black background
         glEnable(GL_MULTISAMPLE)         # Enable Anti-Aliasing (MSAA)
 
@@ -130,6 +133,9 @@ class PathRenderingWidget(QOpenGLWidget):
         # Parse SVG dynamically
         self.svg_elements = convertSVGElementsToBytePathsFromString(svg_string)
         num_paths = len(self.svg_elements)
+        print(f"[Projector] SVG parsed: {num_paths} renderable path(s) from {len(svg_string)} char string.")
+        if num_paths == 0:
+            print("[Projector] WARNING: SVG contained no renderable paths — check element types and stroke/fill attributes.")
 
         if num_paths > 0:
             base_id = glGenPathsNV(num_paths)
@@ -241,7 +247,7 @@ class PathRenderingWidget(QOpenGLWidget):
         glStencilMask(~0)
         glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT)
 
-        if not self.is_baked or not self.path_objs:
+        if not self._nv_supported or not self.is_baked or not self.path_objs:
             return
 
         if self._flat_mode:
