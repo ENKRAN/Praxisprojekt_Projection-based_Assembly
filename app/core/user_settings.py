@@ -54,6 +54,10 @@ class UserSettings:
         return str(cls.load().get("remote_python_path", "python3"))
 
     @classmethod
+    def get_remote_venv_path(cls) -> str:
+        return str(cls.load().get("remote_venv_path", ""))
+
+    @classmethod
     def save(cls, data: Dict[str, Any]):
         """Saves the dictionary to the JSON file."""
         try:

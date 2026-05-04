@@ -18,6 +18,7 @@ class PathRenderingWidget(QOpenGLWidget):
         # Load Calibration once
         calib = Config.getCalibration()
         self.projector_intrinsics = calib.proj_k
+        self.camera_intrinsics = calib.cam_k
         
         # Extrinsics Projector -> Camera (from Config)
         self.T_proj_cam = buildExtrinsicMatrix(calib.R, calib.T)
@@ -35,8 +36,11 @@ class PathRenderingWidget(QOpenGLWidget):
         self.current_tag_pose = np.eye(4, dtype=np.float32)
         self.M_svg_to_tag = np.eye(4, dtype=np.float32)
 
-        # Flat 2D overlay mode (no AprilTag, orthographic projection)
-        self._flat_mode = False
+        # AI Mode Nudge / Manual Offset
+        self.ai_offset = np.zeros(3, dtype=np.float32)
+
+        # No Tag mode (no AprilTag, still 3D projection)
+        self._no_tag_mode = False
         self._viewport_w = 1280
         self._viewport_h = 720
         self._nv_supported = False  # set True in initializeGL if extension found
@@ -45,8 +49,14 @@ class PathRenderingWidget(QOpenGLWidget):
         self.tag_size = size
         print(f"Projector: Tag size updated to {self.tag_size}")
 
+    def setAIOffset(self, dx: float, dy: float, dz: float):
+        """Manually nudge the projection in AI mode (meters)."""
+        self.ai_offset = np.array([dx, dy, dz], dtype=np.float32)
+        print(f"Projector: AI Offset updated: {self.ai_offset}")
+        self.update()
+
     def initializeGL(self):
-        """Initializes OpenGL context and checks for NV_path_rendering support."""
+        # ... (rest of initializeGL) ...
         if not self.checkSupport():
             print("CRITICAL ERROR: NV_path_rendering not supported on this GPU. Projection will not work.")
             self._nv_supported = False
@@ -69,12 +79,7 @@ class PathRenderingWidget(QOpenGLWidget):
             return False
 
     def loadSvg(self, svg_path):
-        """
-        Loads a new SVG file and prepares OpenGL paths.
-        
-        Args:
-            svg_path (str): Path to the SVG file. If None, clears existing paths.
-        """
+        # ... (rest of loadSvg) ...
         self.makeCurrent() # Ensure context is active
         
         # Clean up old paths
@@ -85,7 +90,7 @@ class PathRenderingWidget(QOpenGLWidget):
         if not svg_path:
             self.svg_elements = []
             self.is_baked = False
-            self._flat_mode = False
+            self._no_tag_mode = False
             self.update()
             return
 
@@ -111,12 +116,7 @@ class PathRenderingWidget(QOpenGLWidget):
         self.update()
 
     def loadSvgFromString(self, svg_string: str):
-        """
-        Loads a new SVG string directly into OpenGL paths without reading from disk.
-        
-        Args:
-            svg_string (str): Raw SVG XML string.
-        """
+        # ... (rest of loadSvgFromString) ...
         self.makeCurrent() # Ensure context is active
         
         # Clean up old paths from memory
@@ -155,11 +155,8 @@ class PathRenderingWidget(QOpenGLWidget):
 
     def resizeGL(self, w, h):
         """
-        Sets up the projection matrix based on projector intrinsics.
-        
-        Args:
-            w (int): Width of the viewport.
-            h (int): Height of the viewport.
+        Sets up the projection matrix based on projector intrinsics, 
+        scaled to the current window size.
         """
         self._viewport_w = w
         self._viewport_h = h
@@ -167,13 +164,18 @@ class PathRenderingWidget(QOpenGLWidget):
         glMatrixMode(GL_PROJECTION)
         glLoadIdentity()
         
-        fx = self.projector_intrinsics[0, 0]
-        fy = self.projector_intrinsics[1, 1]
-        cx = self.projector_intrinsics[0, 2]
-        cy = self.projector_intrinsics[1, 2]
+        # Scaling factor: calibration was likely done at 1280x720
+        # If window is different, we MUST scale fx, fy, cx, cy.
+        scale_x = w / 1280.0
+        scale_y = h / 720.0
+
+        fx = self.projector_intrinsics[0, 0] * scale_x
+        fy = self.projector_intrinsics[1, 1] * scale_y
+        cx = self.projector_intrinsics[0, 2] * scale_x
+        cy = self.projector_intrinsics[1, 2] * scale_y
         
         z_near = 0.1
-        z_far = 10000.0
+        z_far = 1000.0
         
         # Calculate frustum (off-axis projection)
         l = -cx * z_near / fx
@@ -186,13 +188,7 @@ class PathRenderingWidget(QOpenGLWidget):
     
     @pyqtSlot(np.ndarray, np.ndarray, int)
     def setBakingMatrix(self, homography, color_img, tag_id):
-        """
-        Called when Snapshot is taken. Computes the fixed relation SVG <-> Tag.
-
-        Args:
-            homography (np.ndarray): 3x3 homography matrix from tag to projector image
-            color_img (np.ndarray): Color image (not used here but could be for debugging)
-        """
+        # ... (rest of setBakingMatrix) ...
         print("Projector: Baking Matrix updated.")
         self.M_svg_to_tag = computeSVGToTagMatrix(homography, self.tag_size)
 
@@ -217,31 +213,61 @@ class PathRenderingWidget(QOpenGLWidget):
 
     @pyqtSlot(np.ndarray, np.ndarray, int)
     def updateTagPose(self, R_ct, tvec, tag_id):
-        """
-        Called every frame by VisionWorker to move the projection.
-        
-        Args:
-            R_ct (np.ndarray): 3x3 rotation matrix from camera to tag
-            tvec (np.ndarray): 3x1 translation vector from camera to tag
-        """
+        # ... (rest of updateTagPose) ...
         new_pose = buildExtrinsicMatrix(R_ct, tvec)
         self.current_tag_pose = new_pose
         
         if self.is_baked:
             self.update()
     
-    def setFlatMode(self, enabled: bool):
+    @pyqtSlot(float, float, float, float)
+    def updateTablePlane(self, a, b, c, d):
         """
-        Switch to/from 2D flat overlay mode (no AprilTag, orthographic projection).
-        When enabled the SVG is rendered as a screen-space overlay using the
-        coordinate system of the uploaded image (origin top-left, x right, y down).
+        Called by VisionWorker to update the virtual table plane for AI Mode.
+        Calculates a projective matrix (Homography) from SVG pixels to the plane.
         """
-        self._flat_mode = enabled
-        self.is_baked = enabled  # allow paintGL to render
+        if not self._no_tag_mode:
+            return
+
+        # Plane normal n = [a, b, c], distance d
+        # For pixel p = [u, v, 1]^T, 3D point P = s * K_inv * p
+        # n * P + d = 0  =>  s = -d / (n * K_inv * p)
+        
+        n = np.array([a, b, c])
+        K_inv = np.linalg.inv(self.camera_intrinsics)
+        
+        M = np.zeros((4, 4), dtype=np.float32)
+        M[0:3, 0:3] = K_inv * (-d)
+        w_row = n @ K_inv
+        M[3, 0:3] = w_row
+        M[3, 3] = 0.0 
+        
+        M_final = np.zeros((4, 4), dtype=np.float32)
+        M_final[:, 0] = M[:, 0] # u
+        M_final[:, 1] = M[:, 1] # v
+        M_final[:, 3] = M[:, 2] # the constant '1' part of the pixel coord
+        
+        # Apply Nudge / Manual Offset in Camera Space
+        if np.any(self.ai_offset):
+             # To apply translation after unprojection: P' = P + Offset
+             # In homogeneous terms: T_offset * M_final
+             T_off = np.eye(4, dtype=np.float32)
+             T_off[0, 3] = self.ai_offset[0]
+             T_off[1, 3] = self.ai_offset[1]
+             T_off[2, 3] = self.ai_offset[2]
+             M_final = T_off @ M_final
+
+        self.M_svg_to_tag = M_final
+        self.is_baked = True
+        self.update()
+
+    def setNoTagMode(self, enabled: bool):
+        # ... (rest of setNoTagMode) ...
+        self._no_tag_mode = enabled
         self.update()
 
     def paintGL(self):
-        """Render loop."""
+        # ... (rest of paintGL) ...
         glClearStencil(0)
         glClearColor(0.0, 0.0, 0.0, 1.0)
         glStencilMask(~0)
@@ -250,21 +276,14 @@ class PathRenderingWidget(QOpenGLWidget):
         if not self._nv_supported or not self.is_baked or not self.path_objs:
             return
 
-        if self._flat_mode:
-            # 2D orthographic: SVG pixel coords map directly to screen
-            glMatrixMode(GL_PROJECTION)
-            glLoadIdentity()
-            glOrtho(0, self._viewport_w, self._viewport_h, 0, -1, 1)
-            glMatrixMode(GL_MODELVIEW)
-            glLoadIdentity()
-        else:
-            glLoadIdentity()
-            glScale(1.0, -1.0, -1.0)  # Flip Y and Z for OpenGL coordinate system
+        glLoadIdentity()
+        glScale(1.0, -1.0, -1.0)  # Flip Y and Z for OpenGL coordinate system
 
-            # Chain transformations: Projector -> Camera -> Tag -> SVG
-            glMultMatrixf(self.T_proj_cam.T)
+        # Chain transformations: Projector -> Camera -> Tag -> SVG
+        glMultMatrixf(self.T_proj_cam.T)
+        if not self._no_tag_mode:
             glMultMatrixf(self.current_tag_pose.T)
-            glMultMatrixf(self.M_svg_to_tag.T)
+        glMultMatrixf(self.M_svg_to_tag.T)
 
         # Rendering Loop using NV_path_rendering stencil & cover
         for path_obj, element in zip(self.path_objs, self.svg_elements):     
@@ -286,6 +305,7 @@ class PathRenderingWidget(QOpenGLWidget):
                 glCoverStrokePathNV(path_obj, GL_CONVEX_HULL_NV)
                 glDisable(GL_STENCIL_TEST)
 
+
 class ProjectorWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -304,10 +324,10 @@ class ProjectorWindow(QMainWindow):
         """Public API to load an instruction dynamically from a string."""
         self.gl_widget.loadSvgFromString(svg_string)
 
-    def loadInstructionFlat(self, svg_string: str):
+    def loadInstructionWithoutTag(self, svg_string: str):
         """Load SVG as a flat 2D screen overlay (no AprilTag / homography needed)."""
         self.gl_widget.loadSvgFromString(svg_string)
-        self.gl_widget.setFlatMode(True)
+        self.gl_widget.setNoTagMode(True)
 
     def clearProjection(self):
         """Public API to clear the screen."""

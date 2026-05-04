@@ -44,6 +44,24 @@ def _validate_step(data: dict) -> str | None:
     return None
 
 
+def _get_remote_command(args: str) -> str:
+    """Constructs the full remote command, including venv activation if configured."""
+    python = UserSettings.get_remote_python_path()
+    script = UserSettings.get_remote_script_path()
+    venv = UserSettings.get_remote_venv_path()
+
+    # Change to script directory so relative imports/paths work on the remote side
+    script_dir = str(pathlib.PurePosixPath(script).parent)
+    cmd = f'cd "{script_dir}" && "{python}" "{script}" {args}'
+    
+    if venv:
+        # Prepend PATH with venv/bin to ensure ollama and other venv-installed binaries are found.
+        # Also set VIRTUAL_ENV for scripts that might check it.
+        return f'export PATH="{venv}/bin:$PATH" && export VIRTUAL_ENV="{venv}" && {cmd}'
+    
+    return cmd
+
+
 # ---------------------------------------------------------------------------
 # Worker 1: Initial generation (uploads image + prompt, returns step 0)
 # ---------------------------------------------------------------------------
@@ -103,15 +121,13 @@ class AIGenerationWorker(QThread):
                 f.write(buf.tobytes())
 
             self.status_update.emit("Generating manual on AI PC — please wait...")
-            script = UserSettings.get_remote_script_path()
-            python = UserSettings.get_remote_python_path()
             safe_prompt = self._prompt.replace('"', '\\"')
-            cmd = (
-                f'"{python}" "{script}" '
+            args = (
                 f'--image "{remote_img}" '
                 f'--prompt "{safe_prompt}" '
                 f'--out "{remote_out}"'
             )
+            cmd = _get_remote_command(args)
             _, stdout, stderr = ssh.exec_command(cmd, timeout=180)
             if stdout.channel.recv_exit_status() != 0:
                 err_text = stderr.read().decode("utf-8", errors="replace").strip()
@@ -201,14 +217,12 @@ class AIStepNavigationWorker(QThread):
                 f.write(buf.tobytes())
 
             self.status_update.emit(f"Requesting {label} step from AI PC...")
-            script = UserSettings.get_remote_script_path()
-            python = UserSettings.get_remote_python_path()
-            cmd = (
-                f'"{python}" "{script}" '
+            args = (
                 f'--action {self._action} '
                 f'--image "{remote_img}" '
                 f'--out "{remote_out}"'
             )
+            cmd = _get_remote_command(args)
             _, stdout, stderr = ssh.exec_command(cmd, timeout=60)
             if stdout.channel.recv_exit_status() != 0:
                 err_text = stderr.read().decode("utf-8", errors="replace").strip()

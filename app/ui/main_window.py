@@ -214,6 +214,7 @@ class MainWindow(QMainWindow):
         # 4. Connect Vision -> Projector
         self.vision_worker.pose_update_signal.connect(self.projector_window.gl_widget.updateTagPose)
         self.vision_worker.baking_update_signal.connect(self.projector_window.gl_widget.setBakingMatrix)
+        self.vision_worker.plane_update_signal.connect(self.projector_window.gl_widget.updateTablePlane)
         
         # Connect Vision -> MainWindow (Catch Snapshot)
         self.vision_worker.baking_update_signal.connect(self.onSnapshotTaken)
@@ -1087,7 +1088,7 @@ class MainWindow(QMainWindow):
             print(f"[AI] Could not save SVG debug file: {exc}")
 
         print(f"[AI] Step {self._ai_step_num} received ({len(svg_string)} chars), is_last={is_last}.")
-        self.projector_window.loadInstructionFlat(svg_string)
+        self.projector_window.loadInstructionWithoutTag(svg_string)
         self.ai_generation_page.showPlaybackMode(description, self._ai_step_num, is_last)
         self.ai_generation_page.updateStatus(
             f"Step {self._ai_step_num} projected.", "success"
@@ -1101,11 +1102,11 @@ class MainWindow(QMainWindow):
         """Reset to input mode and clear the projector."""
         self._ai_step_num = 0
         self.projector_window.clearProjection()
-        self.projector_window.gl_widget._flat_mode = False
+        self.projector_window.gl_widget.setNoTagMode(False)
         self.ai_generation_page.showInputMode()
 
     def onAIBack(self):
         """Leave AI page, clear projection, return to start."""
         self.projector_window.clearProjection()
-        self.projector_window.gl_widget._flat_mode = False
+        self.projector_window.gl_widget.setNoTagMode(False)
         self.gotoStartPage()

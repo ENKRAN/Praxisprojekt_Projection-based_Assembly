@@ -6,6 +6,7 @@ from PyQt6.QtGui import QImage
 from app.hardware.shared_camera_client import SharedCameraClient
 from app.vision.detector import AprilTagDetector
 from app.vision.pose_estimator import PoseEstimator
+from app.vision.table_estimator import TablePlaneEstimator
 from app.vision.visualization import drawAxes, drawTagBorderAndId
 from app.core.config import Config
 from app.core.user_settings import UserSettings
@@ -18,6 +19,7 @@ class VisionWorker(QThread):
     # Changed: baking_update_signal now includes the tag_id
     baking_update_signal = pyqtSignal(np.ndarray, np.ndarray, int) # Homography, Image, tag_id
     
+    plane_update_signal = pyqtSignal(float, float, float, float) # a, b, c, d
     image_update_signal = pyqtSignal(QImage)
     status_signal = pyqtSignal(str) 
     error_signal = pyqtSignal(str)
@@ -42,6 +44,7 @@ class VisionWorker(QThread):
         self.tag_size = UserSettings.get_tag_size()
         self.detector = AprilTagDetector(camera_intrinsics=self.cam_k, tag_size=self.tag_size)
         self.estimator = PoseEstimator(width=self.width, height=self.height)
+        self.table_estimator = TablePlaneEstimator(camera_intrinsics=self.cam_k)
 
     def setDebugMode(self, is_debug: bool, image_path: str = ""):
         """
@@ -135,7 +138,14 @@ class VisionWorker(QThread):
 
     def _process_frame(self, color_img, depth_img, depth_scale):
         self._latest_color_frame = color_img
-        # 1. Detect Tags
+
+        # 1. Estimate Table Plane (for AI / No-Tag mode)
+        if depth_img is not None:
+            plane = self.table_estimator.estimate_plane(depth_img, depth_scale)
+            if plane:
+                self.plane_update_signal.emit(*plane)
+
+        # 2. Detect Tags
         gray = cv2.cvtColor(color_img, cv2.COLOR_BGR2GRAY)
         tags = self.detector.detect(gray)
 
