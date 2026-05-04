@@ -40,7 +40,7 @@ This allows multiple consumers (main app, remote tools) to read frames without h
 |---------|---------------|
 | `app/core/` | Domain models (`StepData`, `ManualData`), business logic managers, WebSocket remote server, config/settings loading |
 | `app/hardware/` | RealSense camera abstraction, shared memory server & client |
-| `app/vision/` | AprilTag detection (`pupil-apriltags`), 6-DOF pose estimation with depth fusion, OneEuroFilter for smoothing, background worker thread |
+| `app/vision/` | AprilTag detection (`pupil-apriltags`), 6-DOF pose estimation with depth fusion, OneEuroFilter for smoothing, RANSAC depth-plane fitting (`TablePlaneEstimator`), background worker thread |
 | `app/rendering/` | OpenGL `NV_path_rendering` SVG renderer, projector window management |
 | `app/ui/` | PyQt6 pages (stacked widget navigation), components, `main_window.py` as central orchestrator |
 | `app/utils/` | SVG parsing/generation/optimization (`scour`), homography and 3D math utilities |
@@ -59,6 +59,11 @@ This allows multiple consumers (main app, remote tools) to read frames without h
 - **Stacked widget navigation**: all pages exist simultaneously; `MainWindow.show_page()` switches between them
 - **Flowchart model** (`app/core/flowchart_manager.py`): nodes represent steps/decisions, edges encode Yes/No branching and subroutine calls; stored as JSON
 - **Homography links 2D drawings to physical space**: each step stores a homography matrix mapping drawing coordinates to the AprilTag plane
+
+### Rendering Modes
+
+- **Tag-tracked** (manual playback, remote assistance): SVG → tag-local 3D (via `computeSVGToTagMatrix`) → camera space (via live `current_tag_pose`) → projector (via `T_proj_cam`)
+- **No-tag 3D** (AI generation): SVG camera-pixel coords → 3D camera point (via K_inv + RANSAC depth plane from `TablePlaneEstimator`) → projector (via `T_proj_cam`). Active when `_no_tag_mode=True` in `PathRenderingWidget`.
 
 ### Configuration
 

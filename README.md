@@ -185,6 +185,7 @@ The screen selector dialog appears on startup — choose which display is the GU
     └── vision/
         ├── detector.py              # AprilTag detection (pupil-apriltags)
         ├── pose_estimator.py        # 6-DOF pose with depth fusion + OneEuroFilter
+        ├── table_estimator.py       # RANSAC depth-plane fitting for AI no-tag mode
         ├── visualization.py         # Debug overlays
         └── worker.py                # VisionWorker QThread
 ```
@@ -206,7 +207,7 @@ The screen selector dialog appears on startup — choose which display is the GU
 
 **Rendering modes:**
 - *Tag-tracked*: SVG projected through the full 3D chain (Projector → Camera → Tag → SVG plane) using a baked homography from AprilTag detection.
-- *Flat overlay*: SVG rendered with orthographic projection directly onto the projector screen — used by AI generation mode, no AprilTag required.
+- *No-tag 3D*: Used by AI generation mode. Each frame, a RANSAC plane is fitted to depth data; SVG camera-pixel coords are back-projected through camera K onto that plane, then transformed to projector space via stereo extrinsics.
 
 ---
 

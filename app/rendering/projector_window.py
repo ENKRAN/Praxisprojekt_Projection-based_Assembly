@@ -226,6 +226,8 @@ class PathRenderingWidget(QOpenGLWidget):
         Called by VisionWorker to update the virtual table plane for AI Mode.
         Calculates a projective matrix (Homography) from SVG pixels to the plane.
         """
+        print(f"[Plane] n=({a:.3f},{b:.3f},{c:.3f}), d={d:.3f}, table_depth≈{-d/c:.3f}m")
+        
         if not self._no_tag_mode:
             return
 
