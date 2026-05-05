@@ -44,7 +44,8 @@ class PathRenderingWidget(QOpenGLWidget):
         self._viewport_w = 1280
         self._viewport_h = 720
         self._nv_supported = False  # set True in initializeGL if extension found
-        self._trace_pending = False  # print 3D trace once after next bake
+        self._trace_pending = False
+        self._trace_pixels = []
 
     def setTagSize(self, size: float):
         self.tag_size = size
@@ -210,7 +211,8 @@ class PathRenderingWidget(QOpenGLWidget):
             print(f"[DIAG BAKE]   SVG pixel ({u:.1f},{v:.1f}) -> physical ({px:.1f}mm, {py:.1f}mm) — expected tag_corner=(±{self.tag_size/2*1000:.1f}mm)")
 
         self.is_baked = True
-        self._trace_pending = True  # trigger 3D trace on next paintGL
+        self._trace_pixels = [(tag_cx, tag_cy, "center"), (corner_px[0], corner_px[1], "corner(+1,+1)")]
+        self._trace_pending = True
         self.update()
 
     @pyqtSlot(np.ndarray, np.ndarray, int)
@@ -283,8 +285,7 @@ class PathRenderingWidget(QOpenGLWidget):
         # One-shot 3D trace after each bake to verify transform chain
         if self._trace_pending and not self._no_tag_mode:
             self._trace_pending = False
-            test_pts = [(687.2, 424.2, "center"), (702.9, 437.6, "corner(+1,+1)")]
-            for u, v, lbl in test_pts:
+            for u, v, lbl in getattr(self, '_trace_pixels', []):
                 p0 = np.array([u, v, 0.0, 1.0], dtype=np.float64)
                 p1 = self.M_svg_to_tag.astype(np.float64) @ p0
                 p2 = self.current_tag_pose.astype(np.float64) @ p1
