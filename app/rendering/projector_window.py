@@ -44,6 +44,7 @@ class PathRenderingWidget(QOpenGLWidget):
         self._viewport_w = 1280
         self._viewport_h = 720
         self._nv_supported = False  # set True in initializeGL if extension found
+        self._trace_pending = False  # print 3D trace once after next bake
 
     def setTagSize(self, size: float):
         self.tag_size = size
@@ -209,6 +210,7 @@ class PathRenderingWidget(QOpenGLWidget):
             print(f"[DIAG BAKE]   SVG pixel ({u:.1f},{v:.1f}) -> physical ({px:.1f}mm, {py:.1f}mm) — expected tag_corner=(±{self.tag_size/2*1000:.1f}mm)")
 
         self.is_baked = True
+        self._trace_pending = True  # trigger 3D trace on next paintGL
         self.update()
 
     @pyqtSlot(np.ndarray, np.ndarray, int)
@@ -226,7 +228,7 @@ class PathRenderingWidget(QOpenGLWidget):
         Called by VisionWorker to update the virtual table plane for AI Mode.
         Calculates a projective matrix (Homography) from SVG pixels to the plane.
         """
-        print(f"[Plane] n=({a:.3f},{b:.3f},{c:.3f}), d={d:.3f}, table_depth≈{-d/c:.3f}m")
+        # print(f"[Plane] n=({a:.3f},{b:.3f},{c:.3f}), d={d:.3f}, table_depth≈{-d/c:.3f}m")
         
         if not self._no_tag_mode:
             return
@@ -277,6 +279,25 @@ class PathRenderingWidget(QOpenGLWidget):
 
         if not self._nv_supported or not self.is_baked or not self.path_objs:
             return
+
+        # One-shot 3D trace after each bake to verify transform chain
+        if self._trace_pending and not self._no_tag_mode:
+            self._trace_pending = False
+            test_pts = [(687.2, 424.2, "center"), (702.9, 437.6, "corner(+1,+1)")]
+            for u, v, lbl in test_pts:
+                p0 = np.array([u, v, 0.0, 1.0], dtype=np.float64)
+                p1 = self.M_svg_to_tag.astype(np.float64) @ p0
+                p2 = self.current_tag_pose.astype(np.float64) @ p1
+                p3 = self.T_proj_cam.astype(np.float64) @ p2
+                tag_phys = p1[:3] / p1[3]
+                cam_phys = p2[:3] / p2[3]
+                proj_phys = p3[:3] / p3[3]
+                fx_p = float(self.projector_intrinsics[0, 0])
+                cx_p = float(self.projector_intrinsics[0, 2])
+                proj_px = fx_p * proj_phys[0] / proj_phys[2] + cx_p
+                print(f"[TRACE {lbl}] tag_local={tag_phys*1000} mm")
+                print(f"[TRACE {lbl}] cam_space={cam_phys*1000} mm  (z={cam_phys[2]*1000:.1f}mm)")
+                print(f"[TRACE {lbl}] proj_space z={proj_phys[2]*1000:.1f}mm  proj_px_x={proj_px:.1f}")
 
         glLoadIdentity()
         glScale(1.0, -1.0, -1.0)  # Flip Y and Z for OpenGL coordinate system
