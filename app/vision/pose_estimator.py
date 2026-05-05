@@ -62,6 +62,6 @@ class PoseEstimator:
             if t_rgb[2] != 0:
                 scale = z_filtered / t_rgb[2]
                 t_final = t_rgb * scale
-                # print(f"[Depth Fusion] t_rgb Z: {t_rgb[2]:.4f}m, Sensor Z: {z_filtered:.4f}m, Scale applied: {scale:.4f}")
+                print(f"[Depth Fusion] t_rgb Z: {t_rgb[2]:.4f}m, Sensor Z: {z_filtered:.4f}m, Scale applied: {scale:.4f}")
 
             return R_ct, t_final
