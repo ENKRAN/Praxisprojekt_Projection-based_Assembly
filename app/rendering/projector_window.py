@@ -213,6 +213,23 @@ class PathRenderingWidget(QOpenGLWidget):
         self.is_baked = True
         self._trace_pixels = [(tag_cx, tag_cy, "center"), (corner_px[0], corner_px[1], "corner(+1,+1)")]
         self._trace_pending = True
+
+        # DIAGNOSTIC: project crosses at exact tag center + corner pixels to verify rendering pipeline
+        # Red cross = tag center, Blue cross = tag corner (+1,+1)
+        # If both land on physical tag corners -> pipeline correct; user drawing was too large
+        r = 12
+        cx_x, cx_y = tag_cx, tag_cy
+        co_x, co_y = corner_px[0], corner_px[1]
+        diag_svg = (
+            f'<svg viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg">'
+            f'<path d="M {cx_x-r:.1f} {cx_y:.1f} L {cx_x+r:.1f} {cx_y:.1f} M {cx_x:.1f} {cx_y-r:.1f} L {cx_x:.1f} {cx_y+r:.1f}" '
+            f'stroke="#ff0000" stroke-width="4" fill="none"/>'
+            f'<path d="M {co_x-r:.1f} {co_y:.1f} L {co_x+r:.1f} {co_y:.1f} M {co_x:.1f} {co_y-r:.1f} L {co_x:.1f} {co_y+r:.1f}" '
+            f'stroke="#0000ff" stroke-width="4" fill="none"/>'
+            f'</svg>'
+        )
+        print(f"[DIAG BAKE] Loading diagnostic SVG: red cross at center ({cx_x:.1f},{cx_y:.1f}), blue cross at corner ({co_x:.1f},{co_y:.1f})")
+        self.loadSvgFromString(diag_svg)
         self.update()
 
     @pyqtSlot(np.ndarray, np.ndarray, int)
