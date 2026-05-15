@@ -48,12 +48,13 @@ def convertSVGElementsToBytePaths(file_path):
             # 3. Get the 'd' string representation in absolute coordinates
             path_d_string = path_obj.d(relative=False)
 
-            if not first_printed:
-                first_printed = True
-                first_point = path_obj.first_point
-                if first_point is not None:
-                    print(f"[DIAG SVG FILE] First path first_point: ({first_point.x:.2f}, {first_point.y:.2f}) — expected in 0-1280 x 0-720 range")
-                print(f"[DIAG SVG FILE] First path d-string (first 80 chars): {path_d_string[:80]}")
+            first_point = path_obj.first_point
+            if first_point is not None:
+                is_background = (abs(first_point.x) < 5 and abs(first_point.y) < 5)
+                if not first_printed and not is_background:
+                    first_printed = True
+                    print(f"[DIAG SVG FILE] First DRAWN path first_point: ({first_point.x:.2f}, {first_point.y:.2f}) — expected in 0-1280 x 0-720 range")
+                    print(f"[DIAG SVG FILE] First DRAWN path d-string (first 120 chars): {path_d_string[:120]}")
 
             fill_color = element.fill
             stroke_color = element.stroke
