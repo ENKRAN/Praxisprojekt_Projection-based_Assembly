@@ -236,7 +236,10 @@ class DrawingPage(QWidget):
         # Debug: Print DPI for troubleshooting scaling issues
         screen = QApplication.primaryScreen()
         dpi = screen.physicalDotsPerInch()
-        print(f"DPI: {dpi}")
+        logical_dpi = screen.logicalDotsPerInch()
+        dpr = screen.devicePixelRatio()
+        print(f"[DIAG SAVE] Physical DPI={dpi:.1f}, Logical DPI={logical_dpi:.1f}, devicePixelRatio={dpr:.2f}")
+        print(f"[DIAG SAVE] scene.sceneRect()={self.scene.sceneRect()}, bg_pixmap size=({self.bg_pixmap.width()},{self.bg_pixmap.height()})")
 
         # ---------------------------------------------------
 
