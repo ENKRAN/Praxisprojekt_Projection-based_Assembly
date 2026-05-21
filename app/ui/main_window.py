@@ -620,8 +620,19 @@ class MainWindow(QMainWindow):
 
             self.dynamic_node_label.setText(self.flowchart_manager.current_node.node_name) 
                 
-            # 1. Load image into Drawing Page
-            self.drawing_page.loadSnapshot(self.current_snapshot)
+            # 1. Load image into Drawing Page, with tag boundary overlay so user knows where to draw
+            import cv2
+            snapshot_display = self.current_snapshot.copy()
+            if self.current_homography is not None:
+                H = self.current_homography
+                corners_ideal = np.array([[1,1,1],[1,-1,1],[-1,-1,1],[-1,1,1]], dtype=np.float64).T
+                corners_h = H @ corners_ideal
+                corners_px = (corners_h[:2] / corners_h[2]).T.astype(np.int32)
+                cv2.polylines(snapshot_display, [corners_px], True, (0, 255, 0), 3)
+                center_h = H @ np.array([0.0, 0.0, 1.0])
+                cx, cy = int(center_h[0]/center_h[2]), int(center_h[1]/center_h[2])
+                cv2.drawMarker(snapshot_display, (cx, cy), (0, 255, 0), cv2.MARKER_CROSS, 20, 3)
+            self.drawing_page.loadSnapshot(snapshot_display)
             
             # 2. Switch View (Toolbars will appear automatically via updateToolbarVisibility)
             QTimer.singleShot(1000, lambda: self.stack.setCurrentWidget(self.drawing_page))  # Slight delay to ensure snapshot is loaded first
