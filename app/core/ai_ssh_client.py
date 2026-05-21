@@ -1,41 +1,34 @@
-import json
 import pathlib
+import threading
+import time
 
 import cv2
 import numpy as np
 import paramiko
+import requests
 from PyQt6.QtCore import QThread, pyqtSignal
 
 from app.core.user_settings import UserSettings
+
+FLASK_PORT = 5000
 
 
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
 
-def _make_ssh() -> paramiko.SSHClient:
-    ssh = paramiko.SSHClient()
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    return ssh
+def _server_url(path: str) -> str:
+    return f"http://{UserSettings.get_ssh_host()}:{FLASK_PORT}{path}"
 
 
-def _connect(ssh: paramiko.SSHClient):
-    host = UserSettings.get_ssh_host()
-    user = UserSettings.get_ssh_user()
-    key_path = str(pathlib.Path(UserSettings.get_ssh_key_path()).expanduser())
-    pkey = paramiko.RSAKey.from_private_key_file(key_path)
-    ssh.connect(hostname=host, username=user, pkey=pkey, timeout=15)
-
-
-def _check_config() -> str | None:
-    """Returns an error string if SSH config is incomplete, else None."""
-    if not UserSettings.get_ssh_host() or not UserSettings.get_ssh_user():
-        return "SSH host or user not configured in data/user_config.json."
-    return None
+def _encode_frame(frame: np.ndarray) -> bytes:
+    ok, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 92])
+    if not ok:
+        raise RuntimeError("Failed to encode camera frame as JPEG.")
+    return buf.tobytes()
 
 
 def _validate_step(data: dict) -> str | None:
-    """Returns an error string if step JSON is invalid, else None."""
     for key in ("description", "svg", "is_last"):
         if key not in data:
             return f"Response JSON missing required key: '{key}'."
@@ -44,41 +37,118 @@ def _validate_step(data: dict) -> str | None:
     return None
 
 
-def _get_remote_command(args: str) -> str:
-    """Constructs the full remote command, including venv activation if configured."""
+def _make_server_cmd() -> str:
     python = UserSettings.get_remote_python_path()
-    script = UserSettings.get_remote_script_path()
+    work_dir = UserSettings.get_remote_work_dir()
     venv = UserSettings.get_remote_venv_path()
+    server_script = str(pathlib.PurePosixPath(work_dir) / "flask_server.py")
 
-    # Change to script directory so relative imports/paths work on the remote side
-    script_dir = str(pathlib.PurePosixPath(script).parent)
-    cmd = f'cd "{script_dir}" && "{python}" "{script}" {args}'
-    
+    cmd = f'cd "{work_dir}" && "{python}" "{server_script}"'
     if venv:
-        # Prepend PATH with venv/bin to ensure ollama and other venv-installed binaries are found.
-        # Also set VIRTUAL_ENV for scripts that might check it.
-        return f'export PATH="{venv}/bin:$PATH" && export VIRTUAL_ENV="{venv}" && {cmd}'
-    
+        cmd = (
+            f'export PATH="{venv}/bin:$PATH" && '
+            f'export VIRTUAL_ENV="{venv}" && {cmd}'
+        )
     return cmd
 
 
 # ---------------------------------------------------------------------------
-# Worker 1: Initial generation (uploads image + prompt, returns step 0)
+# Server manager — keeps SSH channel open so server stops on disconnect
+# ---------------------------------------------------------------------------
+
+class ServerManager:
+    """
+    Starts flask_server.py on the AI PC via SSH and keeps the channel open.
+    The remote server shuts itself down when the SSH connection closes.
+    """
+
+    def __init__(self):
+        self._ssh: paramiko.SSHClient | None = None
+        self._stdin: paramiko.ChannelStdinFile | None = None
+        self._alive = False
+
+    @property
+    def is_running(self) -> bool:
+        return self._alive
+
+    def start(self, status_callback=None):
+        self._ssh = paramiko.SSHClient()
+        self._ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+        host = UserSettings.get_ssh_host()
+        user = UserSettings.get_ssh_user()
+        key_path = str(pathlib.Path(UserSettings.get_ssh_key_path()).expanduser())
+        pkey = paramiko.RSAKey.from_private_key_file(key_path)
+
+        if status_callback:
+            status_callback("Connecting to AI PC...")
+        self._ssh.connect(hostname=host, username=user, pkey=pkey, timeout=15)
+        
+        # Keepalive to prevent connection from dropping during long inference
+        transport = self._ssh.get_transport()
+        if transport:
+            transport.set_keepalive(10)
+
+        if status_callback:
+            status_callback("Starting AI server (loading models)...")
+
+        self._stdin, stdout, stderr = self._ssh.exec_command(_make_server_cmd())
+
+        # Drain stdout/stderr in background so SSH buffers don't fill up
+        def _drain(stream, prefix):
+            try:
+                for line in stream:
+                    print(f"[SERVER{prefix}] {line.rstrip()}", flush=True)
+            except Exception:
+                pass
+
+        threading.Thread(target=_drain, args=(stdout, ""), daemon=True).start()
+        threading.Thread(target=_drain, args=(stderr, " ERR"), daemon=True).start()
+
+        # Poll /health until server is ready (models can take ~30s to load)
+        deadline = time.time() + 90
+        while time.time() < deadline:
+            try:
+                r = requests.get(_server_url("/health"), timeout=2)
+                if r.status_code == 200:
+                    self._alive = True
+                    if status_callback:
+                        status_callback("AI server ready.")
+                    return
+            except requests.exceptions.ConnectionError:
+                pass
+            time.sleep(1)
+
+        self.stop()
+        raise TimeoutError("AI server did not become ready within 90 seconds.")
+
+    def stop(self):
+        self._alive = False
+        if self._ssh:
+            self._ssh.close()
+            self._ssh = None
+
+
+# One server instance per app session
+_server = ServerManager()
+_server_lock = threading.Lock()
+
+
+def get_server() -> ServerManager:
+    return _server
+
+
+# ---------------------------------------------------------------------------
+# Worker 1: Initial generation (uploads frame + prompt, returns step 1)
 # ---------------------------------------------------------------------------
 
 class AIGenerationWorker(QThread):
     """
-    First SSH call. Uploads the current camera frame + user prompt so the AI PC
-    can generate the full manual. Only step 0 (first step) is returned.
-
-    Remote script CLI:
-      python3 <script> --image <path> --prompt "<text>" --out <json_path>
-
-    Output JSON (same format for all step calls):
-      { "description": "...", "svg": "<svg>...</svg>", "is_last": false }
+    Starts the AI server if needed, then POSTs the camera frame + prompt
+    to /generate. Returns step 1 as {"description", "svg", "is_last"}.
     """
 
-    step_ready = pyqtSignal(dict)      # {"description": str, "svg": str, "is_last": bool}
+    step_ready = pyqtSignal(dict)
     status_update = pyqtSignal(str)
     error_occurred = pyqtSignal(str)
 
@@ -88,55 +158,49 @@ class AIGenerationWorker(QThread):
         self._prompt = prompt
 
     def run(self):
-        ssh = _make_ssh()
-        sftp = None
         try:
-            err = _check_config()
-            if err:
-                self.error_occurred.emit(err)
-                return
+            server = get_server()
+            with _server_lock:
+                if not server.is_running:
+                    server.start(status_callback=self.status_update.emit)
 
-            self.status_update.emit("Connecting to AI PC...")
-            _connect(ssh)
+            self.status_update.emit("Sending frame to AI server...")
+            img_bytes = _encode_frame(self._frame)
 
-            work_dir = UserSettings.get_remote_work_dir()
-            ssh.exec_command(f"mkdir -p {work_dir}")[1].channel.recv_exit_status()
-
-            self.status_update.emit("Uploading frame to AI PC...")
-            sftp = ssh.open_sftp()
-            remote_img = f"{work_dir}/input_frame.jpg"
-            remote_out = f"{work_dir}/output.json"
-
-            ok, buf = cv2.imencode(".jpg", self._frame, [cv2.IMWRITE_JPEG_QUALITY, 92])
-            if not ok:
-                self.error_occurred.emit("Failed to encode camera frame as JPEG.")
-                return
-            # Save a local debug copy to verify what is being sent
-            import pathlib
+            # Save local debug copy
             debug_jpg = pathlib.Path("data/debug_sent_frame.jpg")
             debug_jpg.parent.mkdir(parents=True, exist_ok=True)
-            debug_jpg.write_bytes(buf.tobytes())
-            print(f"[AI] Sent frame saved to {debug_jpg} ({len(buf)} bytes).")
-            with sftp.open(remote_img, "wb") as f:
-                f.write(buf.tobytes())
+            debug_jpg.write_bytes(img_bytes)
+            print(f"[AI] Sent frame saved to {debug_jpg} ({len(img_bytes)} bytes).")
 
-            self.status_update.emit("Generating manual on AI PC — please wait...")
-            safe_prompt = self._prompt.replace('"', '\\"')
-            args = (
-                f'--image "{remote_img}" '
-                f'--prompt "{safe_prompt}" '
-                f'--out "{remote_out}"'
+            self.status_update.emit("Generating manual on AI server — please wait...")
+            response = requests.post(
+                _server_url("/generate"),
+                data={"prompt": self._prompt},
+                files={"image": ("frame.jpg", img_bytes, "image/jpeg")},
+                timeout=180,
             )
-            cmd = _get_remote_command(args)
-            _, stdout, stderr = ssh.exec_command(cmd, timeout=180)
-            if stdout.channel.recv_exit_status() != 0:
-                err_text = stderr.read().decode("utf-8", errors="replace").strip()
-                self.error_occurred.emit(f"Remote script failed:\n{err_text}")
+
+            if response.status_code != 200:
+                self.error_occurred.emit(
+                    f"Server error {response.status_code}: {response.text[:200]}"
+                )
                 return
 
-            self.status_update.emit("Downloading step 1...")
-            with sftp.open(remote_out, "r") as f:
-                data = json.loads(f.read().decode("utf-8"))
+            data = response.json()
+            
+            # Download audio
+            try:
+                sftp = server._ssh.open_sftp()
+                remote_wav = "/tmp/ar_ai_work/output.wav"
+                local_wav = "data/debug_step_audio.wav"
+                sftp.get(remote_wav, local_wav)
+                data["audio_path"] = local_wav
+                sftp.close()
+                print(f"[AI] Downloaded audio to {local_wav}")
+            except Exception as e:
+                print(f"[AI] No audio found or download failed: {e}")
+                data["audio_path"] = None
 
             err = _validate_step(data)
             if err:
@@ -146,22 +210,8 @@ class AIGenerationWorker(QThread):
             self.status_update.emit("Step 1 ready.")
             self.step_ready.emit(data)
 
-        except paramiko.AuthenticationException:
-            self.error_occurred.emit(
-                "SSH authentication failed. Check ssh_key_path in data/user_config.json."
-            )
-        except paramiko.SSHException as exc:
-            self.error_occurred.emit(f"SSH error: {exc}")
-        except FileNotFoundError as exc:
-            self.error_occurred.emit(f"SSH key file not found: {exc}")
-        except (json.JSONDecodeError, ValueError) as exc:
-            self.error_occurred.emit(str(exc))
         except Exception as exc:
             self.error_occurred.emit(f"{type(exc).__name__}: {exc}")
-        finally:
-            if sftp:
-                sftp.close()
-            ssh.close()
 
 
 # ---------------------------------------------------------------------------
@@ -170,15 +220,8 @@ class AIGenerationWorker(QThread):
 
 class AIStepNavigationWorker(QThread):
     """
-    Navigation SSH call. Uploads a fresh camera frame (the scene may have changed)
-    and tells the AI PC to advance or retreat one step within the already-generated
-    session. The AI PC updates its session state and returns the new step.
-
-    Remote script CLI:
-      python3 <script> --action next --image <path> --out <json_path>
-      python3 <script> --action prev --image <path> --out <json_path>
-
-    Returns the same JSON format as AIGenerationWorker.
+    POSTs a fresh camera frame + action to /navigate.
+    Returns the new step as {"description", "svg", "is_last"}.
     """
 
     step_ready = pyqtSignal(dict)
@@ -192,45 +235,45 @@ class AIStepNavigationWorker(QThread):
         self._frame = frame
 
     def run(self):
-        ssh = _make_ssh()
-        sftp = None
         try:
-            err = _check_config()
-            if err:
-                self.error_occurred.emit(err)
+            server = get_server()
+            if not server.is_running:
+                self.error_occurred.emit(
+                    "AI server is not running. Start a new session first."
+                )
                 return
 
             label = "next" if self._action == "next" else "previous"
-            self.status_update.emit(f"Uploading updated frame for {label} step...")
-            _connect(ssh)
+            self.status_update.emit(f"Requesting {label} step from AI server...")
 
-            work_dir = UserSettings.get_remote_work_dir()
-            sftp = ssh.open_sftp()
-            remote_img = f"{work_dir}/input_frame.jpg"
-            remote_out = f"{work_dir}/output.json"
-
-            ok, buf = cv2.imencode(".jpg", self._frame, [cv2.IMWRITE_JPEG_QUALITY, 92])
-            if not ok:
-                self.error_occurred.emit("Failed to encode camera frame as JPEG.")
-                return
-            with sftp.open(remote_img, "wb") as f:
-                f.write(buf.tobytes())
-
-            self.status_update.emit(f"Requesting {label} step from AI PC...")
-            args = (
-                f'--action {self._action} '
-                f'--image "{remote_img}" '
-                f'--out "{remote_out}"'
+            img_bytes = _encode_frame(self._frame)
+            response = requests.post(
+                _server_url("/navigate"),
+                data={"action": self._action},
+                files={"image": ("frame.jpg", img_bytes, "image/jpeg")},
+                timeout=60,
             )
-            cmd = _get_remote_command(args)
-            _, stdout, stderr = ssh.exec_command(cmd, timeout=60)
-            if stdout.channel.recv_exit_status() != 0:
-                err_text = stderr.read().decode("utf-8", errors="replace").strip()
-                self.error_occurred.emit(f"Navigation failed:\n{err_text}")
+
+            if response.status_code != 200:
+                self.error_occurred.emit(
+                    f"Server error {response.status_code}: {response.text[:200]}"
+                )
                 return
 
-            with sftp.open(remote_out, "r") as f:
-                data = json.loads(f.read().decode("utf-8"))
+            data = response.json()
+            
+            # Download audio
+            try:
+                sftp = server._ssh.open_sftp()
+                remote_wav = "/tmp/ar_ai_work/output.wav"
+                local_wav = "data/debug_step_audio.wav"
+                sftp.get(remote_wav, local_wav)
+                data["audio_path"] = local_wav
+                sftp.close()
+                print(f"[AI] Downloaded audio to {local_wav}")
+            except Exception as e:
+                print(f"[AI] No audio found or download failed: {e}")
+                data["audio_path"] = None
 
             err = _validate_step(data)
             if err:
@@ -239,17 +282,5 @@ class AIStepNavigationWorker(QThread):
 
             self.step_ready.emit(data)
 
-        except paramiko.AuthenticationException:
-            self.error_occurred.emit("SSH authentication failed.")
-        except paramiko.SSHException as exc:
-            self.error_occurred.emit(f"SSH error: {exc}")
-        except FileNotFoundError as exc:
-            self.error_occurred.emit(f"SSH key file not found: {exc}")
-        except (json.JSONDecodeError, ValueError) as exc:
-            self.error_occurred.emit(str(exc))
         except Exception as exc:
             self.error_occurred.emit(f"{type(exc).__name__}: {exc}")
-        finally:
-            if sftp:
-                sftp.close()
-            ssh.close()

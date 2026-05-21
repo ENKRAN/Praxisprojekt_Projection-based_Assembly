@@ -10,7 +10,8 @@ from PyQt6.QtWidgets import (
     QVBoxLayout, QLabel, QSizePolicy, QSpinBox
 )
 from PyQt6.QtGui import QIcon, QColor, QFont, QAction
-from PyQt6.QtCore import Qt, QSize, QTimer
+from PyQt6.QtCore import Qt, QSize, QTimer, QUrl
+from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 # Core / Configuration
 from app.core.config import Config
 from app.core.flowchart_manager import FlowchartManager
@@ -84,6 +85,12 @@ class MainWindow(QMainWindow):
         self._ai_pending_action = "generate"  # "generate" | "next" | "prev"
         self._ai_is_last = False        # tracks is_last from the most recent step
         
+        # Audio Playback
+        self.audio_output = QAudioOutput()
+        self.audio_player = QMediaPlayer()
+        self.audio_player.setAudioOutput(self.audio_output)
+        self.audio_output.setVolume(1.0)
+
         # Screen Setup via Dialog
         if not self.setupScreens():
             sys.exit(0)
@@ -1020,6 +1027,7 @@ class MainWindow(QMainWindow):
             )
             return
 
+        self.projector_window.clearProjection()
         frame = self.vision_worker.get_latest_frame()
         if frame is None:
             self.ai_generation_page.updateStatus(
@@ -1037,6 +1045,7 @@ class MainWindow(QMainWindow):
     def onAINextStep(self):
         if self._aiWorkerRunning():
             return
+        self.projector_window.clearProjection()
         frame = self.vision_worker.get_latest_frame()
         if frame is None:
             self.ai_generation_page.updateStatus("No camera frame available.", "error")
@@ -1050,6 +1059,7 @@ class MainWindow(QMainWindow):
     def onAIPrevStep(self):
         if self._aiWorkerRunning():
             return
+        self.projector_window.clearProjection()
         frame = self.vision_worker.get_latest_frame()
         if frame is None:
             self.ai_generation_page.updateStatus("No camera frame available.", "error")
@@ -1088,6 +1098,16 @@ class MainWindow(QMainWindow):
             print(f"[AI] Could not save SVG debug file: {exc}")
 
         print(f"[AI] Step {self._ai_step_num} received ({len(svg_string)} chars), is_last={is_last}.")
+        
+        # Audio Playback
+        audio_path = step_data.get("audio_path")
+        if audio_path:
+            import pathlib
+            p = pathlib.Path(audio_path).absolute()
+            self.audio_player.setSource(QUrl.fromLocalFile(str(p)))
+            self.audio_player.play()
+            print(f"[AI] Playing audio: {p}")
+
         self.projector_window.loadInstructionWithoutTag(svg_string)
         self.ai_generation_page.showPlaybackMode(description, self._ai_step_num, is_last)
         self.ai_generation_page.updateStatus(
