@@ -10,7 +10,7 @@ from PyQt6.QtCore import QThread, pyqtSignal
 
 from app.core.user_settings import UserSettings
 
-FLASK_PORT = 5000
+FLASK_PORT = 5005
 
 
 # ---------------------------------------------------------------------------
@@ -43,13 +43,17 @@ def _make_server_cmd() -> str:
     venv = UserSettings.get_remote_venv_path()
     server_script = str(pathlib.PurePosixPath(work_dir) / "flask_server.py")
 
+    # Kill any existing process on the port forcefully and silently, then wait 5s for cleanup
+    kill_cmd = f"fuser -k -9 {FLASK_PORT}/tcp >/dev/null 2>&1 || true"
+    wait_cmd = "sleep 5"
+
     cmd = f'cd "{work_dir}" && "{python}" "{server_script}"'
     if venv:
         cmd = (
             f'export PATH="{venv}/bin:$PATH" && '
             f'export VIRTUAL_ENV="{venv}" && {cmd}'
         )
-    return cmd
+    return f"{kill_cmd} && {wait_cmd} && {cmd}"
 
 
 # ---------------------------------------------------------------------------
@@ -66,6 +70,7 @@ class ServerManager:
         self._ssh: paramiko.SSHClient | None = None
         self._stdin: paramiko.ChannelStdinFile | None = None
         self._alive = False
+        self._ready_event = threading.Event()
 
     @property
     def is_running(self) -> bool:
@@ -92,35 +97,32 @@ class ServerManager:
         if status_callback:
             status_callback("Starting AI server (loading models)...")
 
+        self._ready_event.clear()
         self._stdin, stdout, stderr = self._ssh.exec_command(_make_server_cmd())
 
         # Drain stdout/stderr in background so SSH buffers don't fill up
         def _drain(stream, prefix):
             try:
                 for line in stream:
-                    print(f"[SERVER{prefix}] {line.rstrip()}", flush=True)
+                    line_str = line.rstrip()
+                    print(f"[SERVER{prefix}] {line_str}", flush=True)
+                    if "Ready. Listening on port" in line_str:
+                        self._ready_event.set()
             except Exception:
                 pass
 
         threading.Thread(target=_drain, args=(stdout, ""), daemon=True).start()
         threading.Thread(target=_drain, args=(stderr, " ERR"), daemon=True).start()
 
-        # Poll /health until server is ready (models can take ~30s to load)
-        deadline = time.time() + 90
-        while time.time() < deadline:
-            try:
-                r = requests.get(_server_url("/health"), timeout=2)
-                if r.status_code == 200:
-                    self._alive = True
-                    if status_callback:
-                        status_callback("AI server ready.")
-                    return
-            except requests.exceptions.ConnectionError:
-                pass
-            time.sleep(1)
+        # Wait for the "Ready" log message (models can take ~30-60s to load)
+        if self._ready_event.wait(timeout=120):
+            self._alive = True
+            if status_callback:
+                status_callback("AI server ready.")
+            return
 
         self.stop()
-        raise TimeoutError("AI server did not become ready within 90 seconds.")
+        raise TimeoutError("AI server did not become ready (log message 'Ready' not found) within 120 seconds.")
 
     def stop(self):
         self._alive = False
