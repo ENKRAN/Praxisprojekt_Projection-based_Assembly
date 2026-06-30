@@ -47,7 +47,7 @@ class UserSettings:
 
     @classmethod
     def get_remote_work_dir(cls) -> str:
-        return str(cls.load().get("remote_work_dir", "/tmp/ar_ai_work"))
+        return str(cls.load().get("remote_work_dir", "/home/fh/Raphael/"))
 
     @classmethod
     def get_remote_python_path(cls) -> str:
