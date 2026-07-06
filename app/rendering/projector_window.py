@@ -273,12 +273,15 @@ class PathRenderingWidget(QOpenGLWidget):
         self.update()
 
     def paintGL(self):
-        # ... (rest of paintGL) ...
         glClearStencil(0)
         glClearColor(0.0, 0.0, 0.0, 1.0)
         glStencilMask(~0)
         glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT)
 
+        self._drawContent()
+        self._drawBorder()
+
+    def _drawContent(self):
         if not self._nv_supported or not self.is_baked or not self.path_objs:
             return
 
@@ -328,6 +331,32 @@ class PathRenderingWidget(QOpenGLWidget):
                 glStencilOp(GL_KEEP, GL_KEEP, GL_ZERO)
                 glCoverStrokePathNV(path_obj, GL_CONVEX_HULL_NV)
                 glDisable(GL_STENCIL_TEST)
+
+    def _drawBorder(self):
+        """Static red border at the projector viewport edges. Screen space, always visible."""
+        glMatrixMode(GL_PROJECTION)
+        glPushMatrix()
+        glLoadIdentity()
+        glMatrixMode(GL_MODELVIEW)
+        glPushMatrix()
+        glLoadIdentity()
+
+        glDisable(GL_STENCIL_TEST)
+        glLineWidth(2.0)
+        glColor3f(1.0, 0.0, 0.0)
+
+        inset = 0.995  # small inset so full line width stays inside the viewport
+        glBegin(GL_LINE_LOOP)
+        glVertex2f(-inset, -inset)
+        glVertex2f( inset, -inset)
+        glVertex2f( inset,  inset)
+        glVertex2f(-inset,  inset)
+        glEnd()
+
+        glMatrixMode(GL_PROJECTION)
+        glPopMatrix()
+        glMatrixMode(GL_MODELVIEW)
+        glPopMatrix()
 
 
 class ProjectorWindow(QMainWindow):
