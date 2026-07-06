@@ -808,7 +808,7 @@ class MainWindow(QMainWindow):
 
         if is_debug:
             print("Starting in DEBUG MODE (Windowed)")
-            test_image = "image.png"
+            test_image = "data\\debug_sent_frame.jpg"
             self.vision_worker.setDebugMode(True, test_image)
 
             self.move(gui_screen.geometry().x() + 50, gui_screen.geometry().y() + 50)
