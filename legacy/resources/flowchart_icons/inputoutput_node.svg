@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="182.953125" height="35.328125"
+     viewBox="3 375.3867 188.953125 41.328125"
+     preserveAspectRatio="xMidYMid meet">
+  <path d="M10,17.6640625
+           L0,35.328125
+           L162.953125,35.328125
+           L182.953125,0
+           L20,0
+           L10,17.6640625Z"
+        fill="#ffffff" stroke="#000000" stroke-width="3"
+        transform="translate(6,378.3867)"
+        id="io3"/>
+  <text x="91.4765625" y="17.6640625"
+        text-anchor="middle" dominant-baseline="middle"
+        font-family="Arial" font-size="14px"
+        transform="translate(6,378.3867)"
+        id="io3t">
+    Input/Output
+  </text>
+</svg>

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="338.67mm" height="190.5mm" baseProfile="tiny" version="1.2" viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg">
+ <title>Vektor-Editor Export</title>
+ <desc>SVG export from PyQt6 QGraphicsScene</desc>
+ <g fill-rule="evenodd" font-family="Segoe UI" font-size="12" font-weight="400" stroke-linecap="square" stroke-linejoin="bevel">
+  <g>
+   <rect width="1280" height="720"/>
+  </g>
+  <g fill="none" stroke="#e31a1c" stroke-linecap="round" stroke-linejoin="round" stroke-width="3">
+   <rect x="562" y="325" width="148" height="116"/>
+  </g>
+  <g fill="none" stroke="#ff7f00" stroke-linecap="round" stroke-linejoin="round" stroke-width="8">
+   <path d="m769 343-16 115 14.984-28.275m-14.984 28.275-6.696-31.291" fill-rule="evenodd"/>
+  </g>
+ </g>
+</svg>

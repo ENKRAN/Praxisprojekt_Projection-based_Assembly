@@ -1,0 +1,62 @@
+{
+    "id": "Test2_20260227_123512",
+    "title": "Test2",
+    "created_at": "2026-02-27T12:35:12.124392",
+    "tag_id": -1,
+    "status": "published",
+    "steps": [
+        {
+            "step_id": 1,
+            "node_uid": "node_1",
+            "node_type": "operation",
+            "description": "op",
+            "snapshot_file": "steps/step_001/snapshot.png",
+            "drawing_file": "steps/step_001/drawing.svg",
+            "homography_matrix": [
+                [
+                    -14.743395703503325,
+                    7.319300708804916,
+                    701.0251124640013
+                ],
+                [
+                    -13.896198029037066,
+                    -12.482433542871036,
+                    407.14546026789594
+                ],
+                [
+                    -0.0034276930509534336,
+                    -0.005428089432309936,
+                    1.0
+                ]
+            ],
+            "tag_id": 0
+        },
+        {
+            "step_id": 2,
+            "node_uid": "node_2",
+            "node_type": "end",
+            "description": "op",
+            "snapshot_file": "steps/step_002/snapshot.png",
+            "drawing_file": "steps/step_002/drawing.svg",
+            "homography_matrix": [
+                [
+                    -16.042727059196523,
+                    2.272887853933298,
+                    687.1847618616902
+                ],
+                [
+                    -3.1095021316018006,
+                    -14.62525131566548,
+                    427.826879982561
+                ],
+                [
+                    -0.0024717480255159194,
+                    0.00013250638767009834,
+                    1.0
+                ]
+            ],
+            "tag_id": 0
+        }
+    ],
+    "flowchart_dsl": "node_0=>start: start \nnode_1=>operation: op\nnode_2=>end: end \n\nnode_0->node_1\nnode_1->node_2\n"
+}

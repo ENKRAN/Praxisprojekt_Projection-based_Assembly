@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="338.67mm" height="190.5mm" baseProfile="tiny" version="1.2" viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg">
+ <title>Vektor-Editor Export</title>
+ <desc>SVG export from PyQt6 QGraphicsScene</desc>
+ <g fill-rule="evenodd" font-family="Segoe UI" font-size="12" font-weight="400" stroke-linecap="square" stroke-linejoin="bevel">
+  <g>
+   <rect width="1280" height="720"/>
+  </g>
+  <g fill="none" stroke="#e31a1c" stroke-linecap="round" stroke-linejoin="round" stroke-width="3">
+   <rect x="499" y="359" width="118" height="110"/>
+  </g>
+  <g fill="none" stroke="#1f78b4" stroke-linecap="round" stroke-linejoin="round" stroke-width="3">
+   <ellipse cx="701" cy="431.5" rx="64" ry="65.5"/>
+  </g>
+  <g fill="none" stroke="#b2df8a" stroke-linecap="round" stroke-linejoin="round" stroke-width="3">
+   <path d="m929 538-155-56 9.211 7.692m-9.211-7.692 12-0.028" fill-rule="evenodd"/>
+  </g>
+  <g transform="translate(568 309)" fill="none" stroke="#ff7f00" stroke-linecap="round" stroke-linejoin="round" stroke-width="17">
+   <path d="m0 0 12-2 4-2 7-3 15-6 14-4 6-2 4-1 9 2 5 2 2 1 4 4 4 5 5 8 1 2 1 1 8 7 4 2h4l14-3 4-1 5-2 9-3h4l1-1 8 1h2l5 2 3 2 1 1 4 2 8 3 6 1 8-1 10-2h7 4 3l6 3 7 4 3 4 3 2 11 7 7 4 7 5 8 8 1 3" fill-rule="evenodd"/>
+  </g>
+ </g>
+</svg>

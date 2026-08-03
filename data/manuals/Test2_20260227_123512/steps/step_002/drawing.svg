@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="338.67mm" height="190.5mm" baseProfile="tiny" version="1.2" viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg">
+ <title>Vektor-Editor Export</title>
+ <desc>SVG export from PyQt6 QGraphicsScene</desc>
+ <g fill="none" fill-rule="evenodd" stroke="#000" stroke-linecap="square" stroke-linejoin="bevel">
+  <g fill="#000" font-family="Segoe UI" font-size="12" font-weight="400" stroke="none">
+   <rect width="1280" height="720"/>
+  </g>
+ </g>
+</svg>

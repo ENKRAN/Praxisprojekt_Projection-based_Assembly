@@ -1,0 +1,54 @@
+{
+    "graph": {
+        "nodes": [
+            {
+                "id": "node_0",
+                "type": "start",
+                "text": "",
+                "step_folder": null
+            },
+            {
+                "id": "node_1",
+                "type": "operation",
+                "text": "o",
+                "step_folder": "step_001"
+            },
+            {
+                "id": "node_2",
+                "type": "operation",
+                "text": "k",
+                "step_folder": "step_002"
+            }
+        ],
+        "edges": [
+            {
+                "from": "node_0",
+                "to": "node_1",
+                "label": "next"
+            },
+            {
+                "from": "node_1",
+                "to": "node_2",
+                "label": "next"
+            }
+        ]
+    },
+    "actions": [
+        [
+            "add",
+            "operation",
+            "o",
+            "",
+            "node_1",
+            "step_001"
+        ],
+        [
+            "add",
+            "operation",
+            "k",
+            "",
+            "node_2",
+            "step_002"
+        ]
+    ]
+}
