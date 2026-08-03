@@ -49,6 +49,19 @@ cd Praxisprojekt_Projection-based_Assembly
 pip install -r requirements.txt
 ```
 
+> **Note on the `websocket` dependency:** the remote-assistance forwarder needs
+> [`websocket-client`](https://pypi.org/project/websocket-client/), **not** the unrelated legacy
+> `websocket` package. Both install a top-level `websocket` module and conflict. If you previously
+> had the wrong one installed, remove it first:
+>
+> ```bash
+> pip uninstall -y websocket
+> pip install websocket-client
+> ```
+>
+> Symptom of a stale install: `[Forwarder] connect failed: module 'websocket' has no attribute
+> 'create_connection'` in the remote-draw server console, and drawings silently fail to project.
+
 ### Intel RealSense SDK
 
 **Windows:**
@@ -104,8 +117,9 @@ All runtime settings live in `data/user_config.json`:
     "ssh_host":           "100.x.x.x",
     "ssh_user":           "ai_user",
     "ssh_key_path":       "~/.ssh/id_rsa",
-    "remote_script_path": "/home/ai_user/segment/run_segment.py",
-    "remote_work_dir":    "/tmp/ar_ai_work"
+    "remote_work_dir":    "/home/ai_user/segment/",
+    "remote_python_path": "/home/ai_user/segment/.venv/bin/python3",
+    "remote_venv_path":   ""
 }
 ```
 
@@ -118,10 +132,13 @@ All runtime settings live in `data/user_config.json`:
 | `ssh_host` | IP or hostname of the AI PC (e.g. Tailscale IP) |
 | `ssh_user` | SSH username on the AI PC |
 | `ssh_key_path` | Path to your private SSH key (`~` expands to your home directory) |
-| `remote_script_path` | Absolute path to `run_segment.py` on the AI PC |
-| `remote_work_dir` | Working directory on the AI PC for temporary files |
+| `remote_work_dir` | Directory on the AI PC containing `flask_server.py`; the server is launched from here |
+| `remote_python_path` | Python interpreter used to run the AI server on the AI PC |
+| `remote_venv_path` | Optional. If set, its `bin` is prepended to `PATH` and exported as `VIRTUAL_ENV` before launch |
 
-> The SSH fields are only needed for AI Object Segmentation mode. The app works fine without them for all other modes.
+> The SSH/`remote_*` fields are only needed for AI Object Segmentation mode. The app works fine without them for all other modes.
+>
+> A legacy `remote_script_path` key may still be present in older config files — it is no longer used by the application and can be removed.
 
 ### Identifying screen names
 
@@ -137,19 +154,26 @@ for m in get_monitors():
 
 ## 5. Starting the Application
 
-Two processes must run simultaneously. Start them **in this order** in two separate terminals:
+The camera server must run **first**; the main GUI and (optionally) the remote-assistance server read frames from it. Start them in separate terminals:
 
 ```bash
-# Terminal 1 — camera server (keep running in background)
+# Terminal 1 — camera server (keep running in background, start this first)
 python run_camera_server.py
 
 # Terminal 2 — main GUI
 python main.py
+
+# Terminal 3 (only for Remote Assistance) — browser drawing server on http://<this-pc-ip>:5000
+python -m remote_draw.remote_draw_server.run
 ```
+
+The third process is only needed for [Remote Assistance](#8-mode-remote-assistance); the other modes need only the first two.
 
 **Screen selector dialog:** On first launch (or if screens change) a dialog asks you to select the GUI screen and projector screen. Selections are saved in `user_config.json` automatically.
 
 **Debug mode:** Tick the **Debug Mode** checkbox in the screen selector to run without physical hardware. The system uses a static image from `app/resources/debug/debug_frame.png` and renders in windowed mode.
+
+**Projection-area border:** A thin red border is always projected at the edges of the projector output. It marks the exact bounds of the projectable area so you can position the workspace and tag inside it. It is drawn independently of any content and stays visible even when no instruction is loaded.
 
 ---
 
@@ -204,33 +228,44 @@ Manuals are built step by step. Each step links a drawn SVG annotation to a phys
 
 ## 8. Mode: Remote Assistance
 
-This mode allows a remote expert (on a tablet or PC) to draw SVG overlays that are projected in real time.
+This mode lets a remote expert draw on a live view of the workspace from any phone, tablet, or PC browser. Drawings are projected onto the physical surface in real time. No app needs to be installed on the expert's device — they just open a web page.
+
+### How it works
+The remote-draw server reads the live camera feed from shared memory and serves a web page containing the video plus a drawing canvas. Strokes drawn in the browser are sent over WebSocket to that server, which forwards them to the main application, which projects them onto the tag plane baked from your snapshot.
 
 ### On the assembly station
-1. **Home screen → Remote Assistance Mode**
+1. **Home screen → Remote Assistance Mode.**
 2. Point the camera at the AprilTag.
-3. Click **Snapshot (Bake Tag)** — this records the tag's position so incoming SVGs are projected correctly.
-4. Wait for the expert to connect.
+3. Click **Snapshot (Bake Tag)** — this records the tag's position so incoming drawings are projected at the correct scale and location.
+4. Start the remote-draw server in a terminal (if not already running):
+   ```bash
+   python -m remote_draw.remote_draw_server.run
+   ```
+   It prints the address it is serving on (default port **5000**).
 
-### On the remote expert's side
-- Connect to the WebSocket server at `ws://<station-IP>:9001`
-- Send raw SVG strings as text messages
-- Coordinates must be in the same pixel space as the baked snapshot (1280×720)
-- Each new message replaces the previous projection
+### On the remote expert's device
+1. Open a browser and go to `http://<station-IP>:5000` (the station and device must be on the same network — e.g. LAN or Tailscale).
+2. The live camera feed appears with a drawing toolbar: **Pen, Text, Rect, Circle, Undo, Clear**, plus color swatches and a line-width slider.
+3. Draw directly on the video. Each stroke is forwarded and projected onto the workspace within a fraction of a second.
 
 ### Notes
-- The tag **must be baked** before SVGs will project — the station ignores incoming SVGs until a snapshot is taken.
+- The tag **must be baked** first — the station ignores incoming drawings until a snapshot is taken.
+- The drawing canvas and the camera frame share the same 1280×720 coordinate space, so what the expert draws over an object lands on that object in the projection.
+- Drawn strokes fade out on the expert's screen after release, but the last-sent overlay remains projected until replaced or cleared.
 - Click **Quit** to exit remote mode and clear the projection.
 
 ---
 
 ## 9. Mode: AI Object Segmentation
 
-This mode uses a remote AI PC to generate step-by-step assembly guidance from a camera image and a text prompt. No AprilTag is required — the result is projected as a flat screen overlay.
+This mode uses a remote AI PC to generate step-by-step assembly guidance from a camera image and a text prompt. No AprilTag is required — each step's overlay is projected in 3D onto the estimated table plane, and a spoken narration is played for each step.
+
+### How it works
+When you start a generation, the app opens an SSH session to the AI PC and launches an inference server (`flask_server.py`) there, keeping the SSH channel open (the server shuts itself down when the connection closes). All step requests then go over HTTP to that server. The AI generates the full manual on the first request and is **stateful** — it returns one step at a time, and remembers where you are as you navigate.
 
 ### Prerequisites
 - SSH key-based access to the AI PC configured (see [Configuration](#4-configuration))
-- `run_segment.py` deployed on the AI PC (use `ai_pc_prompt.txt` to set it up with Claude Code)
+- `flask_server.py` present in the configured `remote_work_dir` on the AI PC, runnable with `remote_python_path`
 - Tailscale or equivalent VPN running so the AI PC is reachable
 
 ### Workflow
@@ -241,25 +276,32 @@ This mode uses a remote AI PC to generate step-by-step assembly guidance from a 
 4. Type a prompt describing the task, e.g.:  
    *"Guide me step by step through assembling this hydraulic pump"*
 5. Click **Generate Manual**.
-   - The current frame is uploaded to the AI PC via SFTP
-   - The AI generates the full manual and returns **Step 1**
-   - The step description appears on screen and the SVG overlay is projected
+   - The app connects over SSH and starts the AI server (loading the models can take ~30–60 s on the first run of a session).
+   - The current frame is POSTed to the server, which generates the manual and returns **Step 1**.
+   - The step description appears on screen, the SVG overlay is projected onto the table plane, and the narration is played aloud.
 6. Follow the instruction, then click **Next →**.
-   - A **fresh camera frame** is captured and sent so the AI sees the current state
-   - The AI returns the next step
+   - A **fresh camera frame** is captured and sent so the AI sees the current state.
+   - The AI returns the next step (with its own overlay and narration).
 7. Continue stepping through the manual with **Next →** / **← Previous**.
 8. When done, click **New Generation** to start over, or **Back to Start** to return home.
 
 ### Status messages
-The status bar at the top of the page shows live progress:
+The status bar at the top of the page shows live progress. Typical sequence:
 - *Connecting to AI PC...* — SSH handshake
-- *Uploading frame to AI PC...* — SFTP transfer
-- *Generating manual on AI PC — please wait...* — VLM inference (may take 20–60 s on first call)
-- *Step N ready.* — result received, projection active
+- *Starting AI server (loading models)...* — server launch and model load (first call of a session)
+- *AI server ready.*
+- *Sending frame to AI server...*
+- *Generating manual on AI server — please wait...* — inference (may take up to a minute)
+- *Step 1 ready.* — result received, projection and audio active
+- On navigation: *Requesting next / previous step from AI server...*
 - Any error is shown in red with a description
 
-### SVG coordinate system (for AI PC developers)
-The projector renders the received SVG with `glOrtho(0, 1280, 720, 0)` — origin top-left, x right, y down. Coordinates must match the 1280×720 uploaded JPEG. A circle at `cx=640 cy=360` appears dead-center on the projected surface.
+### For AI PC developers
+- **Endpoints:** the server listens on port **5005** and must accept `POST /generate` (multipart form: `prompt` text field + `image` JPEG file) and `POST /navigate` (form: `action` = `next`|`prev` + `image` JPEG file).
+- **Response:** JSON with keys `description` (str), `svg` (str, must start with `<`), and `is_last` (bool). The app validates these keys and rejects malformed responses.
+- **Readiness:** the server must print a log line containing `Ready. Listening on port` once it is ready to accept requests — the app waits for this (up to 120 s) before sending the first frame.
+- **Audio:** if a narration file is written to `/tmp/ar_ai_work/output.wav`, the app downloads it via SFTP and plays it for the step. It is optional — a missing file is handled gracefully.
+- **SVG coordinate system:** coordinates are in the pixel space of the uploaded 1280×720 JPEG (origin top-left, x right, y down). The app back-projects those pixels onto the depth-fitted table plane, so a mark drawn over an object in the frame lands on that object in the projection. Keep stroke widths and font sizes in that same pixel scale.
 
 ---
 
@@ -302,13 +344,25 @@ The projector renders the received SVG with `glOrtho(0, 1280, 720, 0)` — origi
 - Ensure the public key is in `~/.ssh/authorized_keys` on the AI PC.
 - Check Tailscale is connected on both machines.
 
-### AI generation: "Remote script failed"
-- SSH to the AI PC and run the script manually to see the full error:
+### AI generation: server never becomes ready / times out
+- The app waits up to 120 s for the log line `Ready. Listening on port` from `flask_server.py`. If model loading is slow, the first generation may still time out.
+- SSH to the AI PC and start the server manually from `remote_work_dir` to see its output:
   ```bash
-  python3 /home/ai_user/segment/run_segment.py \
-    --image /tmp/test.jpg --prompt "test" --out /tmp/out.json
+  cd /home/ai_user/segment/
+  /home/ai_user/segment/.venv/bin/python3 flask_server.py
   ```
-- Check all dependencies of `run_segment.py` are installed on the AI PC.
+- Confirm all of `flask_server.py`'s dependencies (and model weights) are installed/available on the AI PC.
+- Confirm nothing else is already bound to port 5005 (the app force-frees it on launch, but a stuck process can interfere).
+
+### AI generation: no audio / no narration
+- Narration is optional. The app looks for `/tmp/ar_ai_work/output.wav` on the AI PC and plays it if present. A missing file is ignored — steps still project normally.
+- Check the host PC's audio output device and volume.
+
+### Remote assistance: drawings don't appear on the projection
+- Make sure you clicked **Snapshot (Bake Tag)** first — nothing projects until the tag is baked.
+- Confirm the remote-draw server is running (`python -m remote_draw.remote_draw_server.run`) and that the browser shows the live video at `http://<station-IP>:5000`.
+- If the server console prints `[Forwarder] connect failed: module 'websocket' has no attribute 'create_connection'`, you have the wrong `websocket` package installed — see the note in [Software Installation](#2-software-installation).
+- Ensure the device and station are on the same network (LAN/Tailscale) and no firewall is blocking port 5000.
 
 ### Screen selector shows wrong displays
 - Disconnect and reconnect displays, then restart the app.
