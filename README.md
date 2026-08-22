@@ -4,9 +4,20 @@ This research **demonstrator** was developed as part of a **bachelor's thesis** 
 
 By using **AprilTags**, the system dynamically tracks objects in real-time, aligning projected instructions precisely to the assembly surface. It additionally offers a **browser-based remote assistance mode** and an **AI-assisted guidance mode** that generates spoken, step-by-step instructions from a camera image and a natural-language prompt via a remote AI PC.
 
-<div style="text-align: center;">
-    <img src="legacy/docs/images/Montagestation.jpg" alt="Assembly Station" width="550"/>
-</div>
+<table align="center">
+  <tr>
+    <td align="center" width="50%">
+      <img src="docs/images/Projection_Station_AprilTag_Mode.jpeg" alt="Assembly station in AprilTag tracking mode" width="380"/>
+      <br/>
+      <em>The assembly station — Samsung Freestyle projector and Intel RealSense depth camera over an AprilTag-tracked workspace.</em>
+    </td>
+    <td align="center" width="50%">
+      <img src="docs/images/Mobile_Projection_Station_AI_Assisted_Mode.jpeg" alt="Mobile station running AI-assisted step-by-step mode" width="380"/>
+      <br/>
+      <em>Compact setup in AI-assisted mode — a generated step projected onto real objects, inside the red projection-area border.</em>
+    </td>
+  </tr>
+</table>
 
 > 🎥 **Video tutorial:** A full walkthrough of setting up and operating the system is available in
 > [`Projection-based_Assembly_Tutorial.mov`](Projection-based_Assembly_Tutorial.mov) (in the repository
