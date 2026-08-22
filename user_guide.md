@@ -2,6 +2,10 @@
 
 This guide covers everything needed to install, configure, and operate the system from scratch.
 
+> 🎥 **Video tutorial:** A complete video walkthrough of the setup and all operating modes is available in
+> [`Projection-based_Assembly_Tutorial.mov`](Projection-based_Assembly_Tutorial.mov) (in the repository root).
+> It is the quickest way to see the whole workflow end to end — use it as a companion to the written steps below.
+
 ## Table of Contents
 
 1. [Hardware Setup](#1-hardware-setup)

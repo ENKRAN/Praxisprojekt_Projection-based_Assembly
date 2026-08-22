@@ -8,6 +8,10 @@ By using **AprilTags**, the system dynamically tracks objects in real-time, alig
     <img src="legacy/docs/images/Montagestation.jpg" alt="Assembly Station" width="550"/>
 </div>
 
+> 🎥 **Video tutorial:** A full walkthrough of setting up and operating the system is available in
+> [`Projection-based_Assembly_Tutorial.mov`](Projection-based_Assembly_Tutorial.mov) (in the repository
+> root). Watch it alongside this README and the [user guide](user_guide.md) for a visual, step-by-step guide.
+
 ## Table of Contents
 
 - [Features](#features)
