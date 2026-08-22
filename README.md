@@ -82,6 +82,16 @@ cd Praxisprojekt_Projection-based_Assembly
 pip install -r requirements.txt
 ```
 
+> **Note on the video tutorial (Git LFS):** the setup video is stored via
+> [Git LFS](https://git-lfs.com/). If Git LFS is installed before you clone, the video is fetched
+> automatically. If you cloned without it, you'll get a small pointer file instead of the video —
+> install LFS and pull it once:
+>
+> ```bash
+> git lfs install
+> git lfs pull
+> ```
+
 > **Note on the `websocket` dependency:** the remote-assistance forwarder requires
 > [`websocket-client`](https://pypi.org/project/websocket-client/), **not** the unrelated
 > legacy `websocket` package. Both install a top-level `websocket` module and conflict, so if
